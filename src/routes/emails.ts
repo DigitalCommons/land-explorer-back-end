@@ -9,5 +9,5 @@ async function addToMailingList(request: Request, h: ResponseToolkit): Promise<R
 }
 
 export const emailRoutes: ServerRoute[] = [
-    { method: "GET", path: "/mailinglist", handler: addToMailingList },
+    { method: "GET", path: "/mailinglist", handler: addToMailingList, options: { auth: false } },
 ];
