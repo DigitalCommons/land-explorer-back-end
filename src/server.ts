@@ -3,6 +3,7 @@
 import Hapi from "@hapi/hapi";
 import { Request, Server } from "@hapi/hapi";
 import { databaseRoutes } from "./routes/database";
+import { emailRoutes } from "./routes/emails";
 import { mapRoutes } from "./routes/maps";
 import { markerRoutes } from "./routes/markers";
 
@@ -71,7 +72,8 @@ export const init = async function (): Promise<Server> {
 
     server.route(databaseRoutes);
     server.route(mapRoutes);
-    server.route(markerRoutes)
+    server.route(markerRoutes);
+    server.route(emailRoutes);
 
     return server;
 };
