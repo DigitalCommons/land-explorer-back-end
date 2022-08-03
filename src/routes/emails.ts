@@ -1,13 +1,27 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 
-async function addToMailingList(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-    const email = {
+type EmailRequest = Request & {
+    payload: {
+        email: string;
+        name: string;
+    }
+}
+
+async function addToMailingList(request: EmailRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const result = {
+        success: true,
         message: "adding you to mailing list"
     }
 
-    return h.response(email);
+    console.log("mailing list called");
+
+    const { email, name } = request.payload;
+
+    console.log(email, name);
+
+    return h.response(result);
 }
 
 export const emailRoutes: ServerRoute[] = [
-    { method: "GET", path: "/mailinglist", handler: addToMailingList, options: { auth: false } },
+    { method: "POST", path: "/mailinglist", handler: addToMailingList, options: { auth: false } },
 ];

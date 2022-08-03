@@ -5,8 +5,8 @@ const bcrypt = require('bcrypt');
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-let loginLink = "https://app.landexplorer.cc/auth/";
-let sender = "support@digitalcommons.coop";
+let loginLink = "https://app.landexplorer.coop/auth/";
+let sender = "landexplorer@digitalcommons.coop";
 let senderName = "Land Explorer";
 
 export const sendRegisterEmail = async (recipient: string, name: string) => {
