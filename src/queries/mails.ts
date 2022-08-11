@@ -5,11 +5,13 @@ const bcrypt = require('bcrypt');
 const sgMail = require("@sendgrid/mail");
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-let loginLink = "https://app.landexplorer.coop/auth/";
+const authRoute = "auth/";
 let sender = "landexplorer@digitalcommons.coop";
 let senderName = "Land Explorer";
 
-export const sendRegisterEmail = async (recipient: string, name: string) => {
+export const sendRegisterEmail = async (recipient: string, name: string, domain: string) => {
+  const loginLink = domain + authRoute;
+
   let body = `Dear ${name},`;
   body += "<br /><br />Thank you for registering with Land Explorer.";
   body += "<br />You can <a href=\"" + loginLink + "\">login here</a>.";
@@ -32,7 +34,9 @@ export const sendRegisterEmail = async (recipient: string, name: string) => {
   });
 }
 
-export const resetPassword = async (recipient: string, name: string, newPassword: string) => {
+export const resetPassword = async (recipient: string, name: string, newPassword: string, domain: string) => {
+  const loginLink = domain + authRoute;
+
   let body = "Dear " + capitalizeFirstLetter(name) + ",";
   body += "<br /><br />Here is your new password: " + newPassword;
   body += "<br />You can <a href=\"" + loginLink + "\">login here</a>.";
@@ -85,7 +89,9 @@ export const shareMapRegistered = async (
   sharer_fullname: string,
   sharer_firstname: string,
   map_name: string,
+  domain: string
 ) => {
+  const loginLink = domain + authRoute;
 
   let body = "<!DOCTYPE html><html lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>'";
   body += "<p>Dear " + capitalizeFirstLetter(recipient_firstname) + ",</p>";
@@ -117,7 +123,9 @@ export const shareMapUnregistered = async (
   sharer_fullname: string,
   sharer_firstname: string,
   map_name: string,
+  domain: string
 ) => {
+  const loginLink = domain + authRoute;
 
   let body = "<!DOCTYPE html><html lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>'";
   body += "<p>Hi There,</p>";

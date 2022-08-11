@@ -141,6 +141,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const originDomain = request.headers.referer;
 
     let validation = new Validation();
     await validation.validateShareMap(request.payload);
@@ -282,11 +283,11 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         const map_name: string = UserMap.Map.name;
 
         UserListToAddToUserMap.forEach(function (user: any) {
-            mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name);
+            mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
         UserListToAddToUserMap.forEach(function (user: any) {
-            mailer.shareMapUnregistered(user.username, sharer_fullname, sharer_firstname, map_name);
+            mailer.shareMapUnregistered(user.username, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
     } catch (err: any) {
