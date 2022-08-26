@@ -31,7 +31,15 @@ const helper = require('../queries/helpers');
  * @param h 
  * @returns 
  */
-async function registerUser(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
+type RegisterRequest = Request & {
+    payload: {
+        username: string;
+        firstName: string;
+    }
+};
+
+async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const originDomain = request.headers.referer;
 
     let validation = new Validation();
     await validation.validateUserRegister(request.payload);
@@ -47,7 +55,8 @@ async function registerUser(request: Request, h: ResponseToolkit): Promise<Respo
     await query.migrateGuestUserMap(user);
 
     // sent register email
-    mailer.sendRegisterEmail()
+    console.log(request.payload)
+    mailer.sendRegisterEmail(request.payload.username, request.payload.firstName, originDomain)
 
     // return h.response(user);
     return h.response(user);
@@ -235,7 +244,6 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
  * @returns 
  */
 async function changePassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-
     let validation = new Validation();
     await validation.validateChangeEmail(request.payload);
 
@@ -271,6 +279,7 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function resetPassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const originDomain = request.headers.referer;
 
     let validation = new Validation();
     await validation.validateResetPassword(request.payload);
@@ -306,7 +315,7 @@ async function resetPassword(request: Request, h: ResponseToolkit, d: any): Prom
         });
 
         // send email
-        mailer.resetPassword(payload.username, user.first_name, newPassword);
+        mailer.resetPassword(payload.username, user.first_name, newPassword, originDomain);
 
     } catch (err: any) {
         console.log(err.message);

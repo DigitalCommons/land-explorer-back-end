@@ -141,8 +141,9 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const originDomain = request.headers.referer;
 
-    let validation = new Validation();
+    const validation = new Validation();
     await validation.validateShareMap(request.payload);
 
     if (validation.fail()) {
@@ -151,7 +152,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
 
     try {
 
-        let payload: any = request.payload;
+        const payload: any = request.payload;
 
         let UserMap = await Model.UserMap.findOne(
             {
@@ -282,11 +283,11 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         const map_name: string = UserMap.Map.name;
 
         UserListToAddToUserMap.forEach(function (user: any) {
-            mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name);
+            mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
         UserListToAddToUserMap.forEach(function (user: any) {
-            mailer.shareMapUnregistered(user.username, sharer_fullname, sharer_firstname, map_name);
+            mailer.shareMapUnregistered(user.username, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
     } catch (err: any) {
@@ -480,7 +481,7 @@ async function GetLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: 
 
     try {
 
-        let payload: any = request.query;
+        const payload: any = request.query;
 
         const polygon = await query.getPolygon(
             payload.sw_lng,

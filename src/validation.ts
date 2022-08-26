@@ -254,7 +254,7 @@ export class Validation {
   async validateShareMap(data: any) {
 
     // eid required
-    if (Joi.string().validate(data?.eid, { presence: "required" }).error) {
+    if (Joi.number().validate(data?.eid, { presence: "required" }).error) {
       this.addErrorMessage("eid", "The eid field is required.")
     }
 
