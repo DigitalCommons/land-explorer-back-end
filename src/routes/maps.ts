@@ -143,7 +143,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
 async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const originDomain = request.headers.referer;
 
-    let validation = new Validation();
+    const validation = new Validation();
     await validation.validateShareMap(request.payload);
 
     if (validation.fail()) {
@@ -152,7 +152,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
 
     try {
 
-        let payload: any = request.payload;
+        const payload: any = request.payload;
 
         let UserMap = await Model.UserMap.findOne(
             {
@@ -481,7 +481,7 @@ async function GetLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: 
 
     try {
 
-        let payload: any = request.query;
+        const payload: any = request.query;
 
         const polygon = await query.getPolygon(
             payload.sw_lng,
