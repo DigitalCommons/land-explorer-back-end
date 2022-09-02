@@ -286,8 +286,8 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
             mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
-        UserListToAddToUserMap.forEach(function (user: any) {
-            mailer.shareMapUnregistered(user.username, sharer_fullname, sharer_firstname, map_name, originDomain);
+        NewEmailsToAddToPendingUserMap.forEach(function (email: any) {
+            mailer.shareMapUnregistered(email, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
     } catch (err: any) {
@@ -409,13 +409,14 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
  * @returns 
  */
 async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const userId = request.auth.artifacts.user_id;
 
     try {
 
-        const Maps = (await Model.Map.findAll(
+        const Maps = await Model.Map.findAll(
             {
                 where: {
-                    '$UserMaps.user_id$': request.auth.artifacts.user_id,
+                    '$UserMaps.user_id$': userId,
                     deleted: 0,
                 },
                 include: [
@@ -429,17 +430,46 @@ async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                     ['id', 'ASC'],
                     [Model.UserMap, 'access', 'ASC']
                 ]
-            }
-        )).map(function (Map: any) {
+            });
+
+        const MapsWithShared = []
+
+        for (const Map of Maps) {
             const userMap = Map.UserMaps[0];
-            const sharedWith = Map.PendingUserMaps.map(function (PendingUserMap: any) {
-                return {
-                    emailAddress: PendingUserMap.email_address,
-                    viewed: userMap.viewed == 1
+            const sharedWith: any[] = [];
+
+            const UserMaps = await Model.UserMap.findAll({
+                where: {
+                    map_id: Map.id,
+                    user_id: { [Op.not]: userId }
                 }
             });
 
-            return {
+            for (const UserMap of UserMaps) {
+                const { username } = await Model.User.findOne({
+                    where: { id: UserMap.user_id }
+                })
+
+                sharedWith.push({
+                    emailAddress: username,
+                    viewed: UserMap.viewed == 1
+                });
+            }
+
+            const PendingUserMaps = await Model.PendingUserMap.findAll({
+                where: {
+                    map_id: Map.id
+                }
+            })
+
+            PendingUserMaps.forEach((PendingUserMap: any) => {
+                sharedWith.push({
+                    emailAddress: PendingUserMap.email_address,
+                    viewed: PendingUserMap.viewed == 1
+                });
+            });
+
+            MapsWithShared.push({
                 map: {
                     eid: Map.id,
                     name: Map.name,
@@ -451,10 +481,10 @@ async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 createdDate: userMap.created_date,
                 access: userMap.access == 2 ? "WRITE" : "READ",
                 viewed: userMap.viewed == 1
-            }
-        });
+            })
+        };
 
-        return h.response(Maps).code(200);
+        return h.response(MapsWithShared).code(200);
 
     } catch (err: any) {
         console.log(err.message);
