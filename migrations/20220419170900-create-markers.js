@@ -16,7 +16,7 @@ module.exports = {
 
     },
     async down(queryInterface, Sequelize) {
-        await queryInterface.sequelize.query(`DROP TABLE pending_user_map`);
+        await queryInterface.sequelize.query(`DROP TABLE markers`);
     }
 };
 
