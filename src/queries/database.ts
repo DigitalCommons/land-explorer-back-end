@@ -130,6 +130,30 @@ const UserGroupMembershipModel = sequelize.define('UserGroupMembership', {
   updatedAt: false,
 });
 
+//define the map membership and item type model
+
+const ItemTypeModel = sequelize.define('ItemType', {
+  iditem_types: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.STRING, allowNull: false },
+  source: { type: DataTypes.STRING, allowNull: false }
+}, {
+  tableName: 'item_types',
+  createdAt: false,
+  updatedAt: false,
+})
+
+const MapMembershipModel = sequelize.define('MapMembership', {
+  idmap_memberships: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
+  map_id: { type: DataTypes.BIGINT, references: { model: MapModel, key: 'id' }, allowNull: false },
+  item_type_id: { type: DataTypes.BIGINT, references: { model: ItemTypeModel, key: 'iduser_groups' }, allowNull: false },
+  item_id: { type: DataTypes.BIGINT, allowNull: false },
+}, {
+  tableName: 'map_memberships',
+  createdAt: false,
+  updatedAt: false,
+});
+
 UserModel.hasMany(UserMapModel, { foreignKey: { name: 'user_id' } });
 MapModel.hasMany(UserMapModel, { foreignKey: { name: 'map_id' } });
 
@@ -147,6 +171,8 @@ export const DataGroup = DataGroupModel;
 export const DataGroupMembership = DataGroupMembershipModel;
 export const UserGroup = UserGroupModel;
 export const UserGroupMembership = UserGroupMembershipModel;
+export const MapMembership = MapMembershipModel;
+export const ItemType = ItemTypeModel;
 
 /**
  * Polygon Database

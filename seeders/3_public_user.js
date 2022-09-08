@@ -6,7 +6,16 @@ const bcrypt = require('bcrypt');
 
 module.exports = {
 
-    up: (queryInterface, Sequelize) => {
+    up: async (queryInterface, Sequelize) => {
+        const publicUserExists = await queryInterface.rawSelect('user', {
+            where: {
+                id: -1
+            }
+        }, ['id']);
+
+        if (publicUserExists)
+            return Promise.resolve();
+
         return queryInterface.bulkInsert('user', [{
             id: -1,
             first_name: "Public",

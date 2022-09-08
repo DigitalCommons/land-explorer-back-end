@@ -1,6 +1,7 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
+import { createMap, updateMap } from '../queries/map';
 
 const Model = require('../queries/database');
 const { Op } = require("sequelize");
@@ -17,7 +18,21 @@ const query = require('../queries/query');
  * @param d 
  * @returns 
  */
-async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+
+type SaveMapRequest = Request & {
+    payload: {
+        eid: number;
+        name: string;
+        data: any;
+    },
+    auth: {
+        artifacts: {
+            user_id: number
+        }
+    }
+};
+
+async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
     let validation = new Validation();
     await validation.validateSaveMap(request.payload);
@@ -28,17 +43,16 @@ async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<Re
 
     try {
 
-        let payload: any = request.payload;
+        const { eid, name, data } = request.payload;
 
         // eid provided means update map
-        let updateMap = payload.eid != null;
+        const mapExists = eid != null;
 
-        if (updateMap) {
-
+        if (mapExists) {
             // check that user has permission to update the map
-            let hasAccess = await Model.UserMap.findOne({
+            const hasAccess = await Model.UserMap.findOne({
                 where: {
-                    map_id: payload.eid,
+                    map_id: eid,
                     access: 2, //(access = 1 for read, access = 2 for write)
                     user_id: request.auth.artifacts.user_id
                 }
@@ -48,34 +62,9 @@ async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<Re
                 return h.response("Unauthorised").code(403);
             }
 
-            // update map
-            await Model.Map.update(
-                {
-                    name: payload.name,
-                    data: payload.data,
-                },
-                {
-                    where: {
-                        id: payload.eid
-                    }
-                }
-            );
-
+            await updateMap(eid, name, data);
         } else {
-
-            //Add map and add permission
-            let newMap = await Model.Map.create({
-                name: payload.name,
-                data: payload.data,
-                deleted: 0
-            });
-
-            await Model.UserMap.create({
-                map_id: newMap.id,
-                user_id: request.auth.artifacts.user_id,
-                access: 2 // 1 = readonly, 2 = readwrite
-            });
-
+            await createMap(name, data, request.auth.artifacts.user_id);
         }
 
     } catch (err: any) {
@@ -408,7 +397,7 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
  * @param d 
  * @returns 
  */
-async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const userId = request.auth.artifacts.user_id;
 
     try {
@@ -500,7 +489,7 @@ async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
  * @param d 
  * @returns 
  */
-async function GetLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
     let validation = new Validation();
     await validation.validateLandOwnershipPolygonRequest(request.query);
@@ -653,8 +642,8 @@ export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },
     { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
     { method: "GET", path: "/api/user/map/download/{mapId}", handler: downloadMap },
-    { method: "GET", path: "/api/user/maps/", handler: GetUserMaps },
-    { method: "GET", path: "/api/ownership/", handler: GetLandOwnershipPolygon },
+    { method: "GET", path: "/api/user/maps/", handler: getUserMaps },
+    { method: "GET", path: "/api/ownership/", handler: getLandOwnershipPolygon },
     // public method to see maps
     { method: "GET", path: "/api/public/map/{mapId}", handler: getPublicMap, options: { auth: false } },
 ];
