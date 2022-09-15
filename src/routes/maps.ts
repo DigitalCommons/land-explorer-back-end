@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap } from '../queries/map';
+import { createMap, updateMap, getMapMarkers } from '../queries/map';
 
 const Model = require('../queries/database');
 const { Op } = require("sequelize");
@@ -424,6 +424,13 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         const MapsWithShared = []
 
         for (const Map of Maps) {
+            const mapData = await JSON.parse(Map.data);
+
+            if (mapData.markersInDB) {
+                mapData.markers.markers = await getMapMarkers(Map.id);
+                Map.data = JSON.stringify(mapData);
+            }
+
             const userMap = Map.UserMaps[0];
             const sharedWith: any[] = [];
 

@@ -19,6 +19,32 @@ const createMarker = async (name: string, description: string, coordinates: numb
     })
 }
 
+export const getMapMarkers = async (mapId: number) => {
+    const mapMemberships = await MapMembership.findAll({
+        where: {
+            map_id: mapId
+        }
+    });
+
+    const markers = [];
+
+    for (const mapMembership of mapMemberships) {
+        const marker = await Marker.findOne({
+            where: {
+                idmarkers: mapMembership.item_id
+            }
+        });
+        markers.push({
+            id: marker.idmarkers,
+            coordinates: marker.location.coordinates,
+            name: marker.name,
+            description: marker.description
+        });
+    }
+
+    return markers;
+}
+
 const createMapMembership = async (mapId: number, itemTypeId: number, itemId: number) => {
     const lastMapMembership = await MapMembership.findOne({
         order: [['idmap_memberships', 'DESC']],
@@ -60,7 +86,6 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
     }
 
     // next: repeat the above for polygons and lines
-
 }
 
 type MapUpdateFunction = (eid: number, name: string, data: any) => Promise<void>;
