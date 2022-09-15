@@ -5,7 +5,7 @@ module.exports = {
 
         await queryInterface.sequelize.query(
             `CREATE TABLE data_group_memberships (
-                iddata_group_memberships INT NOT NULL,
+                iddata_group_memberships INT NOT NULL AUTO_INCREMENT=0,
                 data_group_id INT NOT NULL,
                 user_group_id INT NOT NULL,
                 PRIMARY KEY (iddata_group_memberships)

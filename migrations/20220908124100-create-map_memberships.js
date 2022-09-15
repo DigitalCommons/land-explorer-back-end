@@ -5,7 +5,7 @@ module.exports = {
 
         await queryInterface.sequelize.query(
             `CREATE TABLE map_memberships (
-            idmap_memberships INT NOT NULL,
+            idmap_memberships INT NOT NULL AUTO_INCREMENT=0,
             map_id INT NOT NULL,
             item_type_id INT NOT NULL,
             item_id INT NOT NULL,

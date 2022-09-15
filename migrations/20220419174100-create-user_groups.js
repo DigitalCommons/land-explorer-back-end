@@ -5,7 +5,7 @@ module.exports = {
 
         await queryInterface.sequelize.query(
             `CREATE TABLE user_groups (
-            iduser_groups INT NOT NULL,
+            iduser_groups INT NOT NULL AUTO_INCREMENT=0,
             name VARCHAR(45) NOT NULL,
             PRIMARY KEY (iduser_groups))
         ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1`

@@ -5,7 +5,7 @@ module.exports = {
 
         await queryInterface.sequelize.query(
             `CREATE TABLE markers (
-              idmarkers INT NOT NULL,
+              idmarkers INT NOT NULL AUTO_INCREMENT=0,
               name VARCHAR(45) NULL,
               description LONGTEXT NULL,
               data_group_id INT NOT NULL,
