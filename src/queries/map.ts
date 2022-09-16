@@ -90,20 +90,49 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
 
 type MapUpdateFunction = (eid: number, name: string, data: any) => Promise<void>;
 
-export const updateMap: MapUpdateFunction = async (eid, name, data) => {
+export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
+    const mapData = await JSON.parse(data);
+
+    console.log(mapData)
+    console.log(mapData.markers.markers)
+
+    if (mapData.map.markersInDB) {
+        console.log("delete old")
+        await MapMembership.destroy({
+            where: {
+                map_id: mapId
+            }
+        });
+    }
+    else {
+        mapData.markersInDB = true;
+    }
+
+    console.log(mapData)
+
+    /*
+    const markers = mapData.markers.markers;
+
+    for (const marker of markers) {
+        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates, mapId);
+        await createMapMembership(mapId, 0, newMarker.idmarkers);
+    }
+
+    */
+
     await Map.update(
         {
             name: name,
-            data: data,
+            data: JSON.stringify(mapData),
         },
         {
             where: {
-                id: eid
+                id: mapId
             }
         }
     );
 
-    //check if any map items have been removed, then remove their map membership
-    //if there are new map items, create them
+
+    return;
 
 }
