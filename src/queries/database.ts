@@ -90,7 +90,7 @@ const DataGroupModel = sequelize.define('DataGroup', {
 });
 
 const MarkerModel = sequelize.define('Marker', {
-  idmarkers: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
+  idmarkers: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
   name: { type: DataTypes.STRING },
   description: { type: DataTypes.STRING },
   data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
@@ -173,6 +173,17 @@ export const UserGroup = UserGroupModel;
 export const UserGroupMembership = UserGroupMembershipModel;
 export const MapMembership = MapMembershipModel;
 export const ItemType = ItemTypeModel;
+
+/* The access values in the UserMap table */
+export enum UserMapAccess {
+  Readonly = 1,
+  Readwrite = 2,
+}
+
+/* Possible values of the iditem_types column in the ItemType table */
+export enum ItemTypeId {
+  Marker = 0,
+}
 
 /**
  * Polygon Database

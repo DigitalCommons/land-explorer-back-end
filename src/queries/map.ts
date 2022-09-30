@@ -1,4 +1,4 @@
-import { Map, UserMap, Marker, MapMembership } from './database';
+import { Map, UserMap, UserMapAccess, Marker, MapMembership, ItemTypeId } from './database';
 
 const createMarker = async (name: string, description: string, coordinates: number[], mapId: number) => {
     const lastMarker = await Marker.findOne({
@@ -75,7 +75,7 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
     await UserMap.create({
         map_id: newMap.id,
         user_id: userId,
-        access: 2 // 1 = readonly, 2 = readwrite
+        access: UserMapAccess.Readwrite
     });
 
     const markers = mapData.markers.markers;

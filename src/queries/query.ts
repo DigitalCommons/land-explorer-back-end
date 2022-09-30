@@ -1,3 +1,5 @@
+import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, Marker, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
+
 const { QueryTypes } = require('sequelize');
 const {
   sequelize,
@@ -91,7 +93,7 @@ export const migrateGuestUserMap = async (user: typeof User) => {
       // map to format ready to be inserted to user_map table
       .map(function (pendingUserMap: any) {
         return {
-          access: 1,
+          access: UserMapAccess.Readonly,
           viewed: 0,
           map_id: pendingUserMap.map_id,
           user_id: user.id

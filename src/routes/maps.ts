@@ -2,6 +2,7 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
 import { createMap, updateMap, getMapMarkers } from '../queries/map';
+import { UserMapAccess } from "../queries/database";
 
 const Model = require('../queries/database');
 const { Op } = require("sequelize");
@@ -53,7 +54,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
             const hasAccess = await Model.UserMap.findOne({
                 where: {
                     map_id: eid,
-                    access: 2, //(access = 1 for read, access = 2 for write)
+                    access: UserMapAccess.Readwrite,
                     user_id: request.auth.artifacts.user_id
                 }
             });
@@ -248,7 +249,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
                 return {
                     map_id: payload.eid,
                     user_id: user.id,
-                    access: 1, // 1 = readonly, 2 = readwrite
+                    access: UserMapAccess.Readonly,
                 };
             })
         );
@@ -259,7 +260,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
                 return {
                     map_id: payload.eid,
                     email_address: email,
-                    access: 1, // 1 = readonly, 2 = readwrite
+                    access: UserMapAccess.Readonly,
                 };
             })
         );
@@ -475,7 +476,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                     sharedWith: sharedWith,
                 },
                 createdDate: userMap.created_date,
-                access: userMap.access == 2 ? "WRITE" : "READ",
+                access: userMap.access == UserMapAccess.Readwrite ? "WRITE" : "READ",
                 viewed: userMap.viewed == 1
             })
         };
