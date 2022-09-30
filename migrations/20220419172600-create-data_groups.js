@@ -5,10 +5,10 @@ module.exports = {
 
         await queryInterface.sequelize.query(
             `CREATE TABLE data_groups (
-        iddata_groups INT NOT NULL AUTO_INCREMENT=0,
-        title VARCHAR(45) NOT NULL,
-        PRIMARY KEY (iddata_groups)
-        ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1`
+                iddata_groups INT NOT NULL AUTO_INCREMENT,
+                title VARCHAR(45) NOT NULL,
+                PRIMARY KEY (iddata_groups)
+            ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
         );
 
     },

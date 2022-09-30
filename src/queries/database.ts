@@ -144,7 +144,7 @@ const ItemTypeModel = sequelize.define('ItemType', {
 })
 
 const MapMembershipModel = sequelize.define('MapMembership', {
-  idmap_memberships: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
+  idmap_memberships: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
   map_id: { type: DataTypes.BIGINT, references: { model: MapModel, key: 'id' }, allowNull: false },
   item_type_id: { type: DataTypes.BIGINT, references: { model: ItemTypeModel, key: 'iduser_groups' }, allowNull: false },
   item_id: { type: DataTypes.BIGINT, allowNull: false },

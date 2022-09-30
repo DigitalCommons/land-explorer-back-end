@@ -4,7 +4,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
 
     await queryInterface.sequelize.query(
-      `CREATE TABLE user (
+        `CREATE TABLE user (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         first_name varchar(255) NOT NULL,
         last_name varchar(255) NOT NULL,
@@ -34,7 +34,7 @@ module.exports = {
 
         PRIMARY KEY (id),
         UNIQUE KEY UK_sb8bbouer5wak8vyiiy4pf2bx (username)
-      ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1`
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
     );
 
   },
