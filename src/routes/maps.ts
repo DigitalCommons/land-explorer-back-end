@@ -402,7 +402,6 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
     const userId = request.auth.artifacts.user_id;
 
     try {
-
         const Maps = await Model.Map.findAll(
             {
                 where: {
@@ -427,7 +426,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         for (const Map of Maps) {
             const mapData = await JSON.parse(Map.data);
 
-            if (mapData.map.markersInDB) {
+            if (mapData.markersInDB) {
                 mapData.markers.markers = await getMapMarkers(Map.id);
                 Map.data = JSON.stringify(mapData);
             }

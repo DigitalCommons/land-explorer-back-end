@@ -1,14 +1,7 @@
 import { Map, UserMap, UserMapAccess, Marker, MapMembership, ItemTypeId } from './database';
 
-const createMarker = async (name: string, description: string, coordinates: number[], mapId: number) => {
-    const lastMarker = await Marker.findOne({
-        order: [['idmarkers', 'DESC']],
-    })
-
-    const newMarkerId = lastMarker ? lastMarker.idmarkers + 1 : 0;
-
+const createMarker = async (name: string, description: string, coordinates: number[]) => {
     return await Marker.create({
-        idmarkers: newMarkerId,
         name: name,
         description: description,
         data_group_id: -1,
@@ -17,6 +10,14 @@ const createMarker = async (name: string, description: string, coordinates: numb
             coordinates: coordinates
         }
     })
+}
+
+/* Save array of markers to DB for a given map. */
+const saveMarkers = async (mapId: number, markers: Array<any>) => {
+    for (const marker of markers) {
+        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates);
+        await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
+    }
 }
 
 export const getMapMarkers = async (mapId: number) => {
@@ -46,14 +47,7 @@ export const getMapMarkers = async (mapId: number) => {
 }
 
 const createMapMembership = async (mapId: number, itemTypeId: number, itemId: number) => {
-    const lastMapMembership = await MapMembership.findOne({
-        order: [['idmap_memberships', 'DESC']],
-    })
-
-    const newMapMembershipId = lastMapMembership ? lastMapMembership.idmap_memberships + 1 : 0;
-
     await MapMembership.create({
-        idmap_memberships: newMapMembershipId,
         map_id: mapId,
         item_type_id: itemTypeId,
         item_id: itemId
@@ -64,7 +58,11 @@ type CreateMapFunction = (name: string, data: any, userId: number) => Promise<vo
 
 export const createMap: CreateMapFunction = async (name, data, userId) => {
     const mapData = await JSON.parse(data);
-    mapData.markersInDB = true; //this is used in loading maps, so that the markers aren't loaded twice
+
+    // Saving markers to DB separately so can remove from JSON
+    const markers = mapData.markers.markers;
+    mapData.markers.markers = [];
+    mapData.markersInDB = true;
 
     const newMap = await Map.create({
         name: name,
@@ -78,12 +76,7 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
         access: UserMapAccess.Readwrite
     });
 
-    const markers = mapData.markers.markers;
-
-    for (const marker of markers) {
-        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates, newMap.id)
-        await createMapMembership(newMap.id, 0, newMarker.idmarkers)
-    }
+    await saveMarkers(newMap.id, markers);
 
     // next: repeat the above for polygons and lines
 }
@@ -91,39 +84,45 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
 type MapUpdateFunction = (eid: number, name: string, data: any) => Promise<void>;
 
 export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
-    const mapData = await JSON.parse(data);
+    const existingMap = await Map.findOne({
+        where: {
+            id: mapId
+        }
+    });
 
-    console.log(mapData)
-    console.log(mapData.markers.markers)
+    const existingMapData = await JSON.parse(existingMap.data);
+    const newMapData = await JSON.parse(data);
 
-    if (mapData.map.markersInDB) {
-        console.log("delete old")
+    if (existingMapData.markersInDB) {
+        // TODO: Reduce number of DB operations by only adding and removing markers that have changed
+
+        const mapMemberships = await MapMembership.findAll({
+            where: { map_id: mapId }
+        });
+
+        console.log(`Removing ${mapMemberships.length} markers from DB for map ${mapId}`);
         await MapMembership.destroy({
-            where: {
-                map_id: mapId
-            }
+            where: { map_id: mapId }
+        });
+
+        const markerIds = mapMemberships.map(({ item_id }: { item_id: number }) => item_id)
+
+        await Marker.destroy({
+            where: { idmarkers: markerIds }
         });
     }
-    else {
-        mapData.markersInDB = true;
-    }
 
-    console.log(mapData)
+    console.log(`Adding ${newMapData.markers.markers.length} markers to DB for map ${mapId}`)
+    await saveMarkers(mapId, newMapData.markers.markers);
 
-    /*
-    const markers = mapData.markers.markers;
-
-    for (const marker of markers) {
-        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates, mapId);
-        await createMapMembership(mapId, 0, newMarker.idmarkers);
-    }
-
-    */
+    // Remove markers from data since they are now in the DB
+    newMapData.markers.markers = [];
+    newMapData.markersInDB = true;
 
     await Map.update(
         {
             name: name,
-            data: JSON.stringify(mapData),
+            data: JSON.stringify(newMapData),
         },
         {
             where: {
@@ -131,8 +130,4 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
             }
         }
     );
-
-
-    return;
-
 }

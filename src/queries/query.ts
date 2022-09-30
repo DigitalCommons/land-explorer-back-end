@@ -1,19 +1,6 @@
 import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, Marker, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
 
 const { QueryTypes } = require('sequelize');
-const {
-  sequelize,
-  User,
-  Map,
-  UserMap,
-  PendingUserMap,
-  polygonDbSequelize,
-  Marker,
-  DataGroup,
-  DataGroupMembership,
-  UserGroup,
-  UserGroupMembership
-} = require('./database');
 const bcrypt = require('bcrypt');
 const helper = require('./helpers');
 
