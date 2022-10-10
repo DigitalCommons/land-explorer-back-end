@@ -238,7 +238,7 @@ export class Validation {
    */
   async validateEid(data: any) {
 
-    if (Joi.string().validate(data?.eid, { presence: "required" }).error) {
+    if (Joi.number().validate(data?.eid, { presence: "required" }).error) {
       this.addErrorMessage("eid", "The eid field is required.")
     }
 
@@ -254,9 +254,7 @@ export class Validation {
   async validateShareMap(data: any) {
 
     // eid required
-    if (Joi.number().validate(data?.eid, { presence: "required" }).error) {
-      this.addErrorMessage("eid", "The eid field is required.")
-    }
+    this.validateEid(data);
 
     // array of email address required (can be empty array)
     if (Joi.array().items(Joi.string(), Joi.number()).validate(data?.emailAddresses).error) {
