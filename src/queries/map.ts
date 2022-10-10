@@ -1,25 +1,5 @@
 import { Map, UserMap, UserMapAccess, Marker, MapMembership, ItemTypeId } from './database';
 
-const createMarker = async (name: string, description: string, coordinates: number[]) => {
-    return await Marker.create({
-        name: name,
-        description: description,
-        data_group_id: -1,
-        location: {
-            type: "Point",
-            coordinates: coordinates
-        }
-    })
-}
-
-/* Save array of markers to DB for a given map. */
-const saveMarkers = async (mapId: number, markers: Array<any>) => {
-    for (const marker of markers) {
-        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates);
-        await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
-    }
-}
-
 export const getMapMarkers = async (mapId: number) => {
     const mapMemberships = await MapMembership.findAll({
         where: {
@@ -35,8 +15,9 @@ export const getMapMarkers = async (mapId: number) => {
                 idmarkers: mapMembership.item_id
             }
         });
+        // Form JSON that is used by front end
         markers.push({
-            id: marker.idmarkers,
+            uuid: marker.uuid,
             coordinates: marker.location.coordinates,
             name: marker.name,
             description: marker.description
@@ -52,6 +33,28 @@ const createMapMembership = async (mapId: number, itemTypeId: number, itemId: nu
         item_type_id: itemTypeId,
         item_id: itemId
     })
+}
+
+const createMarker = async (name: string, description: string, coordinates: number[], uuid: string
+) => {
+    return await Marker.create({
+        name: name,
+        description: description,
+        data_group_id: -1,
+        location: {
+            type: "Point",
+            coordinates: coordinates
+        },
+        uuid: uuid
+    })
+}
+
+/* Save array of markers to DB for a given map. */
+const saveMarkers = async (mapId: number, markers: Array<any>) => {
+    for (const m of markers) {
+        const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid);
+        await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
+    }
 }
 
 type CreateMapFunction = (name: string, data: any, userId: number) => Promise<void>;

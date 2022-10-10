@@ -94,7 +94,8 @@ const MarkerModel = sequelize.define('Marker', {
   name: { type: DataTypes.STRING },
   description: { type: DataTypes.STRING },
   data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
-  location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false }
+  location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
 }, {
   tableName: 'markers',
   createdAt: false,
