@@ -426,7 +426,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         for (const Map of Maps) {
             const mapData = await JSON.parse(Map.data);
 
-            if (mapData.markersInDB) {
+            if (mapData.drawingsInDB) {
                 mapData.markers.markers = await getMapMarkers(Map.id);
                 Map.data = JSON.stringify(mapData);
             }

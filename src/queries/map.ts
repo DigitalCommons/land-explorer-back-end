@@ -62,10 +62,10 @@ type CreateMapFunction = (name: string, data: any, userId: number) => Promise<vo
 export const createMap: CreateMapFunction = async (name, data, userId) => {
     const mapData = await JSON.parse(data);
 
-    // Saving markers to DB separately so can remove from JSON
+    // Saving drawings to DB separately so can remove from JSON
     const markers = mapData.markers.markers;
     mapData.markers.markers = [];
-    mapData.markersInDB = true;
+    mapData.drawingsInDB = true;
 
     const newMap = await Map.create({
         name: name,
@@ -96,7 +96,7 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     const existingMapData = await JSON.parse(existingMap.data);
     const newMapData = await JSON.parse(data);
 
-    if (existingMapData.markersInDB) {
+    if (existingMapData.drawingsInDB) {
         // TODO: Reduce number of DB operations by only adding and removing markers that have changed
 
         const mapMemberships = await MapMembership.findAll({
@@ -118,9 +118,9 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     console.log(`Adding ${newMapData.markers.markers.length} markers to DB for map ${mapId}`)
     await saveMarkers(mapId, newMapData.markers.markers);
 
-    // Remove markers from data since they are now in the DB
+    // Remove drawings from data since they are now in the DB
     newMapData.markers.markers = [];
-    newMapData.markersInDB = true;
+    newMapData.drawingsInDB = true;
 
     await Map.update(
         {
