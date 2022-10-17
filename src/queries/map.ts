@@ -1,6 +1,6 @@
 import { Map, UserMap, UserMapAccess, Marker, MapMembership, ItemTypeId } from './database';
 
-const createMarker = async (name: string, description: string, coordinates: number[]) => {
+export const createMarker = async (name: string, description: string, coordinates: number[]) => {
     return await Marker.create({
         name: name,
         description: description,
@@ -46,7 +46,7 @@ export const getMapMarkers = async (mapId: number) => {
     return markers;
 }
 
-const createMapMembership = async (mapId: number, itemTypeId: number, itemId: number) => {
+export const createMapMembership = async (mapId: number, itemTypeId: number, itemId: number) => {
     await MapMembership.create({
         map_id: mapId,
         item_type_id: itemTypeId,
