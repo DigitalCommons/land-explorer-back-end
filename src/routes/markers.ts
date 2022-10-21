@@ -10,7 +10,7 @@ type DataGroupRequest = Request & {
 };
 
 async function getUserDataGroups(request: DataGroupRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const dataGroups = await findDataGroupsByUserId(request.auth.artifacts.user_id)
+    const dataGroups = await findDataGroupsByUserId(request.auth.artifacts.user_id);
 
     return h.response(dataGroups);
 }

@@ -89,7 +89,7 @@ async function saveMapMarker(request: SaveMapMarkerRequest, h: ResponseToolkit, 
 
     console.log(marker, map)
 
-    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates);
+    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates, marker.uuid);
     await createMapMembership(map.map.eid, ItemType.Marker, newMarker.idmarkers);
 
     return h.response();

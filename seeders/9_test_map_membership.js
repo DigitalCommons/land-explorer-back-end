@@ -3,6 +3,7 @@
 const { faker } = require('@faker-js/faker');
 const enums = require('../lib/enums');
 const bcrypt = require('bcrypt');
+const { v4: uuidv4 } = require('uuid');
 
 module.exports = {
 
@@ -14,7 +15,7 @@ module.exports = {
         }, ['id']);
 
         const testMapId = await queryInterface.bulkInsert('map', [{
-            name: "Test Map",
+            name: "Test Map2",
             data: `{ "map": { "zoom": [7.098862221873304], "lngLat": [-1.4231817045257742, 52.472531034277125], "searchMarker": null, "marker": [-0.2416815, 51.5285582], "gettingLocation": false, "currentLocation": null, "movingMethod": "flyTo", "name": "Test Map" }, "drawings": { "polygons": [], "activePolygon": null, "polygonCount": 1, "lineCount": 1, "loadingDrawings": false }, "markers": { "searchMarker": [-0.2416815, 51.5285582], "currentMarker": null, "id": 1, "markers": [] }, "mapLayers": { "landDataLayers": [], "myDataLayers": [] }, "version": "1.1", "name": "Test Map", "markersInDB": true }`,
             deleted: 0,
             created_date: new Date(),
@@ -22,7 +23,7 @@ module.exports = {
         }]);
 
         await queryInterface.bulkInsert('user_map', [{
-            access: 1,
+            access: 2,
             viewed: 1,
             map_id: testMapId,
             user_id: testUserId,
@@ -30,10 +31,11 @@ module.exports = {
         }]);
 
         const testMarkerId = await queryInterface.bulkInsert('markers', [{
-            name: "Marker on Map",
+            name: "Marker on Map2",
             description: "We've got it and you know it",
             data_group_id: -1,
-            location: Sequelize.fn('ST_GeomFromText', 'POINT(52.9504416 -1.1536082)')
+            location: Sequelize.fn('ST_GeomFromText', 'POINT(-1.1536082 52.9504416 )'),
+            uuid: uuidv4()
         }]);
 
         return queryInterface.bulkInsert('map_memberships', [{

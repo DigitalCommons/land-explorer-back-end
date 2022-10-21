@@ -10,7 +10,6 @@ module.exports = {
                 description LONGTEXT NULL,
                 data_group_id INT NOT NULL,
                 location POINT NOT NULL,
-                uuid VARCHAR(45) NOT NULL,
                 PRIMARY KEY (idmarkers)
             ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
         );

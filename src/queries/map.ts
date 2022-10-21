@@ -1,26 +1,6 @@
 
 import { Map, UserMap, UserMapAccess, Marker, Polygon, Line, MapMembership, ItemTypeId } from './database';
 
-export const createMarker = async (name: string, description: string, coordinates: number[]) => {
-    return await Marker.create({
-        name: name,
-        description: description,
-        data_group_id: -1,
-        location: {
-            type: "Point",
-            coordinates: coordinates
-        }
-    })
-}
-
-/* Save array of markers to DB for a given map. */
-const saveMarkers = async (mapId: number, markers: Array<any>) => {
-    for (const marker of markers) {
-        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates);
-        await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
-    }
-}
-
 export const getMapMarkers = async (mapId: number) => {
     const mapMemberships = await MapMembership.findAll({
         where: {
@@ -115,7 +95,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
     return polygonsAndLines;
 }
 
-const createMapMembership = async (mapId: number, itemTypeId: number, itemId: number) => {
+export const createMapMembership = async (mapId: number, itemTypeId: number, itemId: number) => {
     await MapMembership.create({
         map_id: mapId,
         item_type_id: itemTypeId,
@@ -123,7 +103,7 @@ const createMapMembership = async (mapId: number, itemTypeId: number, itemId: nu
     })
 }
 
-const createMarker = async (name: string, description: string, coordinates: number[], uuid: string
+export const createMarker = async (name: string, description: string, coordinates: number[], uuid: string
 ) => {
     return await Marker.create({
         name: name,
