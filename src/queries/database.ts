@@ -90,13 +90,42 @@ const DataGroupModel = sequelize.define('DataGroup', {
 });
 
 const MarkerModel = sequelize.define('Marker', {
-  idmarkers: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
+  idmarkers: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
   name: { type: DataTypes.STRING },
   description: { type: DataTypes.STRING },
   data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
-  location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false }
+  location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
 }, {
   tableName: 'markers',
+  createdAt: false,
+  updatedAt: false,
+});
+
+const PolygonModel = sequelize.define('Polygon', {
+  idpolygons: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
+  name: { type: DataTypes.STRING },
+  data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
+  vertices: { type: DataTypes.GEOMETRY('POLYGON'), allowNull: false },
+  center: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
+  length: { type: DataTypes.DOUBLE, allowNull: false },
+  area: { type: DataTypes.DOUBLE, allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
+}, {
+  tableName: 'polygons',
+  createdAt: false,
+  updatedAt: false,
+});
+
+const LineModel = sequelize.define('Line', {
+  idlinestrings: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
+  name: { type: DataTypes.STRING },
+  data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
+  vertices: { type: DataTypes.GEOMETRY('LINESTRING'), allowNull: false },
+  length: { type: DataTypes.DOUBLE, allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
+}, {
+  tableName: 'linestrings',
   createdAt: false,
   updatedAt: false,
 });
@@ -130,6 +159,30 @@ const UserGroupMembershipModel = sequelize.define('UserGroupMembership', {
   updatedAt: false,
 });
 
+//define the map membership and item type model
+
+const ItemTypeModel = sequelize.define('ItemType', {
+  iditem_types: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
+  name: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.STRING, allowNull: false },
+  source: { type: DataTypes.STRING, allowNull: false }
+}, {
+  tableName: 'item_types',
+  createdAt: false,
+  updatedAt: false,
+})
+
+const MapMembershipModel = sequelize.define('MapMembership', {
+  idmap_memberships: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
+  map_id: { type: DataTypes.BIGINT, references: { model: MapModel, key: 'id' }, allowNull: false },
+  item_type_id: { type: DataTypes.BIGINT, references: { model: ItemTypeModel, key: 'iduser_groups' }, allowNull: false },
+  item_id: { type: DataTypes.BIGINT, allowNull: false },
+}, {
+  tableName: 'map_memberships',
+  createdAt: false,
+  updatedAt: false,
+});
+
 UserModel.hasMany(UserMapModel, { foreignKey: { name: 'user_id' } });
 MapModel.hasMany(UserMapModel, { foreignKey: { name: 'map_id' } });
 
@@ -143,10 +196,27 @@ export const Map = MapModel;
 export const UserMap = UserMapModel;
 export const PendingUserMap = PendingUserMapModel;
 export const Marker = MarkerModel;
+export const Polygon = PolygonModel;
+export const Line = LineModel;
 export const DataGroup = DataGroupModel;
 export const DataGroupMembership = DataGroupMembershipModel;
 export const UserGroup = UserGroupModel;
 export const UserGroupMembership = UserGroupMembershipModel;
+export const MapMembership = MapMembershipModel;
+export const ItemType = ItemTypeModel;
+
+/* The access values in the UserMap table */
+export enum UserMapAccess {
+  Readonly = 1,
+  Readwrite = 2,
+}
+
+/* Possible values of the iditem_types column in the ItemType table */
+export enum ItemTypeId {
+  Marker = 0,
+  Polygon = 1,
+  Line = 2,
+}
 
 /**
  * Polygon Database

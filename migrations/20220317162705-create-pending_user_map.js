@@ -13,7 +13,7 @@ module.exports = {
         PRIMARY KEY (id),
         KEY FKi8n27mkvary26fkr406d9p8yl (map_id),
         CONSTRAINT pending_user_map_map FOREIGN KEY (map_id) REFERENCES map (id) ON DELETE CASCADE ON UPDATE CASCADE
-      ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1`
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
     );
 
   },
