@@ -94,9 +94,38 @@ const MarkerModel = sequelize.define('Marker', {
   name: { type: DataTypes.STRING },
   description: { type: DataTypes.STRING },
   data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
-  location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false }
+  location: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
 }, {
   tableName: 'markers',
+  createdAt: false,
+  updatedAt: false,
+});
+
+const PolygonModel = sequelize.define('Polygon', {
+  idpolygons: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
+  name: { type: DataTypes.STRING },
+  data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
+  vertices: { type: DataTypes.GEOMETRY('POLYGON'), allowNull: false },
+  center: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
+  length: { type: DataTypes.DOUBLE, allowNull: false },
+  area: { type: DataTypes.DOUBLE, allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
+}, {
+  tableName: 'polygons',
+  createdAt: false,
+  updatedAt: false,
+});
+
+const LineModel = sequelize.define('Line', {
+  idlinestrings: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
+  name: { type: DataTypes.STRING },
+  data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
+  vertices: { type: DataTypes.GEOMETRY('LINESTRING'), allowNull: false },
+  length: { type: DataTypes.DOUBLE, allowNull: false },
+  uuid: { type: DataTypes.STRING, allowNull: false }
+}, {
+  tableName: 'linestrings',
   createdAt: false,
   updatedAt: false,
 });
@@ -167,6 +196,8 @@ export const Map = MapModel;
 export const UserMap = UserMapModel;
 export const PendingUserMap = PendingUserMapModel;
 export const Marker = MarkerModel;
+export const Polygon = PolygonModel;
+export const Line = LineModel;
 export const DataGroup = DataGroupModel;
 export const DataGroupMembership = DataGroupMembershipModel;
 export const UserGroup = UserGroupModel;
@@ -183,6 +214,8 @@ export enum UserMapAccess {
 /* Possible values of the iditem_types column in the ItemType table */
 export enum ItemTypeId {
   Marker = 0,
+  Polygon = 1,
+  Line = 2,
 }
 
 /**

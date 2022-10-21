@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, createMarker, createMapMembership } from '../queries/map';
+import { createMap, updateMap, getMapMarkers, createMarker, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 
@@ -445,8 +445,9 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         for (const Map of Maps) {
             const mapData = await JSON.parse(Map.data);
 
-            if (mapData.markersInDB) {
+            if (mapData.drawingsInDB) {
                 mapData.markers.markers = await getMapMarkers(Map.id);
+                mapData.drawings.polygons = await getMapPolygonsAndLines(Map.id);
                 Map.data = JSON.stringify(mapData);
             }
 
