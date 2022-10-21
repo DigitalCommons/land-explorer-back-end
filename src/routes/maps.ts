@@ -1,8 +1,9 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, getMapPolygonsAndLines } from '../queries/map';
+import { createMap, updateMap, getMapMarkers, createMarker, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { UserMapAccess } from "../queries/database";
+import { ItemType } from "../enums";
 
 const Model = require('../queries/database');
 const { Op } = require("sequelize");
@@ -74,6 +75,24 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
     }
 
     return h.response().code(200);
+}
+
+type SaveMapMarkerRequest = Request & {
+    payload: {
+        marker: any;
+        map: any;
+    }
+};
+
+async function saveMapMarker(request: SaveMapMarkerRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { marker, map } = request.payload;
+
+    console.log(marker, map)
+
+    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates);
+    await createMapMembership(map.map.eid, ItemType.Marker, newMarker.idmarkers);
+
+    return h.response();
 }
 
 
@@ -645,6 +664,7 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
 
 export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/save/", handler: saveMap },
+    { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
     { method: "POST", path: "/api/user/map/view/", handler: setMapAsViewed },
     { method: "POST", path: "/api/user/map/share/sync/", handler: mapSharing },
     { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },

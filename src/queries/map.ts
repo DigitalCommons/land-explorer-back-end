@@ -1,4 +1,25 @@
+
 import { Map, UserMap, UserMapAccess, Marker, Polygon, Line, MapMembership, ItemTypeId } from './database';
+
+export const createMarker = async (name: string, description: string, coordinates: number[]) => {
+    return await Marker.create({
+        name: name,
+        description: description,
+        data_group_id: -1,
+        location: {
+            type: "Point",
+            coordinates: coordinates
+        }
+    })
+}
+
+/* Save array of markers to DB for a given map. */
+const saveMarkers = async (mapId: number, markers: Array<any>) => {
+    for (const marker of markers) {
+        const newMarker = await createMarker(marker.name, marker.description, marker.coordinates);
+        await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
+    }
+}
 
 export const getMapMarkers = async (mapId: number) => {
     const mapMemberships = await MapMembership.findAll({
@@ -27,6 +48,7 @@ export const getMapMarkers = async (mapId: number) => {
 
     return markers;
 }
+
 
 export const getMapPolygonsAndLines = async (mapId: number) => {
     const mapPolygonMemberships = await MapMembership.findAll({
