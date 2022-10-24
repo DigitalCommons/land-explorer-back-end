@@ -23,6 +23,7 @@ export const init = async function (): Promise<Server> {
     server = Hapi.server({
         port: process.env.PORT || 4000,
         host: '0.0.0.0',
+        debug: { log: ['error'], request: ['error'] },
     });
 
     await server.register(AuthBearer);
@@ -74,6 +75,11 @@ export const init = async function (): Promise<Server> {
     server.route(mapRoutes);
     server.route(markerRoutes);
     server.route(emailRoutes);
+
+    // Log requests and response codes
+    server.events.on('response', (request: any) => {
+        console.log(request.info.remoteAddress + ': ' + request.method.toUpperCase() + ' ' + request.path + ' --> ' + request.response.statusCode);
+    });
 
     return server;
 };
