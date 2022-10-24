@@ -572,26 +572,32 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
 
     const features = [...polygons, ...markers, ...dataGroupMarkers];
 
-    const shapeFileLocation = `./data/shapefiles/${map.name}-${Date.now()}.zip`;
+    const shapeFileDirectory = './data/shapefiles';
+    const shapeFileLocation = `${shapeFileDirectory}/${map.name}-${Date.now()}.zip`;
+
+    const fs = require('fs');
+
+    fs.mkdir(shapeFileDirectory, { recursive: true }, (error: any) => {
+        if (error) throw error;
+    });
 
     const { convert } = require('geojson2shp');
+    // geojson2shp writing to file path isn't working so create our own write stream
+    const outStream = fs.createWriteStream(shapeFileLocation);
     const convertOptions = {
         layer: 'land-explorer-layer',
         targetCrs: 2154
     };
-
-    //create a new shapefile in the shape file location
-    await convert(features, shapeFileLocation, convertOptions);
+    // create a new shapefile in the shape file location
+    await convert(features, outStream, convertOptions);
 
     const response = h.file(shapeFileLocation, {
         mode: 'attachment'
     });
 
     const deleteFile = () => {
-        const fs = require('fs');
         fs.unlink(shapeFileLocation, (error: any) => {
-            if (error)
-                console.log(error)
+            if (error) throw error;
         });
     }
 
