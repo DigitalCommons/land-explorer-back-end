@@ -517,14 +517,15 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
     const { mapId } = request.params;
     const { user_id } = request.auth.artifacts;
 
-    const userMap = await Model.UserMap.findOne({
+    const hasAccess = await Model.UserMap.findOne({
         where: {
             user_id,
             map_id: mapId
         }
     });
-    if (!userMap)
-        return h.response({ success: false, message: "User account doesn't have read access to that map" });
+    if (!hasAccess) {
+        return h.response("Unauthorised!").code(403);
+    }
 
     const map = await Model.Map.findOne({
         where: {
