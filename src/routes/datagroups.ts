@@ -15,6 +15,6 @@ async function getUserDataGroups(request: DataGroupRequest, h: ResponseToolkit):
     return h.response(dataGroups);
 }
 
-export const markerRoutes: ServerRoute[] = [
+export const dataGroupRoutes: ServerRoute[] = [
     { method: "GET", path: "/api/userdatagroups", handler: getUserDataGroups },
 ];

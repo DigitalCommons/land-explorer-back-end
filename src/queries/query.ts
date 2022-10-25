@@ -1,4 +1,4 @@
-import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, Marker, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
+import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, Marker, Polygon, Line, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
 
 const { QueryTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
@@ -253,7 +253,17 @@ export async function findDataGroupsByUserId(userId: number) {
         where: {
           data_group_id: dataGroup.iddata_groups
         }
-      })
+      });
+      dataGroup.dataValues.polygons = await Polygon.findAll({
+        where: {
+          data_group_id: dataGroup.iddata_groups
+        }
+      });
+      dataGroup.dataValues.lines = await Line.findAll({
+        where: {
+          data_group_id: dataGroup.iddata_groups
+        }
+      });
     }
 
     userGroupsAndData.push({
