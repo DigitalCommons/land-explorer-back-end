@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, createMarker, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
+import { createMap, updateMap, getMapMarkers, createMarker, createPolygon, createLine, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 
@@ -87,10 +87,44 @@ type SaveMapMarkerRequest = Request & {
 async function saveMapMarker(request: SaveMapMarkerRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const { marker, map } = request.payload;
 
-    console.log(marker, map)
-
     const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates, marker.uuid);
     await createMapMembership(map.map.eid, ItemType.Marker, newMarker.idmarkers);
+
+    return h.response();
+}
+
+type SaveMapPolygonRequest = Request & {
+    payload: {
+        polygon: any;
+        map: any;
+    }
+};
+
+async function saveMapPolygon(request: SaveMapPolygonRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { polygon, map } = request.payload;
+
+    const newPolygon = await createPolygon(
+        polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid
+    );
+    await createMapMembership(map.map.eid, ItemType.Polygon, newPolygon.idpolygons);
+
+    return h.response();
+}
+
+type SaveMapLineRequest = Request & {
+    payload: {
+        line: any;
+        map: any;
+    }
+};
+
+async function saveMapLine(request: SaveMapLineRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { line, map } = request.payload;
+
+    const newLine = await createLine(
+        line.name, line.description, line.vertices.coordinates, line.length, line.uuid
+    );
+    await createMapMembership(map.map.eid, ItemType.Line, newLine.idlinestrings);
 
     return h.response();
 }
@@ -665,6 +699,8 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
 export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/save/", handler: saveMap },
     { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
+    { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
+    { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
     { method: "POST", path: "/api/user/map/view/", handler: setMapAsViewed },
     { method: "POST", path: "/api/user/map/share/sync/", handler: mapSharing },
     { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },

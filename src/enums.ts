@@ -19,4 +19,6 @@ export enum OrganisationSubType {
 
 export enum ItemType {
   Marker = 0,
+  Polygon = 1,
+  Line = 2,
 }

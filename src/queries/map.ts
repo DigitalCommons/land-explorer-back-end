@@ -125,11 +125,12 @@ const saveMarkers = async (mapId: number, markers: Array<any>) => {
     }
 }
 
-const createPolygon = async (
-    name: string, vertices: number[][], center: number[], length: number, area: number, uuid: string
+export const createPolygon = async (
+    name: string, description: string, vertices: number[][], center: number[], length: number, area: number, uuid: string
 ) => {
     return await Polygon.create({
         name: name,
+        description: description,
         data_group_id: -1,
         vertices: {
             type: "Polygon",
@@ -145,9 +146,10 @@ const createPolygon = async (
     })
 }
 
-const createLine = async (name: string, vertices: number[][], length: number, uuid: string) => {
+export const createLine = async (name: string, description: string, vertices: number[][], length: number, uuid: string) => {
     return await Line.create({
         name: name,
+        description: description,
         data_group_id: -1,
         vertices: {
             type: "LineString",
@@ -163,12 +165,12 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     for (const p of polygonsAndLines) {
         if (p.type === "Polygon") {
             const newPolygon = await createPolygon(
-                p.name, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id
+                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id
             );
             await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
         } else {
             const newLine = await createLine(
-                p.name, p.data.geometry.coordinates, p.length, p.data.id
+                p.name, p.description, p.data.geometry.coordinates, p.length, p.data.id
             );
             await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
         }
