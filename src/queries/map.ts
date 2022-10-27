@@ -175,9 +175,9 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     }
 }
 
-type CreateMapFunction = (name: string, data: any, userId: number) => Promise<void>;
+type CreateMapFunction = (name: string, data: any, userId: number, isSnapshot: boolean) => Promise<void>;
 
-export const createMap: CreateMapFunction = async (name, data, userId) => {
+export const createMap: CreateMapFunction = async (name, data, userId, isSnapshot) => {
     const mapData = await JSON.parse(data);
 
     // Saving drawings to DB separately so can remove from JSON
@@ -190,7 +190,8 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
     const newMap = await Map.create({
         name: name,
         data: JSON.stringify(mapData),
-        deleted: 0
+        deleted: 0,
+        is_snapshot: isSnapshot
     });
 
     await UserMap.create({
