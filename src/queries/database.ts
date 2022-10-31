@@ -105,6 +105,7 @@ const MarkerModel = sequelize.define('Marker', {
 const PolygonModel = sequelize.define('Polygon', {
   idpolygons: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
   name: { type: DataTypes.STRING },
+  description: { type: DataTypes.STRING },
   data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
   vertices: { type: DataTypes.GEOMETRY('POLYGON'), allowNull: false },
   center: { type: DataTypes.GEOMETRY('POINT'), allowNull: false },
@@ -120,6 +121,7 @@ const PolygonModel = sequelize.define('Polygon', {
 const LineModel = sequelize.define('Line', {
   idlinestrings: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
   name: { type: DataTypes.STRING },
+  description: { type: DataTypes.STRING },
   data_group_id: { type: DataTypes.BIGINT, references: { model: DataGroupModel, key: 'iddata_groups' }, allowNull: false },
   vertices: { type: DataTypes.GEOMETRY('LINESTRING'), allowNull: false },
   length: { type: DataTypes.DOUBLE, allowNull: false },
