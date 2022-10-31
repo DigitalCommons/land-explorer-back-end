@@ -496,7 +496,8 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 },
                 createdDate: userMap.created_date,
                 access: userMap.access == UserMapAccess.Readwrite ? "WRITE" : "READ",
-                viewed: userMap.viewed == 1
+                viewed: userMap.viewed == 1,
+                isSnapshot: Map.is_snapshot
             })
         };
 

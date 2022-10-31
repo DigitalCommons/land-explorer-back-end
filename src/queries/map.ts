@@ -175,6 +175,42 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     }
 }
 
+const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
+    for (const dataLayer of dataLayers) {
+        const dataGroupMarkers = await Marker.findAll({
+            where: {
+                data_group_id: dataLayer.iddata_groups
+            }
+        });
+        await saveMarkers(mapId, dataGroupMarkers.map((marker: any) => ({
+            name: marker.name,
+            description: marker.description,
+            coordinates: marker.location.coordinates,
+            uuid: marker.uuid
+        })));
+
+        const dataGroupPolygons = await Polygon.findAll({
+            where: {
+                data_group_id: dataLayer.iddata_groups
+            }
+        });
+        for (const polygon of dataGroupPolygons) {
+            const newPolygon = await createPolygon(polygon.name, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid);
+            await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
+        }
+
+        const dataGroupLines = await Line.findAll({
+            where: {
+                data_group_id: dataLayer.iddata_groups
+            }
+        });
+        for (const line of dataGroupLines) {
+            const newLine = await createLine(line.name, line.vertices.coordinates, line.length, line.uuid);
+            await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
+        }
+    }
+}
+
 type CreateMapFunction = (name: string, data: any, userId: number, isSnapshot: boolean) => Promise<void>;
 
 export const createMap: CreateMapFunction = async (name, data, userId, isSnapshot) => {
@@ -186,6 +222,10 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
     mapData.markers.markers = [];
     mapData.drawings.polygons = [];
     mapData.drawingsInDB = true;
+
+    const myDataLayers = JSON.parse(JSON.stringify(mapData.mapLayers.myDataLayers));
+    if (isSnapshot)
+        mapData.mapLayers.myDataLayers = [];
 
     const newMap = await Map.create({
         name: name,
@@ -203,6 +243,14 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
     await saveMarkers(newMap.id, markers);
 
     await savePolygonsAndLines(newMap.id, polygonsAndLines);
+
+    if (isSnapshot) {
+        await copyDataGroupItems(newMap.id, myDataLayers);
+
+
+        //get the data groups
+        //convert the data group items into map items for this map
+    }
 }
 
 type MapUpdateFunction = (eid: number, name: string, data: any) => Promise<void>;
