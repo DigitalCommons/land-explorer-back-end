@@ -246,10 +246,6 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
 
     if (isSnapshot) {
         await copyDataGroupItems(newMap.id, myDataLayers);
-
-
-        //get the data groups
-        //convert the data group items into map items for this map
     }
 }
 
