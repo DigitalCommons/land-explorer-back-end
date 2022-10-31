@@ -50,7 +50,7 @@ const MapModel = sequelize.define('Map', {
   deleted: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: 0 },
   created_date: Sequelize.DATE,
   last_modified: Sequelize.DATE,
-
+  is_snapshot: Sequelize.BOOLEAN
 }, {
   tableName: 'map',
   createdAt: 'created_date',

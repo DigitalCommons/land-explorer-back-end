@@ -177,9 +177,45 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     }
 }
 
-type CreateMapFunction = (name: string, data: any, userId: number) => Promise<void>;
+const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
+    for (const dataLayer of dataLayers) {
+        const dataGroupMarkers = await Marker.findAll({
+            where: {
+                data_group_id: dataLayer.iddata_groups
+            }
+        });
+        await saveMarkers(mapId, dataGroupMarkers.map((marker: any) => ({
+            name: marker.name,
+            description: marker.description,
+            coordinates: marker.location.coordinates,
+            uuid: marker.uuid
+        })));
 
-export const createMap: CreateMapFunction = async (name, data, userId) => {
+        const dataGroupPolygons = await Polygon.findAll({
+            where: {
+                data_group_id: dataLayer.iddata_groups
+            }
+        });
+        for (const polygon of dataGroupPolygons) {
+            const newPolygon = await createPolygon(polygon.name, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid);
+            await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
+        }
+
+        const dataGroupLines = await Line.findAll({
+            where: {
+                data_group_id: dataLayer.iddata_groups
+            }
+        });
+        for (const line of dataGroupLines) {
+            const newLine = await createLine(line.name, line.vertices.coordinates, line.length, line.uuid);
+            await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
+        }
+    }
+}
+
+type CreateMapFunction = (name: string, data: any, userId: number, isSnapshot: boolean) => Promise<void>;
+
+export const createMap: CreateMapFunction = async (name, data, userId, isSnapshot) => {
     const mapData = await JSON.parse(data);
 
     // Saving drawings to DB separately so can remove from JSON
@@ -189,10 +225,15 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
     mapData.drawings.polygons = [];
     mapData.drawingsInDB = true;
 
+    const myDataLayers = JSON.parse(JSON.stringify(mapData.mapLayers.myDataLayers));
+    if (isSnapshot)
+        mapData.mapLayers.myDataLayers = [];
+
     const newMap = await Map.create({
         name: name,
         data: JSON.stringify(mapData),
-        deleted: 0
+        deleted: 0,
+        is_snapshot: isSnapshot
     });
 
     await UserMap.create({
@@ -204,6 +245,10 @@ export const createMap: CreateMapFunction = async (name, data, userId) => {
     await saveMarkers(newMap.id, markers);
 
     await savePolygonsAndLines(newMap.id, polygonsAndLines);
+
+    if (isSnapshot) {
+        await copyDataGroupItems(newMap.id, myDataLayers);
+    }
 }
 
 type MapUpdateFunction = (eid: number, name: string, data: any) => Promise<void>;

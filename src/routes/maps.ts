@@ -26,6 +26,7 @@ type SaveMapRequest = Request & {
         eid: number;
         name: string;
         data: any;
+        isSnapshot: boolean;
     },
     auth: {
         artifacts: {
@@ -45,7 +46,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
 
     try {
 
-        const { eid, name, data } = request.payload;
+        const { eid, name, data, isSnapshot } = request.payload;
 
         // eid provided means update map
         const mapExists = eid != null;
@@ -66,7 +67,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
 
             await updateMap(eid, name, data);
         } else {
-            await createMap(name, data, request.auth.artifacts.user_id);
+            await createMap(name, data, request.auth.artifacts.user_id, isSnapshot);
         }
 
     } catch (err: any) {
@@ -261,8 +262,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         //return h.response().code(200);
 
         // Remove emails from user_map
-        await deleteMapAccessByEmails(payload.eid, emailsToRemoveFromUserMap);
-        await deleteMapAccessByEmails(payload.eid, emailsToRemoveFromPendingUserMap);
+        await deleteMapAccessByEmails(payload.eid, [...emailsToRemoveFromUserMap, ...emailsToRemoveFromPendingUserMap]);
 
 
         // Now get emails that are newly given the map access.
@@ -530,7 +530,8 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 },
                 createdDate: userMap.created_date,
                 access: userMap.access == UserMapAccess.Readwrite ? "WRITE" : "READ",
-                viewed: userMap.viewed == 1
+                viewed: userMap.viewed == 1,
+                isSnapshot: Map.is_snapshot
             })
         };
 
