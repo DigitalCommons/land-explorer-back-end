@@ -197,7 +197,7 @@ const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
             }
         });
         for (const polygon of dataGroupPolygons) {
-            const newPolygon = await createPolygon(polygon.name, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid);
+            const newPolygon = await createPolygon(polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid);
             await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
         }
 
@@ -207,7 +207,7 @@ const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
             }
         });
         for (const line of dataGroupLines) {
-            const newLine = await createLine(line.name, line.vertices.coordinates, line.length, line.uuid);
+            const newLine = await createLine(line.name, line.description, line.vertices.coordinates, line.length, line.uuid);
             await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
         }
     }
