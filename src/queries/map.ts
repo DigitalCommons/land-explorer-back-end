@@ -1,5 +1,6 @@
 
 import { Map, UserMap, UserMapAccess, Marker, Polygon, Line, MapMembership, ItemTypeId } from './database';
+import { v4 as uuidv4 } from 'uuid';
 
 export const getMapMarkers = async (mapId: number) => {
     const mapMemberships = await MapMembership.findAll({
@@ -120,7 +121,7 @@ export const createMarker = async (name: string, description: string, coordinate
 /* Save array of markers to DB for a given map. */
 const saveMarkers = async (mapId: number, markers: Array<any>) => {
     for (const m of markers) {
-        const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid);
+        const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid ? m.uuid : uuidv4());
         await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
     }
 }
@@ -165,12 +166,12 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     for (const p of polygonsAndLines) {
         if (p.type === "Polygon") {
             const newPolygon = await createPolygon(
-                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id
+                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id ? p.data.id : uuidv4()
             );
             await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
         } else {
             const newLine = await createLine(
-                p.name, p.description, p.data.geometry.coordinates, p.length, p.data.id
+                p.name, p.description, p.data.geometry.coordinates, p.length, p.data.id ? p.data.id : uuidv4()
             );
             await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
         }
