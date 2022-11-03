@@ -38,6 +38,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             item_type_id: ItemTypeId.Polygon
         }
     });
+    console.log(mapPolygonMemberships)
     const mapLineMemberships = await MapMembership.findAll({
         where: {
             map_id: mapId,
@@ -54,6 +55,8 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
                 idpolygons: mapMembership.item_id
             }
         });
+        console.log(mapMembership)
+        console.log(polygon)
         polygonsAndLines.push({
             item_id: polygon.idpolygons,
             name: polygon.name,
@@ -198,7 +201,7 @@ const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
             }
         });
         for (const polygon of dataGroupPolygons) {
-            const newPolygon = await createPolygon(polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid);
+            const newPolygon = await createPolygon(polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, uuidv4());
             await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
         }
 
@@ -208,7 +211,7 @@ const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
             }
         });
         for (const line of dataGroupLines) {
-            const newLine = await createLine(line.name, line.description, line.vertices.coordinates, line.length, line.uuid);
+            const newLine = await createLine(line.name, line.description, line.vertices.coordinates, line.length, uuidv4());
             await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
         }
     }
