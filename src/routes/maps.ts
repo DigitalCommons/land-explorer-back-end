@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, createMarker, createPolygon, createLine, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
+import { createMap, updateMap, getMapMarkers, createMarker, createPolygon, createLine, createMapMembership, getMapPolygonsAndLines, updateMarker, updatePolygon, updateLine } from '../queries/map';
 import { UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 
@@ -126,6 +126,64 @@ async function saveMapLine(request: SaveMapLineRequest, h: ResponseToolkit, d: a
         line.name, line.description, line.vertices.coordinates, line.length, line.uuid
     );
     await createMapMembership(map.map.eid, ItemType.Line, newLine.idlinestrings);
+
+    return h.response();
+}
+
+type EditRequest = Request & {
+    payload: {
+        name: string;
+        description: string;
+    }
+}
+
+type EditMarkerRequest = EditRequest & {
+    payload: {
+        object: {
+            idmarkers: number;
+        }
+    }
+}
+
+async function editMarker(request: EditMarkerRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const { name, description } = request.payload;
+    const marker = request.payload.object;
+
+    await updateMarker(marker.idmarkers, name, description);
+
+    return h.response();
+}
+
+type EditPolygonRequest = EditRequest & {
+    payload: {
+        object: {
+            idpolygons: number;
+        }
+    }
+}
+
+async function editPolygon(request: EditPolygonRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const { name, description } = request.payload;
+    const polygon = request.payload.object;
+
+    await updatePolygon(polygon.idpolygons, name, description);
+
+    return h.response();
+}
+
+type EditLineRequest = EditRequest & {
+    payload: {
+        object: {
+            idlinestrings: number;
+        }
+    }
+}
+
+async function editLine(request: EditLineRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const { name, description } = request.payload;
+    const line = request.payload.object;
+
+    await updateLine(line.idlinestrings, name, description);
 
     return h.response();
 }
@@ -709,6 +767,9 @@ export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
     { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
     { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
+    { method: "POST", path: "/api/user/edit/marker", handler: editMarker },
+    { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
+    { method: "POST", path: "/api/user/edit/line", handler: editLine },
     { method: "POST", path: "/api/user/map/view/", handler: setMapAsViewed },
     { method: "POST", path: "/api/user/map/share/sync/", handler: mapSharing },
     { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },
