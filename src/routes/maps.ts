@@ -155,7 +155,6 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
         await Model.UserMap.update(
             {
                 viewed: 1,
-                data: payload.data,
             },
             {
                 where: {
