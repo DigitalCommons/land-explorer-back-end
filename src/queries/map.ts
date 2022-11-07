@@ -330,3 +330,48 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
         }
     );
 }
+
+export const updateMarker = async (id: number, name: string, description: string) => {
+    const marker = await Marker.findOne({
+        where: {
+            idmarkers: id
+        }
+    });
+
+    await marker.update({
+        name: name,
+        description: description
+    });
+
+    return;
+}
+
+export const updatePolygon = async (id: number, name: string, description: string) => {
+    const polygon = await Polygon.findOne({
+        where: {
+            idpolygons: id
+        }
+    });
+
+    await polygon.update({
+        name: name,
+        description: description
+    });
+
+    return;
+}
+
+export const updateLine = async (id: number, name: string, description: string) => {
+    const line = await Line.findOne({
+        where: {
+            idlinestrings: id
+        }
+    });
+
+    await line.update({
+        name: name,
+        description: description
+    });
+
+    return;
+}
