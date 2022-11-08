@@ -10,7 +10,7 @@
     "dev": "run-p dev:*",
     "test": "lab -v **/*.test.js",
     "build": "tsc",
-    "serve": "pm2 start lib/main.js --watch"
+    "serve": "pm2 start lib/main.js"
   },
   "author": "Hansen Salim",
   "dependencies": {
