@@ -10,11 +10,11 @@ type DataGroupRequest = Request & {
 };
 
 async function getUserDataGroups(request: DataGroupRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const dataGroups = await findDataGroupsByUserId(request.auth.artifacts.user_id)
+    const dataGroups = await findDataGroupsByUserId(request.auth.artifacts.user_id);
 
     return h.response(dataGroups);
 }
 
-export const markerRoutes: ServerRoute[] = [
+export const dataGroupRoutes: ServerRoute[] = [
     { method: "GET", path: "/api/userdatagroups", handler: getUserDataGroups },
 ];

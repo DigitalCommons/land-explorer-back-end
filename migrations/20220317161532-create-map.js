@@ -12,7 +12,7 @@ module.exports = {
         created_date datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_modified datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (id)
-      ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1`
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
     );
 
   },

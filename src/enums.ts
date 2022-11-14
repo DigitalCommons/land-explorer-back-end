@@ -1,9 +1,9 @@
-enum OrganisationType {
+export enum OrganisationType {
   Commercial = "commercial",
   CommunityInterest = "community-interest",
 }
 
-enum OrganisationSubType {
+export enum OrganisationSubType {
   CommunityEnergy = "community-energy",
   CommunityGrowing = "community-growing",
   CommunityGroup = "community-group",
@@ -17,4 +17,8 @@ enum OrganisationSubType {
   Other = "other",
 }
 
-module.exports = { OrganisationType, OrganisationSubType }
+export enum ItemType {
+  Marker = 0,
+  Polygon = 1,
+  Line = 2,
+}

@@ -7,36 +7,32 @@ const bcrypt = require('bcrypt');
 module.exports = {
 
     up: async (queryInterface, Sequelize) => {
-        const publicUserExists = await queryInterface.rawSelect('user', {
+        const testUserExists = await queryInterface.rawSelect('user', {
             where: {
-                id: -1
+                username: "test-lx@digitalcommons.coop"
             }
         }, ['id']);
 
-        if (publicUserExists)
+        if (testUserExists)
             return Promise.resolve();
 
         return queryInterface.bulkInsert('user', [{
-            id: -1,
-            first_name: "Public",
-            last_name: "User",
+            first_name: "Testing",
+            last_name: "LX User",
             address1: faker.address.streetAddress(),
             address2: faker.address.secondaryAddress(),
             city: faker.address.city(),
             postcode: faker.address.zipCode(),
             phone: faker.phone.phoneNumber(),
 
-            marketing: faker.datatype.boolean(),
+            marketing: true,
             organisation: faker.company.companyName(),
             organisation_number: faker.internet.color(),
             organisation_activity: enums.OrganisationSubType.PowerNetwork,
             organisation_type: enums.OrganisationType.Commercial,
             council_id: 0,
-
-            // username: faker.internet.email(),
-            // password: faker.internet.password(),
-            username: "public@landexplorer.com",
-            password: bcrypt.hashSync("password", 10),
+            username: "test-lx@digitalcommons.coop",
+            password: bcrypt.hashSync("testingtesting123", 10),
             access: 2,
             enabled: 1,
             is_super_user: 1,

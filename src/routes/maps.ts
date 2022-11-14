@@ -1,6 +1,9 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
+import { createMap, updateMap, getMapMarkers, createMarker, createPolygon, createLine, createMapMembership, getMapPolygonsAndLines, updateMarker, updatePolygon, updateLine } from '../queries/map';
+import { UserMapAccess } from "../queries/database";
+import { ItemType } from "../enums";
 
 const Model = require('../queries/database');
 const { Op } = require("sequelize");
@@ -17,7 +20,22 @@ const query = require('../queries/query');
  * @param d 
  * @returns 
  */
-async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+
+type SaveMapRequest = Request & {
+    payload: {
+        eid: number;
+        name: string;
+        data: any;
+        isSnapshot: boolean;
+    },
+    auth: {
+        artifacts: {
+            user_id: number
+        }
+    }
+};
+
+async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
     let validation = new Validation();
     await validation.validateSaveMap(request.payload);
@@ -28,18 +46,17 @@ async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<Re
 
     try {
 
-        let payload: any = request.payload;
+        const { eid, name, data, isSnapshot } = request.payload;
 
         // eid provided means update map
-        let updateMap = payload.eid != null;
+        const mapExists = eid != null;
 
-        if (updateMap) {
-
+        if (mapExists) {
             // check that user has permission to update the map
-            let hasAccess = await Model.UserMap.findOne({
+            const hasAccess = await Model.UserMap.findOne({
                 where: {
-                    map_id: payload.eid,
-                    access: 2, //(access = 1 for read, access = 2 for write)
+                    map_id: eid,
+                    access: UserMapAccess.Readwrite,
                     user_id: request.auth.artifacts.user_id
                 }
             });
@@ -48,34 +65,9 @@ async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<Re
                 return h.response("Unauthorised").code(403);
             }
 
-            // update map
-            await Model.Map.update(
-                {
-                    name: payload.name,
-                    data: payload.data,
-                },
-                {
-                    where: {
-                        id: payload.eid
-                    }
-                }
-            );
-
+            await updateMap(eid, name, data);
         } else {
-
-            //Add map and add permission
-            let newMap = await Model.Map.create({
-                name: payload.name,
-                data: payload.data,
-                deleted: 0
-            });
-
-            await Model.UserMap.create({
-                map_id: newMap.id,
-                user_id: request.auth.artifacts.user_id,
-                access: 2 // 1 = readonly, 2 = readwrite
-            });
-
+            await createMap(name, data, request.auth.artifacts.user_id, isSnapshot);
         }
 
     } catch (err: any) {
@@ -84,6 +76,116 @@ async function saveMap(request: Request, h: ResponseToolkit, d: any): Promise<Re
     }
 
     return h.response().code(200);
+}
+
+type SaveMapMarkerRequest = Request & {
+    payload: {
+        marker: any;
+        map: any;
+    }
+};
+
+async function saveMapMarker(request: SaveMapMarkerRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { marker, map } = request.payload;
+
+    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates, marker.uuid);
+    await createMapMembership(map.map.eid, ItemType.Marker, newMarker.idmarkers);
+
+    return h.response();
+}
+
+type SaveMapPolygonRequest = Request & {
+    payload: {
+        polygon: any;
+        map: any;
+    }
+};
+
+async function saveMapPolygon(request: SaveMapPolygonRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { polygon, map } = request.payload;
+
+    const newPolygon = await createPolygon(
+        polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid
+    );
+    await createMapMembership(map.map.eid, ItemType.Polygon, newPolygon.idpolygons);
+
+    return h.response();
+}
+
+type SaveMapLineRequest = Request & {
+    payload: {
+        line: any;
+        map: any;
+    }
+};
+
+async function saveMapLine(request: SaveMapLineRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { line, map } = request.payload;
+
+    const newLine = await createLine(
+        line.name, line.description, line.vertices.coordinates, line.length, line.uuid
+    );
+    await createMapMembership(map.map.eid, ItemType.Line, newLine.idlinestrings);
+
+    return h.response();
+}
+
+type EditRequest = Request & {
+    payload: {
+        name: string;
+        description: string;
+    }
+}
+
+type EditMarkerRequest = EditRequest & {
+    payload: {
+        object: {
+            idmarkers: number;
+        }
+    }
+}
+
+async function editMarker(request: EditMarkerRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const { name, description } = request.payload;
+    const marker = request.payload.object;
+
+    await updateMarker(marker.idmarkers, name, description);
+
+    return h.response();
+}
+
+type EditPolygonRequest = EditRequest & {
+    payload: {
+        object: {
+            idpolygons: number;
+        }
+    }
+}
+
+async function editPolygon(request: EditPolygonRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const { name, description } = request.payload;
+    const polygon = request.payload.object;
+
+    await updatePolygon(polygon.idpolygons, name, description);
+
+    return h.response();
+}
+
+type EditLineRequest = EditRequest & {
+    payload: {
+        object: {
+            idlinestrings: number;
+        }
+    }
+}
+
+async function editLine(request: EditLineRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    const { name, description } = request.payload;
+    const line = request.payload.object;
+
+    await updateLine(line.idlinestrings, name, description);
+
+    return h.response();
 }
 
 
@@ -111,7 +213,6 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
         await Model.UserMap.update(
             {
                 viewed: 1,
-                data: payload.data,
             },
             {
                 where: {
@@ -218,8 +319,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         //return h.response().code(200);
 
         // Remove emails from user_map
-        await deleteMapAccessByEmails(payload.eid, emailsToRemoveFromUserMap);
-        await deleteMapAccessByEmails(payload.eid, emailsToRemoveFromPendingUserMap);
+        await deleteMapAccessByEmails(payload.eid, [...emailsToRemoveFromUserMap, ...emailsToRemoveFromPendingUserMap]);
 
 
         // Now get emails that are newly given the map access.
@@ -259,7 +359,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
                 return {
                     map_id: payload.eid,
                     user_id: user.id,
-                    access: 1, // 1 = readonly, 2 = readwrite
+                    access: UserMapAccess.Readonly,
                 };
             })
         );
@@ -270,7 +370,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
                 return {
                     map_id: payload.eid,
                     email_address: email,
-                    access: 1, // 1 = readonly, 2 = readwrite
+                    access: UserMapAccess.Readonly,
                 };
             })
         );
@@ -408,11 +508,10 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
  * @param d 
  * @returns 
  */
-async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const userId = request.auth.artifacts.user_id;
 
     try {
-
         const Maps = await Model.Map.findAll(
             {
                 where: {
@@ -435,6 +534,14 @@ async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         const MapsWithShared = []
 
         for (const Map of Maps) {
+            const mapData = await JSON.parse(Map.data);
+
+            if (mapData.drawingsInDB) {
+                mapData.markers.markers = await getMapMarkers(Map.id);
+                mapData.drawings.polygons = await getMapPolygonsAndLines(Map.id);
+                Map.data = JSON.stringify(mapData);
+            }
+
             const userMap = Map.UserMaps[0];
             const sharedWith: any[] = [];
 
@@ -479,8 +586,9 @@ async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                     sharedWith: sharedWith,
                 },
                 createdDate: userMap.created_date,
-                access: userMap.access == 2 ? "WRITE" : "READ",
-                viewed: userMap.viewed == 1
+                access: userMap.access == UserMapAccess.Readwrite ? "WRITE" : "READ",
+                viewed: userMap.viewed == 1,
+                isSnapshot: Map.is_snapshot
             })
         };
 
@@ -500,7 +608,7 @@ async function GetUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
  * @param d 
  * @returns 
  */
-async function GetLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
     let validation = new Validation();
     await validation.validateLandOwnershipPolygonRequest(request.query);
@@ -547,14 +655,15 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
     const { mapId } = request.params;
     const { user_id } = request.auth.artifacts;
 
-    const userMap = await Model.UserMap.findOne({
+    const hasAccess = await Model.UserMap.findOne({
         where: {
             user_id,
             map_id: mapId
         }
     });
-    if (!userMap)
-        return h.response({ success: false, message: "User account doesn't have read access to that map" });
+    if (!hasAccess) {
+        return h.response("Unauthorised!").code(403);
+    }
 
     const map = await Model.Map.findOne({
         where: {
@@ -601,26 +710,32 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
 
     const features = [...polygons, ...markers, ...dataGroupMarkers];
 
-    const shapeFileLocation = `./data/shapefiles/${map.name}-${Date.now()}.zip`;
+    const shapeFileDirectory = './data/shapefiles';
+    const shapeFileLocation = `${shapeFileDirectory}/${map.name}-${Date.now()}.zip`;
+
+    const fs = require('fs');
+
+    fs.mkdir(shapeFileDirectory, { recursive: true }, (error: any) => {
+        if (error) throw error;
+    });
 
     const { convert } = require('geojson2shp');
+    // geojson2shp writing to file path isn't working so create our own write stream
+    const outStream = fs.createWriteStream(shapeFileLocation);
     const convertOptions = {
         layer: 'land-explorer-layer',
         targetCrs: 2154
     };
-
-    //create a new shapefile in the shape file location
-    await convert(features, shapeFileLocation, convertOptions);
+    // create a new shapefile in the shape file location
+    await convert(features, outStream, convertOptions);
 
     const response = h.file(shapeFileLocation, {
         mode: 'attachment'
     });
 
     const deleteFile = () => {
-        const fs = require('fs');
         fs.unlink(shapeFileLocation, (error: any) => {
-            if (error)
-                console.log(error)
+            if (error) throw error;
         });
     }
 
@@ -648,13 +763,19 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
 
 export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/save/", handler: saveMap },
+    { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
+    { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
+    { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
+    { method: "POST", path: "/api/user/edit/marker", handler: editMarker },
+    { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
+    { method: "POST", path: "/api/user/edit/line", handler: editLine },
     { method: "POST", path: "/api/user/map/view/", handler: setMapAsViewed },
     { method: "POST", path: "/api/user/map/share/sync/", handler: mapSharing },
     { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },
     { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
     { method: "GET", path: "/api/user/map/download/{mapId}", handler: downloadMap },
-    { method: "GET", path: "/api/user/maps/", handler: GetUserMaps },
-    { method: "GET", path: "/api/ownership/", handler: GetLandOwnershipPolygon },
+    { method: "GET", path: "/api/user/maps/", handler: getUserMaps },
+    { method: "GET", path: "/api/ownership/", handler: getLandOwnershipPolygon },
     // public method to see maps
     { method: "GET", path: "/api/public/map/{mapId}", handler: getPublicMap, options: { auth: false } },
 ];

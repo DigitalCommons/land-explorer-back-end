@@ -5,7 +5,7 @@ import { Request, Server } from "@hapi/hapi";
 import { databaseRoutes } from "./routes/database";
 import { emailRoutes } from "./routes/emails";
 import { mapRoutes } from "./routes/maps";
-import { markerRoutes } from "./routes/markers";
+import { dataGroupRoutes } from "./routes/datagroups";
 
 const AuthBearer = require('hapi-auth-bearer-token');
 const Inert = require('@hapi/inert');
@@ -23,6 +23,7 @@ export const init = async function (): Promise<Server> {
     server = Hapi.server({
         port: process.env.PORT || 4000,
         host: '0.0.0.0',
+        debug: { log: ['error'], request: ['error'] },
     });
 
     await server.register(AuthBearer);
@@ -72,8 +73,13 @@ export const init = async function (): Promise<Server> {
 
     server.route(databaseRoutes);
     server.route(mapRoutes);
-    server.route(markerRoutes);
+    server.route(dataGroupRoutes);
     server.route(emailRoutes);
+
+    // Log requests and response codes
+    server.events.on('response', (request: any) => {
+        console.log(request.info.remoteAddress + ': ' + request.method.toUpperCase() + ' ' + request.path + ' --> ' + request.response.statusCode);
+    });
 
     return server;
 };

@@ -16,7 +16,7 @@ module.exports = {
         KEY FKfhiwt9igiru75odneq9p5fk27 (user_id),
         CONSTRAINT user_map_map FOREIGN KEY (map_id) REFERENCES map (id) ON DELETE CASCADE ON UPDATE CASCADE,
         CONSTRAINT user_map_user FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE ON UPDATE CASCADE
-      ) ENGINE=InnoDB AUTO_INCREMENT=0 DEFAULT CHARSET=latin1`
+      ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
     );
 
   },
