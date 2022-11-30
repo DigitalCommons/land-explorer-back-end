@@ -3,6 +3,7 @@ import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, 
 const { QueryTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
 const helper = require('./helpers');
+const axios = require('axios').default;
 
 export const getUser = async (options = {}) => {
   let result = await User.findOne(options);
@@ -37,6 +38,16 @@ export const usernameExist = async (username: string): Promise<Boolean> => {
  * @returns 
  */
 export const registerUser = async (data: any) => {
+  if (data.marketing) {
+    axios.post("https://api.buttondown.email/v1/subscribers", {
+      email: data.username,
+      referrer_url: "https://app.landexplorer.coop/register"
+    }, {
+      headers: {
+        'Authorization': `Token ${process.env.BUTTONDOWN_API_KEY}`
+      }
+    })
+  }
 
   return await User.create({
     username: data.username,
