@@ -24,10 +24,10 @@ module.exports = {
         }]);
 
         await queryInterface.bulkInsert('markers', [{
-            name: "Tight Marker 2",
-            description: "This is where the niceness resides 2",
+            name: "Close and Tight Marker",
+            description: "This is very close to niceness",
             data_group_id: testDataGroupId,
-            location: Sequelize.fn('ST_GeomFromText', 'POINT(-1.6 52.6036 )'),
+            location: Sequelize.fn('ST_GeomFromText', 'POINT(-1.6 52.5136 )'),
             uuid: uuidv4()
         }]);
 
