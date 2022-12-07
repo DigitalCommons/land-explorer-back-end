@@ -670,33 +670,52 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
             id: mapId
         }
     });
-
     const mapData = JSON.parse(map.data);
 
-    const polygons = mapData.drawings.polygons.map((polygon: any) => {
-        polygon.data.properties = { name: polygon.name, length: polygon.length, area: polygon.area };
-        return polygon.data;
-    });
-    const markers = mapData.markers.markers.map((marker: any) => ({
+    // Add markers, polygons and lines that are saved to the map
+    const markers = await getMapMarkers(mapId);
+    const markerFeatures = markers.map((marker: any) => ({
         type: "Feature",
         geometry: {
             type: "Point",
             coordinates: marker.coordinates
         },
         properties: {
-            name: marker.name
+            name: marker.name,
+            description: marker.description,
         }
     }));
 
-    const dataGroupMarkers: any[] = [];
+    const polygonAndLines = await getMapPolygonsAndLines(mapId);
+    const polygonAndLineFeatures = polygonAndLines.map((polygon: any) => ({
+        ...polygon.data,
+        properties: {
+            name: polygon.name,
+            description: polygon.description,
+        }
+    }));
 
+    // Add features from datagroup layers which are enabled
+    const dataGroupFeatures: any[] = [];
     for (let layer of mapData.mapLayers.myDataLayers) {
         const markers = await Model.Marker.findAll({
-            data_group_id: layer.iddata_groups
+            where: {
+                data_group_id: layer.iddata_groups
+            }
+        });
+        const polygons = await Model.Polygon.findAll({
+            where: {
+                data_group_id: layer.iddata_groups
+            }
+        });
+        const lines = await Model.Line.findAll({
+            where: {
+                data_group_id: layer.iddata_groups
+            }
         });
 
         markers.forEach((marker: any) => {
-            dataGroupMarkers.push({
+            dataGroupFeatures.push({
                 type: "Feature",
                 geometry: marker.location,
                 properties: {
@@ -706,9 +725,31 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
                 }
             })
         });
+        polygons.forEach((polygon: any) => {
+            dataGroupFeatures.push({
+                type: "Feature",
+                geometry: polygon.vertices,
+                properties: {
+                    name: polygon.name,
+                    description: polygon.description,
+                    group: layer.title
+                }
+            })
+        });
+        lines.forEach((line: any) => {
+            dataGroupFeatures.push({
+                type: "Feature",
+                geometry: line.vertices,
+                properties: {
+                    name: line.name,
+                    description: line.description,
+                    group: layer.title
+                }
+            })
+        });
     }
 
-    const features = [...polygons, ...markers, ...dataGroupMarkers];
+    const features = [...markerFeatures, ...polygonAndLineFeatures, ...dataGroupFeatures];
 
     const shapeFileDirectory = './data/shapefiles';
     const shapeFileLocation = `${shapeFileDirectory}/${map.name}-${Date.now()}.zip`;
@@ -739,7 +780,7 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
         });
     }
 
-    setTimeout(deleteFile, 1000);
+    setTimeout(deleteFile, 5000);
 
     return response;
 }
