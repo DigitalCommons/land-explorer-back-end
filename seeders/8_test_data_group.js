@@ -1,8 +1,5 @@
 'use strict';
 
-const { faker } = require('@faker-js/faker');
-const enums = require('../lib/enums');
-const bcrypt = require('bcrypt');
 const { v4: uuidv4 } = require('uuid');
 
 module.exports = {
@@ -23,6 +20,14 @@ module.exports = {
             description: "This is where the niceness resides",
             data_group_id: testDataGroupId,
             location: Sequelize.fn('ST_GeomFromText', 'POINT(-1.5111 52.7036 )'),
+            uuid: uuidv4()
+        }]);
+
+        await queryInterface.bulkInsert('markers', [{
+            name: "Close and Tight Marker",
+            description: "This is very close to niceness",
+            data_group_id: testDataGroupId,
+            location: Sequelize.fn('ST_GeomFromText', 'POINT(-1.6 52.5136 )'),
             uuid: uuidv4()
         }]);
 
