@@ -17,7 +17,7 @@ module.exports = {
         //the data field doesn't contain the drawn objects, meaning seeding requires a save for the seeded map items to show up
         const testMapId = await queryInterface.bulkInsert('map', [{
             name: "Test Map",
-            data: `{ "map": { "zoom": [7.098862221873304], "lngLat": [-1.4231817045257742, 52.472531034277125], "searchMarker": null, "marker": [-0.2416815, 51.5285582], "gettingLocation": false, "currentLocation": null, "movingMethod": "flyTo", "name": "Test Map" }, "drawings": { "polygons": [], "activePolygon": null, "polygonCount": 1, "lineCount": 1, "loadingDrawings": false }, "markers": { "searchMarker": [-0.2416815, 51.5285582], "currentMarker": null, "id": 1, "markers": [] }, "mapLayers": { "landDataLayers": [], "myDataLayers": [] }, "version": "1.1", "name": "Test Map", "markersInDB": true }`,
+            data: `{ "map": { "zoom": [7.098862221873304], "lngLat": [-1.4231817045257742, 52.472531034277125], "searchMarker": null, "marker": [-0.2416815, 51.5285582], "gettingLocation": false, "currentLocation": null, "movingMethod": "flyTo", "name": "Test Map" }, "drawings": { "polygons": [], "activePolygon": null, "polygonCount": 1, "lineCount": 1, "loadingDrawings": false }, "markers": { "searchMarker": [-0.2416815, 51.5285582], "currentMarker": null, "id": 1, "markers": [] }, "mapLayers": { "landDataLayers": [], "myDataLayers": [] }, "version": "1.1", "name": "Test Map", "drawingsInDB": true }`,
             deleted: 0,
             created_date: new Date(),
             last_modified: new Date()

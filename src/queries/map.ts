@@ -38,7 +38,6 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             item_type_id: ItemTypeId.Polygon
         }
     });
-    console.log(mapPolygonMemberships)
     const mapLineMemberships = await MapMembership.findAll({
         where: {
             map_id: mapId,
@@ -55,11 +54,10 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
                 idpolygons: mapMembership.item_id
             }
         });
-        console.log(mapMembership)
-        console.log(polygon)
         polygonsAndLines.push({
             item_id: polygon.idpolygons,
             name: polygon.name,
+            description: polygon.description,
             type: "Polygon",
             // Form GeoJSON that is used by front end
             data: {
@@ -71,6 +69,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             center: polygon.center.coordinates,
             length: polygon.length,
             area: polygon.area,
+            uuid: polygon.uuid,
         });
     }
 
@@ -84,6 +83,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
         polygonsAndLines.push({
             item_id: line.idlinestrings,
             name: line.name,
+            description: line.description,
             type: "LineString",
             // Form GeoJSON that is used by front end
             data: {
@@ -93,6 +93,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
                 geometry: { type: 'LineString', coordinates: line.vertices.coordinates }
             },
             length: line.length,
+            uuid: line.uuid,
         });
     }
 
@@ -124,7 +125,7 @@ export const createMarker = async (name: string, description: string, coordinate
 /* Save array of markers to DB for a given map. */
 const saveMarkers = async (mapId: number, markers: Array<any>) => {
     for (const m of markers) {
-        const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid ? m.uuid : uuidv4());
+        const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid || uuidv4());
         await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
     }
 }
@@ -169,12 +170,12 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     for (const p of polygonsAndLines) {
         if (p.type === "Polygon") {
             const newPolygon = await createPolygon(
-                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id ? p.data.id : uuidv4()
+                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id || uuidv4()
             );
             await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
         } else {
             const newLine = await createLine(
-                p.name, p.description, p.data.geometry.coordinates, p.length, p.data.id ? p.data.id : uuidv4()
+                p.name, p.description, p.data.geometry.coordinates, p.length, p.data.id || uuidv4()
             );
             await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
         }
@@ -192,7 +193,7 @@ const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
             name: marker.name,
             description: marker.description,
             coordinates: marker.location.coordinates,
-            uuid: marker.uuid
+            uuid: uuidv4()
         })));
 
         const dataGroupPolygons = await Polygon.findAll({
@@ -331,47 +332,44 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     );
 }
 
-export const updateMarker = async (id: number, name: string, description: string) => {
-    const marker = await Marker.findOne({
-        where: {
-            idmarkers: id
+export const updateMarker = async (uuid: string, name: string, description: string) => {
+    await Marker.update(
+        {
+            name: name,
+            description: description
+        },
+        {
+            where: {
+                uuid: uuid
+            }
         }
-    });
-
-    await marker.update({
-        name: name,
-        description: description
-    });
-
-    return;
+    );
 }
 
-export const updatePolygon = async (id: number, name: string, description: string) => {
-    const polygon = await Polygon.findOne({
-        where: {
-            idpolygons: id
+export const updatePolygon = async (uuid: string, name: string, description: string) => {
+    await Polygon.update(
+        {
+            name: name,
+            description: description
+        },
+        {
+            where: {
+                uuid: uuid
+            }
         }
-    });
-
-    await polygon.update({
-        name: name,
-        description: description
-    });
-
-    return;
+    );
 }
 
-export const updateLine = async (id: number, name: string, description: string) => {
-    const line = await Line.findOne({
-        where: {
-            idlinestrings: id
+export const updateLine = async (uuid: string, name: string, description: string) => {
+    await Line.update(
+        {
+            name: name,
+            description: description
+        },
+        {
+            where: {
+                uuid: uuid
+            }
         }
-    });
-
-    await line.update({
-        name: name,
-        description: description
-    });
-
-    return;
+    );
 }

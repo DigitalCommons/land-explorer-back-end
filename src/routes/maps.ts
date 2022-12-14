@@ -1,4 +1,5 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
+import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
 import { createMap, updateMap, getMapMarkers, createMarker, createPolygon, createLine, createMapMembership, getMapPolygonsAndLines, updateMarker, updatePolygon, updateLine } from '../queries/map';
@@ -65,6 +66,8 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
                 return h.response("Unauthorised").code(403);
             }
 
+            // TODO: Also check that the map isn't a snapshot?
+
             await updateMap(eid, name, data);
         } else {
             await createMap(name, data, request.auth.artifacts.user_id, isSnapshot);
@@ -88,7 +91,7 @@ type SaveMapMarkerRequest = Request & {
 async function saveMapMarker(request: SaveMapMarkerRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const { marker, map } = request.payload;
 
-    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates, marker.uuid);
+    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates, uuidv4());
     await createMapMembership(map.map.eid, ItemType.Marker, newMarker.idmarkers);
 
     return h.response();
@@ -105,7 +108,7 @@ async function saveMapPolygon(request: SaveMapPolygonRequest, h: ResponseToolkit
     const { polygon, map } = request.payload;
 
     const newPolygon = await createPolygon(
-        polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, polygon.uuid
+        polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, uuidv4()
     );
     await createMapMembership(map.map.eid, ItemType.Polygon, newPolygon.idpolygons);
 
@@ -123,7 +126,7 @@ async function saveMapLine(request: SaveMapLineRequest, h: ResponseToolkit, d: a
     const { line, map } = request.payload;
 
     const newLine = await createLine(
-        line.name, line.description, line.vertices.coordinates, line.length, line.uuid
+        line.name, line.description, line.vertices.coordinates, line.length, uuidv4()
     );
     await createMapMembership(map.map.eid, ItemType.Line, newLine.idlinestrings);
 
@@ -134,56 +137,35 @@ type EditRequest = Request & {
     payload: {
         name: string;
         description: string;
-    }
-}
-
-type EditMarkerRequest = EditRequest & {
-    payload: {
         object: {
-            idmarkers: number;
+            uuid: string;
         }
     }
 }
 
-async function editMarker(request: EditMarkerRequest, h: ResponseToolkit): Promise<ResponseObject> {
+async function editMarker(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
     const { name, description } = request.payload;
     const marker = request.payload.object;
 
-    await updateMarker(marker.idmarkers, name, description);
+    await updateMarker(marker.uuid, name, description);
 
     return h.response();
 }
 
-type EditPolygonRequest = EditRequest & {
-    payload: {
-        object: {
-            idpolygons: number;
-        }
-    }
-}
-
-async function editPolygon(request: EditPolygonRequest, h: ResponseToolkit): Promise<ResponseObject> {
+async function editPolygon(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
     const { name, description } = request.payload;
     const polygon = request.payload.object;
 
-    await updatePolygon(polygon.idpolygons, name, description);
+    await updatePolygon(polygon.uuid, name, description);
 
     return h.response();
 }
 
-type EditLineRequest = EditRequest & {
-    payload: {
-        object: {
-            idlinestrings: number;
-        }
-    }
-}
-
-async function editLine(request: EditLineRequest, h: ResponseToolkit): Promise<ResponseObject> {
+async function editLine(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
     const { name, description } = request.payload;
     const line = request.payload.object;
 
-    await updateLine(line.idlinestrings, name, description);
+    await updateLine(line.uuid, name, description);
 
     return h.response();
 }
@@ -670,33 +652,52 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
             id: mapId
         }
     });
-
     const mapData = JSON.parse(map.data);
 
-    const polygons = mapData.drawings.polygons.map((polygon: any) => {
-        polygon.data.properties = { name: polygon.name, length: polygon.length, area: polygon.area };
-        return polygon.data;
-    });
-    const markers = mapData.markers.markers.map((marker: any) => ({
+    // Add markers, polygons and lines that are saved to the map
+    const markers = await getMapMarkers(mapId);
+    const markerFeatures = markers.map((marker: any) => ({
         type: "Feature",
         geometry: {
             type: "Point",
             coordinates: marker.coordinates
         },
         properties: {
-            name: marker.name
+            name: marker.name,
+            description: marker.description,
         }
     }));
 
-    const dataGroupMarkers: any[] = [];
+    const polygonAndLines = await getMapPolygonsAndLines(mapId);
+    const polygonAndLineFeatures = polygonAndLines.map((polygon: any) => ({
+        ...polygon.data,
+        properties: {
+            name: polygon.name,
+            description: polygon.description,
+        }
+    }));
 
+    // Add features from datagroup layers which are enabled
+    const dataGroupFeatures: any[] = [];
     for (let layer of mapData.mapLayers.myDataLayers) {
         const markers = await Model.Marker.findAll({
-            data_group_id: layer.iddata_groups
+            where: {
+                data_group_id: layer.iddata_groups
+            }
+        });
+        const polygons = await Model.Polygon.findAll({
+            where: {
+                data_group_id: layer.iddata_groups
+            }
+        });
+        const lines = await Model.Line.findAll({
+            where: {
+                data_group_id: layer.iddata_groups
+            }
         });
 
         markers.forEach((marker: any) => {
-            dataGroupMarkers.push({
+            dataGroupFeatures.push({
                 type: "Feature",
                 geometry: marker.location,
                 properties: {
@@ -706,9 +707,31 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
                 }
             })
         });
+        polygons.forEach((polygon: any) => {
+            dataGroupFeatures.push({
+                type: "Feature",
+                geometry: polygon.vertices,
+                properties: {
+                    name: polygon.name,
+                    description: polygon.description,
+                    group: layer.title
+                }
+            })
+        });
+        lines.forEach((line: any) => {
+            dataGroupFeatures.push({
+                type: "Feature",
+                geometry: line.vertices,
+                properties: {
+                    name: line.name,
+                    description: line.description,
+                    group: layer.title
+                }
+            })
+        });
     }
 
-    const features = [...polygons, ...markers, ...dataGroupMarkers];
+    const features = [...markerFeatures, ...polygonAndLineFeatures, ...dataGroupFeatures];
 
     const shapeFileDirectory = './data/shapefiles';
     const shapeFileLocation = `${shapeFileDirectory}/${map.name}-${Date.now()}.zip`;
@@ -724,7 +747,8 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
     const outStream = fs.createWriteStream(shapeFileLocation);
     const convertOptions = {
         layer: 'land-explorer-layer',
-        targetCrs: 2154
+        targetCrs: 2154,
+        encoding: 'latin1'
     };
     // create a new shapefile in the shape file location
     await convert(features, outStream, convertOptions);
@@ -739,7 +763,7 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
         });
     }
 
-    setTimeout(deleteFile, 1000);
+    setTimeout(deleteFile, 5000);
 
     return response;
 }
