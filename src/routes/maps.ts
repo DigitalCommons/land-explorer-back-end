@@ -747,7 +747,8 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
     const outStream = fs.createWriteStream(shapeFileLocation);
     const convertOptions = {
         layer: 'land-explorer-layer',
-        targetCrs: 2154
+        targetCrs: 2154,
+        encoding: 'latin1'
     };
     // create a new shapefile in the shape file location
     await convert(features, outStream, convertOptions);
