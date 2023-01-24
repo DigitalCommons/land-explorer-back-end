@@ -207,13 +207,18 @@ export const UserGroupMembership = UserGroupMembershipModel;
 export const MapMembership = MapMembershipModel;
 export const ItemType = ItemTypeModel;
 
+/* The hardcoded datagroup ID used to signify no data group in Marker/Polygon/Line tables */
+export enum DataGroupId {
+  None = -1
+}
+
 /* The access values in the UserMap table */
 export enum UserMapAccess {
   Readonly = 1,
   Readwrite = 2,
 }
 
-/* Possible values of the iditem_types column in the ItemType table */
+/* All the possible values of the iditem_types column in the ItemType table */
 export enum ItemTypeId {
   Marker = 0,
   Polygon = 1,

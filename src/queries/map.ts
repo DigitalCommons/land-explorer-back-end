@@ -1,5 +1,6 @@
 
 import { Map, UserMap, UserMapAccess, Marker, Polygon, Line, MapMembership, ItemTypeId } from './database';
+import { createMarker, createPolygon, createLine } from './object';
 import { v4 as uuidv4 } from 'uuid';
 
 export const getMapMarkers = async (mapId: number) => {
@@ -108,61 +109,12 @@ export const createMapMembership = async (mapId: number, itemTypeId: number, ite
     })
 }
 
-export const createMarker = async (name: string, description: string, coordinates: number[], uuid: string
-) => {
-    return await Marker.create({
-        name: name,
-        description: description,
-        data_group_id: -1,
-        location: {
-            type: "Point",
-            coordinates: coordinates
-        },
-        uuid: uuid
-    })
-}
-
 /* Save array of markers to DB for a given map. */
 const saveMarkers = async (mapId: number, markers: Array<any>) => {
     for (const m of markers) {
         const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid || uuidv4());
         await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
     }
-}
-
-export const createPolygon = async (
-    name: string, description: string, vertices: number[][], center: number[], length: number, area: number, uuid: string
-) => {
-    return await Polygon.create({
-        name: name,
-        description: description,
-        data_group_id: -1,
-        vertices: {
-            type: "Polygon",
-            coordinates: vertices
-        },
-        center: {
-            type: "Point",
-            coordinates: center
-        },
-        length: length,
-        area: area,
-        uuid: uuid
-    })
-}
-
-export const createLine = async (name: string, description: string, vertices: number[][], length: number, uuid: string) => {
-    return await Line.create({
-        name: name,
-        description: description,
-        data_group_id: -1,
-        vertices: {
-            type: "LineString",
-            coordinates: vertices
-        },
-        length: length,
-        uuid: uuid
-    })
 }
 
 /* Save array of polygons and lines to DB for a given map. */
@@ -182,7 +134,8 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
     }
 }
 
-const copyDataGroupItems = async (mapId: number, dataLayers: any) => {
+/* Copy all data group objects to a specified map. */
+const copyDataGroupObjects = async (mapId: number, dataLayers: any) => {
     for (const dataLayer of dataLayers) {
         const dataGroupMarkers = await Marker.findAll({
             where: {
@@ -252,7 +205,7 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
     await savePolygonsAndLines(newMap.id, polygonsAndLines);
 
     if (isSnapshot) {
-        await copyDataGroupItems(newMap.id, myDataLayers);
+        await copyDataGroupObjects(newMap.id, myDataLayers);
     }
 }
 
@@ -327,48 +280,6 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
         {
             where: {
                 id: mapId
-            }
-        }
-    );
-}
-
-export const updateMarker = async (uuid: string, name: string, description: string) => {
-    await Marker.update(
-        {
-            name: name,
-            description: description
-        },
-        {
-            where: {
-                uuid: uuid
-            }
-        }
-    );
-}
-
-export const updatePolygon = async (uuid: string, name: string, description: string) => {
-    await Polygon.update(
-        {
-            name: name,
-            description: description
-        },
-        {
-            where: {
-                uuid: uuid
-            }
-        }
-    );
-}
-
-export const updateLine = async (uuid: string, name: string, description: string) => {
-    await Line.update(
-        {
-            name: name,
-            description: description
-        },
-        {
-            where: {
-                uuid: uuid
             }
         }
     );
