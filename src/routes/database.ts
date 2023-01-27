@@ -39,7 +39,7 @@ type RegisterRequest = Request & {
 };
 
 async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const originDomain = request.headers.referer;
+    const originDomain = request.info.host;
 
     let validation = new Validation();
     await validation.validateUserRegister(request.payload);
@@ -279,7 +279,7 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function resetPassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = request.headers.referer;
+    const originDomain = request.info.host;
 
     let validation = new Validation();
     await validation.validateResetPassword(request.payload);
@@ -298,6 +298,8 @@ async function resetPassword(request: Request, h: ResponseToolkit, d: any): Prom
         });
 
         if (!user) {
+            // TODO: change this behaviour. We shouldn't spam an email that doesn't have an account...
+
             //If this email is not an user, notify them accordingly 
             mailer.resetPasswordNotFound(payload.username);
             return h.response().code(200);
