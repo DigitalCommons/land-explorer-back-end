@@ -211,20 +211,10 @@ export async function getPolygon(sw_lng: number, sw_lat: number, ne_lng: number,
   return await polygonDbSequelize.query(query, { type: QueryTypes.SELECT });
 }
 
-/* 
-  Data groups and their contents
-*/
-
-export async function findDataGroupsByUserId(userId: number) {
-  const user = await User.findOne({
-    where: {
-      id: userId
-    }
-  });
-
+export async function findAllDataGroupContentForUser(userId: number) {
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
-      user_id: user.id
+      user_id: userId
     }
   });
 
@@ -287,6 +277,28 @@ export async function findDataGroupsByUserId(userId: number) {
   return userGroupsAndData;
 }
 
+export async function hasAccessToDataGroup(userId: number, dataGroupId: number) {
+  const userGroupMemberships = await UserGroupMembership.findAll({
+    where: {
+      user_id: userId
+    }
+  });
+
+  for (let membership of userGroupMemberships) {
+    const dataGroupMembership = await DataGroupMembership.findOne({
+      where: {
+        user_group_id: membership.user_group_id,
+        data_group_id: dataGroupId
+      }
+    });
+
+    if (dataGroupMembership) {
+      return true;
+    }
+  }
+
+  return false;
+}
 
 /* Queries for the public map views  */
 

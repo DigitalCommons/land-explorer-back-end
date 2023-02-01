@@ -2,7 +2,8 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, createMarker, createPolygon, createLine, createMapMembership, getMapPolygonsAndLines, updateMarker, updatePolygon, updateLine } from '../queries/map';
+import { createMap, updateMap, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
+import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 
@@ -31,7 +32,7 @@ type SaveMapRequest = Request & {
     },
     auth: {
         artifacts: {
-            user_id: number
+            user_id: number;
         }
     }
 };
@@ -50,9 +51,21 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
         const { eid, name, data, isSnapshot } = request.payload;
 
         // eid provided means update map
-        const mapExists = eid != null;
+        const isUpdate = eid !== null;
 
-        if (mapExists) {
+        if (isUpdate) {
+            // check that the map exists and isn't a snapshot
+            const existsAndEditable = await Model.Map.findOne({
+                where: {
+                    id: eid,
+                    is_snapshot: { [Op.or]: [false, null] }
+                }
+            });
+
+            if (existsAndEditable === null) {
+                return h.response("Map not found").code(404);
+            }
+
             // check that user has permission to update the map
             const hasAccess = await Model.UserMap.findOne({
                 where: {
@@ -62,11 +75,9 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
                 }
             });
 
-            if (hasAccess == null) {
+            if (hasAccess === null) {
                 return h.response("Unauthorised").code(403);
             }
-
-            // TODO: Also check that the map isn't a snapshot?
 
             await updateMap(eid, name, data);
         } else {
@@ -81,54 +92,83 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
     return h.response().code(200);
 }
 
-type SaveMapMarkerRequest = Request & {
+type SaveMapObjectRequest = Request & {
     payload: {
-        marker: any;
-        map: any;
+        object: {
+            name: string;
+            description: string;
+            vertices: number[][];
+            center: number[];
+            length: number;
+            area: number;
+        },
+        eid: number;
     }
 };
 
-async function saveMapMarker(request: SaveMapMarkerRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const { marker, map } = request.payload;
+async function saveMapMarker(request: SaveMapObjectRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { object, eid } = request.payload;
 
-    const newMarker = await createMarker(marker.name, marker.description, marker.location.coordinates, uuidv4());
-    await createMapMembership(map.map.eid, ItemType.Marker, newMarker.idmarkers);
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
+
+    const newMarker = await createMarker(object.name, object.description, object.center, uuidv4());
+    await createMapMembership(eid, ItemType.Marker, newMarker.idmarkers);
 
     return h.response();
 }
 
-type SaveMapPolygonRequest = Request & {
-    payload: {
-        polygon: any;
-        map: any;
-    }
-};
+async function saveMapPolygon(request: SaveMapObjectRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { object, eid } = request.payload;
 
-async function saveMapPolygon(request: SaveMapPolygonRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const { polygon, map } = request.payload;
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
 
     const newPolygon = await createPolygon(
-        polygon.name, polygon.description, polygon.vertices.coordinates, polygon.center.coordinates, polygon.length, polygon.area, uuidv4()
+        object.name, object.description, object.vertices, object.center, object.length, object.area, uuidv4()
     );
-    await createMapMembership(map.map.eid, ItemType.Polygon, newPolygon.idpolygons);
+    await createMapMembership(eid, ItemType.Polygon, newPolygon.idpolygons);
 
     return h.response();
 }
 
-type SaveMapLineRequest = Request & {
-    payload: {
-        line: any;
-        map: any;
-    }
-};
+async function saveMapLine(request: SaveMapObjectRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { object, eid } = request.payload;
 
-async function saveMapLine(request: SaveMapLineRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const { line, map } = request.payload;
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
 
     const newLine = await createLine(
-        line.name, line.description, line.vertices.coordinates, line.length, uuidv4()
+        object.name, object.description, object.vertices, object.length, uuidv4()
     );
-    await createMapMembership(map.map.eid, ItemType.Line, newLine.idlinestrings);
+    await createMapMembership(eid, ItemType.Line, newLine.idlinestrings);
 
     return h.response();
 }
@@ -141,7 +181,7 @@ type EditRequest = Request & {
             uuid: string;
         }
     }
-}
+};
 
 async function editMarker(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
     const { name, description } = request.payload;
@@ -169,7 +209,6 @@ async function editLine(request: EditRequest, h: ResponseToolkit): Promise<Respo
 
     return h.response();
 }
-
 
 /**
  * Set a map as viewed.

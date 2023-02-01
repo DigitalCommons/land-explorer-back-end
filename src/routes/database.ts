@@ -329,12 +329,7 @@ export const databaseRoutes: ServerRoute[] = [
     // public API
     { method: "POST", path: "/api/user/register/", handler: registerUser, options: { auth: false } },
     { method: "POST", path: "/api/user/password-reset/", handler: resetPassword, options: { auth: false } },
-    {
-        method: "POST", path: "/api/token", handler: loginUser, options: {
-            auth: false,
-        }
-    },
-
+    { method: "POST", path: "/api/token", handler: loginUser, options: { auth: false } },
     // Authenticated users only
     { method: "GET", path: "/api/user/details/", handler: getAuthUserDetails },
     { method: "POST", path: "/api/user/email", handler: changeEmail, },
