@@ -79,6 +79,8 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
                 return h.response("Unauthorised").code(403);
             }
 
+            // TODO: Also check that the map isn't a snapshot?
+
             await updateMap(eid, name, data);
         } else {
             await createMap(name, data, request.auth.artifacts.user_id, isSnapshot);
