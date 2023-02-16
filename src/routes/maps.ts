@@ -2,7 +2,7 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
+import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
@@ -169,6 +169,60 @@ async function saveMapLine(request: SaveMapObjectRequest, h: ResponseToolkit, d:
         object.name, object.description, object.vertices, object.length, uuidv4()
     );
     await createMapMembership(eid, ItemType.Line, newLine.idlinestrings);
+
+    return h.response();
+}
+
+type SaveMapZoomRequest = Request & {
+    payload: {
+        eid: number;
+        zoom: number[];
+    }
+};
+
+async function saveMapZoom(request: SaveMapZoomRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { eid, zoom } = request.payload;
+
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
+
+    await updateMapZoom(eid, zoom);
+
+    return h.response();
+}
+
+type SaveMapLngLatRequest = Request & {
+    payload: {
+        eid: number;
+        lngLat: number[];
+    }
+};
+
+async function saveMapLngLat(request: SaveMapLngLatRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { eid, lngLat } = request.payload;
+
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
+
+    await updateMapLngLat(eid, lngLat);
 
     return h.response();
 }
@@ -522,7 +576,7 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
 }
 
 /**
- * Get all map shared to user
+ * Get all maps shared with user, in order of creation (oldest first)
  * 
  * @param request 
  * @param h 
@@ -557,11 +611,9 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         for (const Map of Maps) {
             const mapData = await JSON.parse(Map.data);
 
-            if (mapData.drawingsInDB) {
-                mapData.markers.markers = await getMapMarkers(Map.id);
-                mapData.drawings.polygons = await getMapPolygonsAndLines(Map.id);
-                Map.data = JSON.stringify(mapData);
-            }
+            mapData.markers.markers = await getMapMarkers(Map.id);
+            mapData.drawings.polygons = await getMapPolygonsAndLines(Map.id);
+            Map.data = JSON.stringify(mapData);
 
             const userMap = Map.UserMaps[0];
             const sharedWith: any[] = [];
@@ -707,8 +759,8 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
         }
     }));
 
-    const polygonAndLines = await getMapPolygonsAndLines(mapId);
-    const polygonAndLineFeatures = polygonAndLines.map((polygon: any) => ({
+    const polygonsAndLines = await getMapPolygonsAndLines(mapId);
+    const polygonAndLineFeatures = polygonsAndLines.map((polygon: any) => ({
         ...polygon.data,
         properties: {
             name: polygon.name,
@@ -829,6 +881,8 @@ export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
     { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
     { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
+    { method: "POST", path: "/api/user/map/save/zoom", handler: saveMapZoom },
+    { method: "POST", path: "/api/user/map/save/lngLat", handler: saveMapLngLat },
     { method: "POST", path: "/api/user/edit/marker", handler: editMarker },
     { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
     { method: "POST", path: "/api/user/edit/line", handler: editLine },

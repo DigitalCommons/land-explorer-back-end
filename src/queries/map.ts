@@ -3,6 +3,12 @@ import { Map, UserMap, UserMapAccess, Marker, Polygon, Line, MapMembership, Item
 import { createMarker, createPolygon, createLine } from './object';
 import { v4 as uuidv4 } from 'uuid';
 
+const getMap = async (mapId: number) => await Map.findOne({
+    where: {
+        id: mapId
+    }
+})
+
 export const getMapMarkers = async (mapId: number) => {
     const mapMemberships = await MapMembership.findAll({
         where: {
@@ -27,6 +33,11 @@ export const getMapMarkers = async (mapId: number) => {
             description: marker.description
         });
     }
+
+    // Add markers that are still stored in data JSON (if any)
+    const map = await getMap(mapId);
+    const mapData = JSON.parse(map.data);
+    markers.push(...mapData.markers.markers);
 
     return markers;
 }
@@ -97,6 +108,11 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             uuid: line.uuid,
         });
     }
+
+    // Add drawings that are still stored in data JSON (if any)
+    const map = await getMap(mapId);
+    const mapData = JSON.parse(map.data);
+    polygonsAndLines.push(...mapData.drawings.polygons);
 
     return polygonsAndLines;
 }
@@ -181,7 +197,6 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
     const polygonsAndLines = mapData.drawings.polygons;
     mapData.markers.markers = [];
     mapData.drawings.polygons = [];
-    mapData.drawingsInDB = true;
 
     const myDataLayers = JSON.parse(JSON.stringify(mapData.mapLayers.myDataLayers));
     if (isSnapshot)
@@ -212,70 +227,110 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
 type MapUpdateFunction = (eid: number, name: string, data: any) => Promise<void>;
 
 export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
-    const existingMap = await Map.findOne({
-        where: {
-            id: mapId
-        }
+    console.log(`Updating map ${mapId}`);
+    const mapData = await JSON.parse(data);
+
+    // Remove existing objects in DB and re-add them.
+    // TODO: Reduce number of DB operations by only adding and removing objects that have changed
+
+    const mapMemberships = await MapMembership.findAll({
+        where: { map_id: mapId }
     });
 
-    const existingMapData = await JSON.parse(existingMap.data);
-    const newMapData = await JSON.parse(data);
-
-    if (existingMapData.drawingsInDB) {
-        // TODO: Reduce number of DB operations by only adding and removing markers that have changed
-
-        const mapMemberships = await MapMembership.findAll({
-            where: { map_id: mapId }
-        });
-
-        const markerIds = [];
-        const polygonIds = [];
-        const lineIds = [];
-        for (const item of mapMemberships) {
-            switch (item.item_type_id) {
-                case ItemTypeId.Marker:
-                    markerIds.push(item.item_id);
-                case ItemTypeId.Polygon:
-                    polygonIds.push(item.item_id);
-                case ItemTypeId.Line:
-                    lineIds.push(item.item_id);
-            }
+    const markerIds = [];
+    const polygonIds = [];
+    const lineIds = [];
+    for (const item of mapMemberships) {
+        switch (item.item_type_id) {
+            case ItemTypeId.Marker:
+                markerIds.push(item.item_id);
+            case ItemTypeId.Polygon:
+                polygonIds.push(item.item_id);
+            case ItemTypeId.Line:
+                lineIds.push(item.item_id);
         }
+    }
 
+    if (markerIds.length) {
         console.log(`Removing ${markerIds.length} markers from DB for map ${mapId}`);
         await Marker.destroy({
             where: { idmarkers: markerIds }
         });
+    }
 
+    if (polygonIds.length) {
         console.log(`Removing ${polygonIds.length} polygons from DB for map ${mapId}`);
         await Polygon.destroy({
             where: { idpolygons: polygonIds }
         });
+    }
 
+    if (lineIds.length) {
         console.log(`Removing ${lineIds.length} lines from DB for map ${mapId}`);
         await Line.destroy({
             where: { idlinestrings: lineIds }
         });
-
-        await MapMembership.destroy({
-            where: { map_id: mapId }
-        });
     }
 
-    console.log(`Adding ${newMapData.markers.markers.length} markers to DB for map ${mapId}`);
-    await saveMarkers(mapId, newMapData.markers.markers);
-    console.log(`Adding ${newMapData.drawings.polygons.length} polygons/lines to DB for map ${mapId}`);
-    await savePolygonsAndLines(mapId, newMapData.drawings.polygons);
+    await MapMembership.destroy({
+        where: { map_id: mapId }
+    });
+
+    console.log(`Adding ${mapData.markers.markers.length} markers to DB for map ${mapId}`);
+    await saveMarkers(mapId, mapData.markers.markers);
+    console.log(`Adding ${mapData.drawings.polygons.length} polygons/lines to DB for map ${mapId}`);
+    await savePolygonsAndLines(mapId, mapData.drawings.polygons);
 
     // Remove drawings from data since they are now in the DB
-    newMapData.markers.markers = [];
-    newMapData.drawings.polygons = [];
-    newMapData.drawingsInDB = true;
+    mapData.markers.markers = [];
+    mapData.drawings.polygons = [];
 
     await Map.update(
         {
             name: name,
-            data: JSON.stringify(newMapData),
+            data: JSON.stringify(mapData),
+        },
+        {
+            where: {
+                id: mapId
+            }
+        }
+    );
+}
+
+type MapUpdateZoomFunction = (eid: number, zoom: number[]) => Promise<void>;
+
+export const updateMapZoom: MapUpdateZoomFunction = async (mapId, zoom) => {
+    const existingMap = await getMap(mapId);
+    const mapData = await JSON.parse(existingMap.data);
+
+    console.log(`Setting zoom to ${zoom} for map ${mapId}`);
+    mapData.map.zoom = zoom;
+
+    await Map.update(
+        {
+            data: JSON.stringify(mapData),
+        },
+        {
+            where: {
+                id: mapId
+            }
+        }
+    );
+}
+
+type MapUpdateLngLatFunction = (eid: number, lngLat: number[]) => Promise<void>;
+
+export const updateMapLngLat: MapUpdateLngLatFunction = async (mapId, lngLat) => {
+    const existingMap = await getMap(mapId);
+    const mapData = await JSON.parse(existingMap.data);
+
+    console.log(`Setting lngLat to ${lngLat} for map ${mapId}`);
+    mapData.map.lngLat = lngLat;
+
+    await Map.update(
+        {
+            data: JSON.stringify(mapData),
         },
         {
             where: {
