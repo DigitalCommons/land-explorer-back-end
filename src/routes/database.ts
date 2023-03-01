@@ -64,19 +64,15 @@ async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promi
 
 /**
  * Handle user login using request data from API
- * @param request 
- * @param h 
- * @returns 
  */
 async function loginUser(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-    console.log("hello")
+    console.log("login user");
 
     try {
         let payload: any = request.payload;
-        let result = await query.checkUser(payload.username, payload.password);
+        let result = await query.checkAndReturnUser(payload.username, payload.password);
 
         if (result) {
-            const config = process.env;
             const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
 
             // Create token
@@ -95,8 +91,6 @@ async function loginUser(request: Request, h: ResponseToolkit): Promise<Response
                 }
             );
 
-            // save user token
-            result.token = token;
             return h.response({
                 access_token: token,
                 token_type: "bearer",
@@ -107,13 +101,12 @@ async function loginUser(request: Request, h: ResponseToolkit): Promise<Response
         return h.response({
             error: "invalid_credentials",
             error_description: "Username and password combination does not match our record."
-        }).code(400);
+        }).code(401);
 
     } catch (err: any) {
         console.log(err.message);
         return h.response("internal server error!").code(500);
     }
-
 }
 
 /**
@@ -128,7 +121,7 @@ async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any):
     let user: typeof Model.User;
 
     try {
-        user = await query.getUserById(request.auth.artifacts.user_id);
+        user = await query.getUserById(request.auth.credentials.user_id);
 
         return h.response([{
             username: user.username,
@@ -177,7 +170,7 @@ async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promis
     try {
         await Model.User.update({ username: payload.username }, {
             where: {
-                id: request.auth.artifacts.user_id
+                id: request.auth.credentials.user_id
             }
         });
     }
@@ -223,7 +216,7 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
             },
             {
                 where: {
-                    id: request.auth.artifacts.user_id
+                    id: request.auth.credentials.user_id
                 }
             });
     }
@@ -256,7 +249,7 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
     try {
         await Model.User.update({ password: helper.hashPassword(payload.password) }, {
             where: {
-                id: request.auth.artifacts.user_id
+                id: request.auth.credentials.user_id
             }
         });
     }

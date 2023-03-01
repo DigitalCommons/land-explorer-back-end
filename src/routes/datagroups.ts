@@ -5,14 +5,14 @@ import { v4 as uuidv4 } from 'uuid';
 
 type DataGroupRequest = Request & {
     auth: {
-        artifacts: {
+        credentials: {
             user_id: number;
         }
     }
 };
 
 async function getUserDataGroups(request: DataGroupRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const dataGroups = await findAllDataGroupContentForUser(request.auth.artifacts.user_id);
+    const dataGroups = await findAllDataGroupContentForUser(request.auth.credentials.user_id);
 
     return h.response(dataGroups);
 }
@@ -30,7 +30,7 @@ type SaveDataGroupObjectRequest = Request & {
         dataGroupId: number;
     },
     auth: {
-        artifacts: {
+        credentials: {
             user_id: number;
         }
     }
@@ -39,7 +39,7 @@ type SaveDataGroupObjectRequest = Request & {
 async function saveDataGroupMarker(request: SaveDataGroupObjectRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const { object, dataGroupId } = request.payload;
 
-    const hasAccess = await hasAccessToDataGroup(request.auth.artifacts.user_id, dataGroupId);
+    const hasAccess = await hasAccessToDataGroup(request.auth.credentials.user_id, dataGroupId);
     if (!hasAccess) {
         return h.response("Unauthorised").code(403);
     }
@@ -52,7 +52,7 @@ async function saveDataGroupMarker(request: SaveDataGroupObjectRequest, h: Respo
 async function saveDataGroupPolygon(request: SaveDataGroupObjectRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const { object, dataGroupId } = request.payload;
 
-    const hasAccess = await hasAccessToDataGroup(request.auth.artifacts.user_id, dataGroupId);
+    const hasAccess = await hasAccessToDataGroup(request.auth.credentials.user_id, dataGroupId);
     if (!hasAccess) {
         return h.response("Unauthorised").code(403);
     }
@@ -65,7 +65,7 @@ async function saveDataGroupPolygon(request: SaveDataGroupObjectRequest, h: Resp
 async function saveDataGroupLine(request: SaveDataGroupObjectRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const { object, dataGroupId } = request.payload;
 
-    const hasAccess = await hasAccessToDataGroup(request.auth.artifacts.user_id, dataGroupId);
+    const hasAccess = await hasAccessToDataGroup(request.auth.credentials.user_id, dataGroupId);
     if (!hasAccess) {
         return h.response("Unauthorised").code(403);
     }

@@ -115,16 +115,13 @@ export const migrateGuestUserMap = async (user: typeof User) => {
 
 
 /**
- * 
- * @param username 
- * @param password 
- * @returns User
+ * Return the user if they exist and the password matches, otherwise return false.
  */
-export async function checkUser(username: string, password: string): Promise<typeof User | false> {
+export async function checkAndReturnUser(username: string, password: string): Promise<typeof User | false> {
 
   const user = await getUser({ where: { username: username }, raw: true });
 
-  if (user == null) {
+  if (!user) {
     return false;
   }
 
