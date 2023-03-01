@@ -41,6 +41,14 @@ With this migration and seed, running the api/ownership/ endpoint will error.
 
  - Reset migration `npx sequelize-cli db:migrate:undo:all`
 
+## Unit tests
+
+ - Add unit tests to a `.test.ts` file, in the same directory as the code you are testing.
+ - The tests in `routes/database.test.ts` and `routes/maps.test.ts` are good examples for how to write a test.
+ - In VS Code, install the extensions:
+  - 'ES6 Mocha Snippets' to make writing test boilerplate code faster
+  - 'Mocha Test Explorer' to run individual tests from sidebar. Add `"mochaExplorer.require": "ts-node/register"` to your `settings.json` and remove `"mochaExplorer.optsFile"`
+
 ## APIs
 
 ### Auth API
