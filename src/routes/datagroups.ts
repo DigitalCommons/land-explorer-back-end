@@ -76,7 +76,9 @@ async function saveDataGroupLine(request: SaveDataGroupObjectRequest, h: Respons
 }
 
 export const dataGroupRoutes: ServerRoute[] = [
+    // Get data groups that the user can access and their data 
     { method: "GET", path: "/api/user/datagroups", handler: getUserDataGroups },
+    // Save an object to a data group
     { method: "POST", path: "/api/user/datagroup/save/marker", handler: saveDataGroupMarker },
     { method: "POST", path: "/api/user/datagroup/save/polygon", handler: saveDataGroupPolygon },
     { method: "POST", path: "/api/user/datagroup/save/line", handler: saveDataGroupLine },

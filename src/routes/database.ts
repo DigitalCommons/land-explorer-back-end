@@ -1,5 +1,4 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
-import { userInfo } from "os";
 import { Validation } from '../validation';
 
 const jwt = require("jsonwebtoken");
@@ -7,23 +6,6 @@ const query = require('../queries/query');
 const Model = require('../queries/database');
 const mailer = require('../queries/mails');
 const helper = require('../queries/helpers');
-
-// async function getUserByIdRoute(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-
-//     let result = await query.getUser({
-//         where: { id: request.params.id },
-//         raw: true
-//     });
-
-//     return h.response(result);
-// }
-
-// async function getUserByUsername(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-
-//     let result = await query.usernameExist(request.params.id);
-
-//     return h.response(result);
-// }
 
 /**
  * Register new user using request data from API
@@ -319,14 +301,22 @@ async function resetPassword(request: Request, h: ResponseToolkit, d: any): Prom
 }
 
 export const databaseRoutes: ServerRoute[] = [
-    // public API
-    { method: "POST", path: "/api/user/register/", handler: registerUser, options: { auth: false } },
-    { method: "POST", path: "/api/user/password-reset/", handler: resetPassword, options: { auth: false } },
+    /** Public APIs */
+    // Register a new account
+    { method: "POST", path: "/api/user/register", handler: registerUser, options: { auth: false } },
+    // Request a password reset for an email address
+    { method: "POST", path: "/api/user/password-reset", handler: resetPassword, options: { auth: false } },
+    // Login user and retrieve a token
     { method: "POST", path: "/api/token", handler: loginUser, options: { auth: false } },
-    // Authenticated users only
-    { method: "GET", path: "/api/user/details/", handler: getAuthUserDetails },
+
+    /** Authenticated users only */
+    // Return logged in user's details
+    { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
+    // Allow user to change their email address
     { method: "POST", path: "/api/user/email", handler: changeEmail, },
+    // Allow user to change their details
     { method: "POST", path: "/api/user/details", handler: changeUserDetail, },
+    // Allow logged in user to change their password
     { method: "POST", path: "/api/user/password", handler: changePassword, },
 
 ];

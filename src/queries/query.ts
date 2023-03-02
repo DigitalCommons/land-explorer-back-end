@@ -340,15 +340,11 @@ export async function createPublicMapView(mapId: number, userId: number) {
     }
   });
 
-  const readAccess = 1;
-  const readWriteAccess = 2;
-
-  if (userMapView.access == readWriteAccess) {
+  if (userMapView.access === UserMapAccess.Readwrite) {
     const publicViewExists = await UserMap.findOne({
       where: {
         map_id: mapId,
         user_id: publicUserId,
-        access: readAccess,
       }
     });
 
@@ -356,7 +352,7 @@ export async function createPublicMapView(mapId: number, userId: number) {
       await UserMap.create({
         map_id: mapId,
         user_id: publicUserId,
-        access: readAccess,
+        access: UserMapAccess.Readonly,
         viewed: 0
       });
     }

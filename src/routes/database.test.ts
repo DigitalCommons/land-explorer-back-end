@@ -1,6 +1,6 @@
-// chai provides assertions (e.g. expect, assert)
+// Chai provides assertions (e.g. expect, assert)
 import { expect } from "chai";
-// sinon provides fakes, spies, stubs, etc.
+// Sinon provides mocks, spies, stubs, etc.
 import { createSandbox, fake } from "sinon"
 import { Server } from "@hapi/hapi";
 import { init } from "../server"

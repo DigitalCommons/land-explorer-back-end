@@ -61,7 +61,7 @@ describe("Get User Maps", () => {
             // TODO: stub getMapMarkers and getMapPolygonsAndLines, and test that drawings are included
             // These methods can be stubbed with proxyquire
 
-            // Fake Map.findAll to return an array of 1 Map
+            // fake Map.findAll to return an array of 1 Map
             sandbox.replace(Model.Map, "findAll", fake.returns([{
                 id: testMapId,
                 name: testMapName,
@@ -80,13 +80,13 @@ describe("Get User Maps", () => {
                 }]
             }]));
 
-            // Fake UserMap.findAll to return 2 UserMaps
+            // fake UserMap.findAll to return 2 UserMaps
             sandbox.replace(Model.UserMap, "findAll", fake.returns([
                 { id: 2, viewed: 1, map_id: testMapId, user_id: 2 },
                 { id: 3, viewed: 0, map_id: testMapId, user_id: 3 }
             ]));
 
-            // Fake Users that are asoociated with these UserMaps
+            // fake Users that are asoociated with these UserMaps
             const user2 = {
                 id: 2,
                 username: "user2@mail.coop"
@@ -101,7 +101,7 @@ describe("Get User Maps", () => {
                 return null;
             }));
 
-            // Fake 1 PendingUser
+            // fake 1 PendingUser
             sandbox.replace(Model.PendingUserMap, "findAll", fake.returns([{
                 id: 1,
                 email_address: "pendingUser@mail.coop",
