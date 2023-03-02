@@ -38,7 +38,7 @@ With this migration and seed, running the api/ownership/ endpoint will error.
  - We use the [Mocha](https://mochajs.org/) testing framework for our tests, with [Chai](https://www.chaijs.com/) for assertions and [Sinon](https://sinonjs.org/) for mocks, spies, stubs, etc.
 
 ### Writing a unit test
- - See the [Testing Wiki](https://github.com/DigitalCommons/land-explorer-front-end/wiki/Testing#unit-tests) for general advice on writing UTs
+ - See the [Testing wiki](https://github.com/DigitalCommons/land-explorer-front-end/wiki/Testing#unit-tests) for general advice on writing UTs
  - Add UTs to a `.test.ts` file in the same directory as the code you are testing.
  - The files `routes/database.test.ts` and `routes/maps.test.ts` contain good examples of UTs
  - In VS Code, install the extensions:

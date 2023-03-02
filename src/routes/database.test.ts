@@ -1,6 +1,7 @@
 // Chai provides assertions (e.g. expect, assert)
 import { expect } from "chai";
-// Sinon provides mocks, spies, stubs, etc.
+// Sinon provides mocks, spies, stubs, etc. We use them to replace and control the behaviour of code
+// that is external to our test unit, or to verify how out test unit interfaces with external code.
 import { createSandbox, fake } from "sinon"
 import { Server } from "@hapi/hapi";
 import { init } from "../server"
@@ -33,7 +34,7 @@ describe("Login", () => {
     afterEach(async () => {
         await server.stop();
 
-        // Completely restore all fakes created through the sandbox
+        // Restore all fakes that were created https://sinonjs.org/releases/latest/sandbox/
         sandbox.restore();
     });
 
