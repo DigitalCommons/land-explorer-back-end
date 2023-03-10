@@ -23,5 +23,6 @@ async function addToMailingList(request: EmailRequest, h: ResponseToolkit): Prom
 }
 
 export const emailRoutes: ServerRoute[] = [
+    // Add given email and name to the LX mailing list
     { method: "POST", path: "/mailinglist", handler: addToMailingList, options: { auth: false } },
 ];
