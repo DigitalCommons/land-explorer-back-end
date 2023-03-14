@@ -606,8 +606,19 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         for (const Map of Maps) {
             const mapData = await JSON.parse(Map.data);
 
+            // get all drawings, including those in separate DB tables
             mapData.markers.markers = await getMapMarkers(Map.id);
             mapData.drawings.polygons = await getMapPolygonsAndLines(Map.id);
+
+            // landDataLayers field used to be called activeLayers
+            if (mapData.mapLayers.activeLayers) {
+                mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
+            }
+            // fix that some old maps may not have dataLayers field
+            if (!mapData.mapLayers.myDataLayers) {
+                mapData.mapLayers.myDataLayers = [];
+            }
+
             Map.data = JSON.stringify(mapData);
 
             const userMap = Map.UserMaps[0];
