@@ -229,37 +229,32 @@ async function saveMapLngLat(request: SaveMapLngLatRequest, h: ResponseToolkit, 
 
 type EditRequest = Request & {
     payload: {
+        uuid: string;
         name: string;
         description: string;
-        object: {
-            uuid: string;
-        }
     }
 };
 
 async function editMarker(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const { name, description } = request.payload;
-    const marker = request.payload.object;
+    const { uuid, name, description } = request.payload;
 
-    await updateMarker(marker.uuid, name, description);
+    await updateMarker(uuid, name, description);
 
     return h.response();
 }
 
 async function editPolygon(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const { name, description } = request.payload;
-    const polygon = request.payload.object;
+    const { uuid, name, description } = request.payload;
 
-    await updatePolygon(polygon.uuid, name, description);
+    await updatePolygon(uuid, name, description);
 
     return h.response();
 }
 
 async function editLine(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const { name, description } = request.payload;
-    const line = request.payload.object;
+    const { uuid, name, description } = request.payload;
 
-    await updateLine(line.uuid, name, description);
+    await updateLine(uuid, name, description);
 
     return h.response();
 }
@@ -347,7 +342,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
             return h.response("Map not found").code(404);
         }
 
-        if (UserMap.access !== 2) {
+        if (UserMap.access !== UserMapAccess.Readwrite) {
             return h.response("Unauthorised!").code(403);
         }
 
@@ -551,7 +546,7 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
             return h.response("Map not found").code(404);
         }
 
-        if (UserMap.access !== 2) {
+        if (UserMap.access !== UserMapAccess.Readwrite) {
             return h.response("Unauthorised!").code(403);
         }
 
