@@ -31,7 +31,7 @@ type SaveMapRequest = Request & {
         isSnapshot: boolean;
     },
     auth: {
-        artifacts: {
+        credentials: {
             user_id: number;
         }
     }
@@ -71,7 +71,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
                 where: {
                     map_id: eid,
                     access: UserMapAccess.Readwrite,
-                    user_id: request.auth.artifacts.user_id
+                    user_id: request.auth.credentials.user_id
                 }
             });
 
@@ -81,7 +81,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
 
             await updateMap(eid, name, data);
         } else {
-            await createMap(name, data, request.auth.artifacts.user_id, isSnapshot);
+            await createMap(name, data, request.auth.credentials.user_id, isSnapshot);
         }
 
     } catch (err: any) {
@@ -114,7 +114,7 @@ async function saveMapMarker(request: SaveMapObjectRequest, h: ResponseToolkit, 
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
-            user_id: request.auth.artifacts.user_id
+            user_id: request.auth.credentials.user_id
         }
     });
     if (hasAccess === null) {
@@ -135,7 +135,7 @@ async function saveMapPolygon(request: SaveMapObjectRequest, h: ResponseToolkit,
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
-            user_id: request.auth.artifacts.user_id
+            user_id: request.auth.credentials.user_id
         }
     });
     if (hasAccess === null) {
@@ -158,7 +158,7 @@ async function saveMapLine(request: SaveMapObjectRequest, h: ResponseToolkit, d:
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
-            user_id: request.auth.artifacts.user_id
+            user_id: request.auth.credentials.user_id
         }
     });
     if (hasAccess === null) {
@@ -286,7 +286,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
             },
             {
                 where: {
-                    user_id: request.auth.artifacts.user_id,
+                    user_id: request.auth.credentials.user_id,
                     map_id: payload.eid,
                 }
             }
@@ -312,7 +312,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = request.headers.referer;
+    const originDomain = request.info.host;
 
     const validation = new Validation();
     await validation.validateShareMap(request.payload);
@@ -328,7 +328,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         let UserMap = await Model.UserMap.findOne(
             {
                 where: {
-                    user_id: request.auth.artifacts.user_id,
+                    user_id: request.auth.credentials.user_id,
                     map_id: payload.eid
                 },
                 include: [
@@ -356,7 +356,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
                 where: {
                     map_id: payload.eid,
                     user_id: {
-                        [Op.ne]: request.auth.artifacts.user_id,
+                        [Op.ne]: request.auth.credentials.user_id,
                     }
                 },
                 include: [
@@ -531,7 +531,7 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
         let UserMap = await Model.UserMap.findOne(
             {
                 where: {
-                    user_id: request.auth.artifacts.user_id,
+                    user_id: request.auth.credentials.user_id,
                     map_id: payload.eid
                 },
                 include: [
@@ -571,18 +571,13 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
 }
 
 /**
- * Get all maps shared with user, in order of creation (oldest first)
- * 
- * @param request 
- * @param h 
- * @param d 
- * @returns 
+ * Get all maps shared to user, in order of creation (oldest first).
  */
 async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const userId = request.auth.artifacts.user_id;
+    const userId = request.auth.credentials.user_id;
 
     try {
-        const Maps = await Model.Map.findAll(
+        const allMaps = await Model.Map.findAll(
             {
                 where: {
                     '$UserMaps.user_id$': userId,
@@ -601,14 +596,14 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 ]
             });
 
-        const MapsWithShared = []
+        const allMapsData = []
 
-        for (const Map of Maps) {
-            const mapData = await JSON.parse(Map.data);
+        for (const map of allMaps) {
+            const mapData = await JSON.parse(map.data);
 
             // get all drawings, including those in separate DB tables
-            mapData.markers.markers = await getMapMarkers(Map.id);
-            mapData.drawings.polygons = await getMapPolygonsAndLines(Map.id);
+            mapData.markers.markers = await getMapMarkers(map.id);
+            mapData.drawings.polygons = await getMapPolygonsAndLines(map.id);
 
             // landDataLayers field used to be called activeLayers
             if (mapData.mapLayers.activeLayers) {
@@ -619,59 +614,61 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 mapData.mapLayers.myDataLayers = [];
             }
 
-            Map.data = JSON.stringify(mapData);
+            map.data = JSON.stringify(mapData);
 
-            const userMap = Map.UserMaps[0];
+            const myUserMap = map.UserMaps[0];
+
+            // Get users with whom we have shared this map
             const sharedWith: any[] = [];
 
-            const UserMaps = await Model.UserMap.findAll({
+            const otherUserMaps = await Model.UserMap.findAll({
                 where: {
-                    map_id: Map.id,
+                    map_id: map.id,
                     user_id: { [Op.not]: userId }
                 }
             });
 
-            for (const UserMap of UserMaps) {
+            for (const userMap of otherUserMaps) {
                 const { username } = await Model.User.findOne({
-                    where: { id: UserMap.user_id }
+                    where: { id: userMap.user_id }
                 })
 
                 sharedWith.push({
                     emailAddress: username,
-                    viewed: UserMap.viewed == 1
+                    viewed: userMap.viewed === 1
                 });
             }
 
-            const PendingUserMaps = await Model.PendingUserMap.findAll({
+            const pendingUserMaps = await Model.PendingUserMap.findAll({
                 where: {
-                    map_id: Map.id
+                    map_id: map.id
                 }
             })
 
-            PendingUserMaps.forEach((PendingUserMap: any) => {
+            pendingUserMaps.forEach((pendingUserMap: any) => {
                 sharedWith.push({
-                    emailAddress: PendingUserMap.email_address,
-                    viewed: PendingUserMap.viewed == 1
+                    emailAddress: pendingUserMap.email_address,
+                    viewed: false
                 });
             });
 
-            MapsWithShared.push({
+            allMapsData.push({
                 map: {
-                    eid: Map.id,
-                    name: Map.name,
-                    data: Map.data,
-                    createdDate: Map.created_date,
-                    lastModified: Map.last_modified,
+                    eid: map.id,
+                    name: map.name,
+                    data: map.data,
+                    createdDate: map.created_date,
+                    lastModified: map.last_modified,
                     sharedWith: sharedWith,
-                    isSnapshot: Map.is_snapshot
+                    isSnapshot: map.is_snapshot
                 },
-                createdDate: userMap.created_date,
-                access: userMap.access == UserMapAccess.Readwrite ? "WRITE" : "READ",
-                viewed: userMap.viewed == 1
+                createdDate: myUserMap.created_date,
+                access: myUserMap.access === UserMapAccess.Readwrite ? "WRITE" : "READ",
+                viewed: myUserMap.viewed === 1
             })
         };
 
-        return h.response(MapsWithShared).code(200);
+        return h.response(allMapsData).code(200);
 
     } catch (err: any) {
         console.log(err.message);
@@ -720,7 +717,7 @@ type PublicMapRequest = Request & {
         mapId: number
     },
     auth: {
-        artifacts: {
+        credentials: {
             user_id: number
         }
     }
@@ -732,7 +729,7 @@ type FileResponseToolkit = ResponseToolkit & {
 
 async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): Promise<ResponseObject> {
     const { mapId } = request.params;
-    const { user_id } = request.auth.artifacts;
+    const { user_id } = request.auth.credentials;
 
     const hasAccess = await Model.UserMap.findOne({
         where: {
@@ -867,7 +864,7 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
 
 async function setMapPublic(request: PublicMapRequest, h: ResponseToolkit): Promise<ResponseObject> {
     const { mapId } = request.payload;
-    const { user_id } = request.auth.artifacts;
+    const { user_id } = request.auth.credentials;
 
     const publicMapAddress = await createPublicMapView(mapId, user_id);
 
@@ -883,22 +880,34 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
 }
 
 export const mapRoutes: ServerRoute[] = [
+    // Create or update a map
     { method: "POST", path: "/api/user/map/save/", handler: saveMap },
+    // Save an object to a map
     { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
     { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
     { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
+    // Save the zoom level of a map
     { method: "POST", path: "/api/user/map/save/zoom", handler: saveMapZoom },
+    // Save the longitude and latitude of a map (i.e. when the frame is moved)
     { method: "POST", path: "/api/user/map/save/lngLat", handler: saveMapLngLat },
+    // Edit an object
     { method: "POST", path: "/api/user/edit/marker", handler: editMarker },
     { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
     { method: "POST", path: "/api/user/edit/line", handler: editLine },
+    // Record that the user has viewed a map
     { method: "POST", path: "/api/user/map/view/", handler: setMapAsViewed },
+    // Share access of a map to a list of email addresses
     { method: "POST", path: "/api/user/map/share/sync/", handler: mapSharing },
+    // Delete a map
     { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },
+    // Make a map accessible to the public
     { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
+    // Returns a map converted to shapefile format
     { method: "GET", path: "/api/user/map/download/{mapId}", handler: downloadMap },
+    // Returns a list of all maps that the user has access to
     { method: "GET", path: "/api/user/maps/", handler: getUserMaps },
+    // Get the geojson polygons of land ownership within a given bounding box area
     { method: "GET", path: "/api/ownership/", handler: getLandOwnershipPolygon },
-    // public method to see maps
+    // Get a public map
     { method: "GET", path: "/api/public/map/{mapId}", handler: getPublicMap, options: { auth: false } },
 ];

@@ -10,7 +10,6 @@ import { dataGroupRoutes } from "./routes/datagroups";
 const AuthBearer = require('hapi-auth-bearer-token');
 const Inert = require('@hapi/inert');
 const jwt = require("jsonwebtoken");
-const query = require("./queries/query");
 
 export let server: Server;
 
@@ -32,31 +31,20 @@ export const init = async function (): Promise<Server> {
     server.auth.strategy('simple', 'bearer-access-token', {
         allowQueryToken: true,              // optional, false by default
         validate: async (request: any, token: string, h: any) => {
-
-            let decodedToken: any = false;
-
-            try {
-                decodedToken = jwt.verify(token, process.env.TOKEN_KEY);
-            } catch (err) {
-
-            }
-
-            const credentials = { token };
-            let artifacts = {};
+            let isValid = false;
+            let credentials = {};
 
             try {
-
-                // All user data already stored in token
-                // const user = await query.getUserById(decodedToken.user_id, { raw: true })
-
                 // see the loginUser function to see token content
-                artifacts = decodedToken;
+                const decodedToken = jwt.verify(token, process.env.TOKEN_KEY);
 
-            } catch (err: any) {
-                console.log(err.message);
+                isValid = true
+                credentials = { user_id: decodedToken.user_id };
+            } catch (err) {
+                console.log("Failed authentication", err);
             }
 
-            return { isValid: decodedToken, credentials, artifacts };
+            return { isValid, credentials };
         }
     });
 

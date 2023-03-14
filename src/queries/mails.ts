@@ -1,11 +1,8 @@
-const { QueryTypes } = require('sequelize');
-const { sequelize, User, Map, UserMap, PendingUserMap } = require('./database');
-const bcrypt = require('bcrypt');
+import sgMail from "@sendgrid/mail";
 
-const sgMail = require("@sendgrid/mail");
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 
-const authRoute = "auth/";
+const authRoute = "/auth/";
 let sender = "landexplorer@digitalcommons.coop";
 let senderName = "Land Explorer";
 

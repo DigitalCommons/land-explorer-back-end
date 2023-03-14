@@ -115,16 +115,13 @@ export const migrateGuestUserMap = async (user: typeof User) => {
 
 
 /**
- * 
- * @param username 
- * @param password 
- * @returns User
+ * Return the user if they exist and the password matches, otherwise return false.
  */
-export async function checkUser(username: string, password: string): Promise<typeof User | false> {
+export async function checkAndReturnUser(username: string, password: string): Promise<typeof User | false> {
 
   const user = await getUser({ where: { username: username }, raw: true });
 
-  if (user == null) {
+  if (!user) {
     return false;
   }
 
@@ -343,15 +340,11 @@ export async function createPublicMapView(mapId: number, userId: number) {
     }
   });
 
-  const readAccess = 1;
-  const readWriteAccess = 2;
-
-  if (userMapView.access == readWriteAccess) {
+  if (userMapView.access === UserMapAccess.Readwrite) {
     const publicViewExists = await UserMap.findOne({
       where: {
         map_id: mapId,
         user_id: publicUserId,
-        access: readAccess,
       }
     });
 
@@ -359,7 +352,7 @@ export async function createPublicMapView(mapId: number, userId: number) {
       await UserMap.create({
         map_id: mapId,
         user_id: publicUserId,
-        access: readAccess,
+        access: UserMapAccess.Readonly,
         viewed: 0
       });
     }

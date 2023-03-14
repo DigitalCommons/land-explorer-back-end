@@ -1,24 +1,15 @@
-<img src="https://raw.githubusercontent.com/hapijs/assets/master/images/hapi.png" width="400px" />
+# Land Explorer Back End
 
-# @hapi/hapi
-
-#### The Simple, Secure Framework Developers Trust
-
-Build powerful, scalable applications, with minimal overhead and full out-of-the-box functionality - your code, your way.
-
-### Visit the [hapi.dev](https://hapi.dev) Developer Portal for tutorials, documentation, and support
-
-## About
-
-This application provides the back-end functionality for Land Explorer. It has 3 main feature:
- -  Basic user account management. Authentication, registration, user details, and basic role (admin/not-admin). 
- - Landex maps. Storing and access management of map data from front end.
- - Polygon database. Accessing external database to access INSPIRE dataset of property boundary polygons. 
+This application provides the back-end functionality for Land Explorer. It has 4 main features:
+ - Basic user account management: Authentication, registration, user details
+ - Maps: Managing access to maps, creating/updating map data
+ - Data groups: Creating/updating data group data
+ - Polygons: Accessing external INSPIRE dataset of property boundary polygons
  
  Note: The polygon database is on a separate server from the application because the old provider does not support large memory for the database. With the server migration, we may merge the two database.
 
 
-## Requirement
+## Requirements
 
  - Nodejs
  - Nodemon
@@ -41,29 +32,22 @@ With this migration and seed, running the api/ownership/ endpoint will error.
 
  - Reset migration `npx sequelize-cli db:migrate:undo:all`
 
+## Unit tests
+
+ - Run `npm test` to run all UTs
+ - We use the [Mocha](https://mochajs.org/) testing framework for our tests, with [Chai](https://www.chaijs.com/) for assertions and [Sinon](https://sinonjs.org/) for mocks, spies, stubs, etc.
+
+### Writing a unit test
+ - See the [Testing wiki](https://github.com/DigitalCommons/land-explorer-front-end/wiki/Testing#unit-tests) for general advice on writing UTs
+ - Add UTs to a `.test.ts` file in the same directory as the code you are testing.
+ - The files `routes/database.test.ts` and `routes/maps.test.ts` contain good examples of UTs
+ - In VS Code, install the extensions:
+   - _ES6 Mocha Snippets_ to make writing test boilerplate code faster
+   - _Mocha Test Explorer_ to run individual tests from sidebar. You will need to add `"mochaExplorer.require": "ts-node/register"` to your `settings.json` and remove the `"mochaExplorer.optsFile"` setting
+
 ## APIs
 
-### Auth API
-
- - POST `api/user/register/` Allow user to register a new account
- - POST `token/` Allow user to login and retrieve a token
- - GET `api/user/details/` Return logged in user's details
- - POST `api/user/email/` Allow user to change its email address
- - POST `api/user/details/` Allow user to change their user details
- - POST `api/user/password/` Allow logged in user to change its password
- - POST `api/user/password-reset/` Allow user to request for password reset when they forget their password
-
-### Map API
-
- - POST `api/user/map/save/` Allow user to create or update a map
- - POST `api/user/map/view/` Record the activity when a user has viewed a map
- - POST `api/user/map/share/sync/` A method to share access of a map to a list of email addresses
- - POST `api/user/map/delete/` Allow user to delete a map
- - GET `api/user/maps/` Return map data accessible to logged in user
-
-### Land ownership API
-
- - GET `api/ownership/` Return the geojson polygons of land ownership within a given bounding box area 
+See the full list of APIs and their purpose by looking at the bottom of each file in the `src/routes/` directory.
 
 ## TODOs
 
