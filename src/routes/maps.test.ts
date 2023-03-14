@@ -58,9 +58,6 @@ describe("Get User Maps", () => {
         const testMapLastModified = '2023-01-22 06:24:11';
 
         beforeEach(() => {
-            // TODO: stub getMapMarkers and getMapPolygonsAndLines, and test that drawings are included
-            // These methods can be stubbed with proxyquire
-
             // fake Map.findAll to return an array of 1 Map
             sandbox.replace(Model.Map, "findAll", fake.returns([{
                 id: testMapId,

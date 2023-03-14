@@ -67,7 +67,6 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             }
         });
         polygonsAndLines.push({
-            item_id: polygon.idpolygons,
             name: polygon.name,
             description: polygon.description,
             type: "Polygon",
@@ -93,7 +92,6 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             }
         });
         polygonsAndLines.push({
-            item_id: line.idlinestrings,
             name: line.name,
             description: line.description,
             type: "LineString",
