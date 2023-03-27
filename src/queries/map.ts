@@ -28,6 +28,7 @@ export const getMapMarkers = async (mapId: number) => {
         });
     }
 
+    console.log(`Got ${markers.length} markers for map ${mapId}`);
     return markers;
 }
 
@@ -73,6 +74,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             uuid: polygon.uuid,
         });
     }
+    const numPolygons = polygonsAndLines.length;
 
     // Add lines
     for (const mapMembership of mapLineMemberships) {
@@ -97,7 +99,9 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
             uuid: line.uuid,
         });
     }
+    const numLines = polygonsAndLines.length - numPolygons;
 
+    console.log(`Got ${numPolygons} polygons and ${numLines} lines for map ${mapId}`);
     return polygonsAndLines;
 }
 
