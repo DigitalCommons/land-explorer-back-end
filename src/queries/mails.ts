@@ -2,7 +2,7 @@ import sgMail from "@sendgrid/mail";
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 
-const authRoute = "/auth/";
+const authRoute = "/auth";
 let sender = "landexplorer@digitalcommons.coop";
 let senderName = "Land Explorer";
 
