@@ -263,7 +263,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = request.info.host;
+    const originDomain = `https://${request.info.host}`;
 
     const validation = new Validation();
     await validation.validateShareMap(request.payload);
