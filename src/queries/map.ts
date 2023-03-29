@@ -39,6 +39,7 @@ export const getMapMarkers = async (mapId: number) => {
     const mapData = JSON.parse(map.data);
     markers.push(...mapData.markers.markers);
 
+    console.log(`Got ${markers.length} markers for map ${mapId}`);
     return markers;
 }
 
@@ -69,7 +70,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
         polygonsAndLines.push({
             name: polygon.name,
             description: polygon.description,
-            type: "Polygon",
+            type: 'Polygon',
             // Form GeoJSON that is used by front end
             data: {
                 id: polygon.uuid,
@@ -94,7 +95,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
         polygonsAndLines.push({
             name: line.name,
             description: line.description,
-            type: "LineString",
+            type: 'LineString',
             // Form GeoJSON that is used by front end
             data: {
                 id: line.uuid,
@@ -111,6 +112,10 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
     const map = await getMap(mapId);
     const mapData = JSON.parse(map.data);
     polygonsAndLines.push(...mapData.drawings.polygons);
+
+    const numPolygons = polygonsAndLines.filter(p => p.type === 'Polygon').length;
+    const numLines = polygonsAndLines.length - numPolygons;
+    console.log(`Got ${numPolygons} polygons and ${numLines} lines for map ${mapId}`);
 
     return polygonsAndLines;
 }

@@ -21,7 +21,7 @@ type RegisterRequest = Request & {
 };
 
 async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const originDomain = request.info.host;
+    const originDomain = `https://${request.info.host}`;
 
     let validation = new Validation();
     await validation.validateUserRegister(request.payload);
@@ -254,7 +254,7 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function resetPassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = request.info.host;
+    const originDomain = `https://${request.info.host}`;
 
     let validation = new Validation();
     await validation.validateResetPassword(request.payload);

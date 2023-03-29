@@ -312,7 +312,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
  * @returns 
  */
 async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = request.info.host;
+    const originDomain = `https://${request.info.host}`;
 
     const validation = new Validation();
     await validation.validateShareMap(request.payload);
@@ -881,7 +881,7 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
 
 export const mapRoutes: ServerRoute[] = [
     // Create or update a map
-    { method: "POST", path: "/api/user/map/save/", handler: saveMap },
+    { method: "POST", path: "/api/user/map/save", handler: saveMap },
     // Save an object to a map
     { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
     { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
@@ -895,19 +895,19 @@ export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
     { method: "POST", path: "/api/user/edit/line", handler: editLine },
     // Record that the user has viewed a map
-    { method: "POST", path: "/api/user/map/view/", handler: setMapAsViewed },
+    { method: "POST", path: "/api/user/map/view", handler: setMapAsViewed },
     // Share access of a map to a list of email addresses
-    { method: "POST", path: "/api/user/map/share/sync/", handler: mapSharing },
+    { method: "POST", path: "/api/user/map/share/sync", handler: mapSharing },
     // Delete a map
-    { method: "POST", path: "/api/user/map/delete/", handler: deleteMap },
+    { method: "POST", path: "/api/user/map/delete", handler: deleteMap },
     // Make a map accessible to the public
     { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
     // Returns a map converted to shapefile format
     { method: "GET", path: "/api/user/map/download/{mapId}", handler: downloadMap },
     // Returns a list of all maps that the user has access to
-    { method: "GET", path: "/api/user/maps/", handler: getUserMaps },
+    { method: "GET", path: "/api/user/maps", handler: getUserMaps },
     // Get the geojson polygons of land ownership within a given bounding box area
-    { method: "GET", path: "/api/ownership/", handler: getLandOwnershipPolygon },
+    { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygon },
     // Get a public map
     { method: "GET", path: "/api/public/map/{mapId}", handler: getPublicMap, options: { auth: false } },
 ];
