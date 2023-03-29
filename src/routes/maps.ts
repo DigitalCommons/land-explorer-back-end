@@ -2,7 +2,7 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
-import { createMap, updateMap, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
+import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
@@ -173,39 +173,88 @@ async function saveMapLine(request: SaveMapObjectRequest, h: ResponseToolkit, d:
     return h.response();
 }
 
+type SaveMapZoomRequest = Request & {
+    payload: {
+        eid: number;
+        zoom: number[];
+    }
+};
+
+async function saveMapZoom(request: SaveMapZoomRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { eid, zoom } = request.payload;
+
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
+
+    await updateMapZoom(eid, zoom);
+
+    return h.response();
+}
+
+type SaveMapLngLatRequest = Request & {
+    payload: {
+        eid: number;
+        lngLat: number[];
+    }
+};
+
+async function saveMapLngLat(request: SaveMapLngLatRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { eid, lngLat } = request.payload;
+
+    // check that user has permission to update this map
+    const hasAccess = await Model.UserMap.findOne({
+        where: {
+            map_id: eid,
+            access: UserMapAccess.Readwrite,
+            user_id: request.auth.artifacts.user_id
+        }
+    });
+    if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+    }
+
+    await updateMapLngLat(eid, lngLat);
+
+    return h.response();
+}
+
 type EditRequest = Request & {
     payload: {
+        uuid: string;
         name: string;
         description: string;
-        object: {
-            uuid: string;
-        }
     }
 };
 
 async function editMarker(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const { name, description } = request.payload;
-    const marker = request.payload.object;
+    const { uuid, name, description } = request.payload;
 
-    await updateMarker(marker.uuid, name, description);
+    await updateMarker(uuid, name, description);
 
     return h.response();
 }
 
 async function editPolygon(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const { name, description } = request.payload;
-    const polygon = request.payload.object;
+    const { uuid, name, description } = request.payload;
 
-    await updatePolygon(polygon.uuid, name, description);
+    await updatePolygon(uuid, name, description);
 
     return h.response();
 }
 
 async function editLine(request: EditRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const { name, description } = request.payload;
-    const line = request.payload.object;
+    const { uuid, name, description } = request.payload;
 
-    await updateLine(line.uuid, name, description);
+    await updateLine(uuid, name, description);
 
     return h.response();
 }
@@ -293,7 +342,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
             return h.response("Map not found").code(404);
         }
 
-        if (UserMap.access !== 2) {
+        if (UserMap.access !== UserMapAccess.Readwrite) {
             return h.response("Unauthorised!").code(403);
         }
 
@@ -497,7 +546,7 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
             return h.response("Map not found").code(404);
         }
 
-        if (UserMap.access !== 2) {
+        if (UserMap.access !== UserMapAccess.Readwrite) {
             return h.response("Unauthorised!").code(403);
         }
 
@@ -522,7 +571,7 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
 }
 
 /**
- * Get all maps shared to user.
+ * Get all maps shared to user, in order of creation (oldest first).
  */
 async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
     const userId = request.auth.credentials.user_id;
@@ -552,11 +601,20 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
         for (const map of allMaps) {
             const mapData = await JSON.parse(map.data);
 
-            if (mapData.drawingsInDB) {
-                mapData.markers.markers = await getMapMarkers(map.id);
-                mapData.drawings.polygons = await getMapPolygonsAndLines(map.id);
-                map.data = JSON.stringify(mapData);
+            // get all drawings, including those in separate DB tables
+            mapData.markers.markers = await getMapMarkers(map.id);
+            mapData.drawings.polygons = await getMapPolygonsAndLines(map.id);
+
+            // landDataLayers field used to be called activeLayers
+            if (mapData.mapLayers.activeLayers) {
+                mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
             }
+            // fix that some old maps may not have dataLayers field
+            if (!mapData.mapLayers.myDataLayers) {
+                mapData.mapLayers.myDataLayers = [];
+            }
+
+            map.data = JSON.stringify(mapData);
 
             const myUserMap = map.UserMaps[0];
 
@@ -602,11 +660,11 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                     createdDate: map.created_date,
                     lastModified: map.last_modified,
                     sharedWith: sharedWith,
+                    isSnapshot: map.is_snapshot
                 },
-                accessGrantedDate: myUserMap.created_date,
+                createdDate: myUserMap.created_date,
                 access: myUserMap.access === UserMapAccess.Readwrite ? "WRITE" : "READ",
-                viewed: myUserMap.viewed === 1,
-                isSnapshot: map.is_snapshot
+                viewed: myUserMap.viewed === 1
             })
         };
 
@@ -704,8 +762,8 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
         }
     }));
 
-    const polygonAndLines = await getMapPolygonsAndLines(mapId);
-    const polygonAndLineFeatures = polygonAndLines.map((polygon: any) => ({
+    const polygonsAndLines = await getMapPolygonsAndLines(mapId);
+    const polygonAndLineFeatures = polygonsAndLines.map((polygon: any) => ({
         ...polygon.data,
         properties: {
             name: polygon.name,
@@ -828,6 +886,10 @@ export const mapRoutes: ServerRoute[] = [
     { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
     { method: "POST", path: "/api/user/map/save/polygon", handler: saveMapPolygon },
     { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
+    // Save the zoom level of a map
+    { method: "POST", path: "/api/user/map/save/zoom", handler: saveMapZoom },
+    // Save the longitude and latitude of a map (i.e. when the frame is moved)
+    { method: "POST", path: "/api/user/map/save/lngLat", handler: saveMapLngLat },
     // Edit an object
     { method: "POST", path: "/api/user/edit/marker", handler: editMarker },
     { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
