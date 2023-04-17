@@ -30,7 +30,7 @@ With this migration and seed, running the api/ownership/ endpoint will error.
 
 ## Dev command cheat sheets
 
- - Reset migration `npx sequelize-cli db:migrate:undo:all`
+ - Reset migration `npx sequelize-cli db:seed:undo:all && npx sequelize-cli db:migrate:undo:all`
 
 ## Unit tests
 

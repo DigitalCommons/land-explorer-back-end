@@ -5,10 +5,12 @@ module.exports = {
     database: process.env.DATABASE_NAME,
     host: process.env.DATABASE_HOST,
     dialect: 'mysql',
+    seederStorage: 'sequelize',
     logging: false,
   },
   test: {
     dialect: 'sqlite::memory:',
+    seederStorage: 'sequelize',
     logging: false,
   },
   production: {
@@ -17,6 +19,7 @@ module.exports = {
     database: process.env.DATABASE_NAME,
     host: process.env.DATABASE_HOST,
     dialect: 'mysql',
+    seederStorage: 'sequelize',
     logging: false,
     pool: {
       max: 5,
