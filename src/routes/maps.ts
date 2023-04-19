@@ -188,7 +188,7 @@ async function saveMapZoom(request: SaveMapZoomRequest, h: ResponseToolkit, d: a
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
-            user_id: request.auth.artifacts.user_id
+            user_id: request.auth.credentials.user_id
         }
     });
     if (hasAccess === null) {
@@ -215,7 +215,7 @@ async function saveMapLngLat(request: SaveMapLngLatRequest, h: ResponseToolkit, 
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
-            user_id: request.auth.artifacts.user_id
+            user_id: request.auth.credentials.user_id
         }
     });
     if (hasAccess === null) {
