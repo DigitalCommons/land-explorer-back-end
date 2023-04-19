@@ -15,10 +15,6 @@ export class Validation {
     return Object.entries(this.errors).length !== 0;
   }
 
-  /**
-   * @param data
-   * @returns 
-   */
   async validateUserRegister(data: any) {
 
     //username: required | email | unique | length < 101
@@ -93,10 +89,6 @@ export class Validation {
     return this;
   }
 
-  /**
-   * @param data
-   * @returns 
-   */
   async validateUserDetailUpdate(data: any) {
 
     //firstName: required | length < 101
