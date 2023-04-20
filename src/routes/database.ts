@@ -7,19 +7,18 @@ const Model = require('../queries/database');
 const mailer = require('../queries/mails');
 const helper = require('../queries/helpers');
 
-/**
- * Register new user using request data from API
- * @param request 
- * @param h 
- * @returns 
- */
 type RegisterRequest = Request & {
     payload: {
         username: string;
+        password: string;
         firstName: string;
+        lastName: string;
     }
 };
 
+/**
+ * Register new user using request data from API
+ */
 async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promise<ResponseObject> {
     const originDomain = `https://${request.info.host}`;
 
@@ -44,15 +43,22 @@ async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promi
     return h.response(user);
 }
 
+type LoginRequest = Request & {
+    payload: {
+        username: string;
+        password: string;
+    }
+};
+
 /**
  * Handle user login using request data from API
  */
-async function loginUser(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
+async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<ResponseObject> {
     console.log("login user");
 
     try {
-        let payload: any = request.payload;
-        let result = await query.checkAndReturnUser(payload.username, payload.password);
+        const { username, password } = request.payload;
+        const result = await query.checkAndReturnUser(username, password);
 
         if (result) {
             const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
@@ -105,7 +111,7 @@ async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any):
     try {
         user = await query.getUserById(request.auth.credentials.user_id);
 
-        return h.response([{
+        return h.response({
             username: user.username,
             firstName: user.first_name,
             lastName: user.last_name,
@@ -121,7 +127,7 @@ async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any):
             phone: user.phone ?? "",
             council_id: user.council_id ?? 0,
             is_super_user: user.is_super_user ?? 0,
-        }]);
+        });
     }
     catch (err: any) {
         console.log(err.message);
@@ -166,10 +172,6 @@ async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promis
 
 /**
  * Change the user detail of the authenticated user
- * @param request 
- * @param h 
- * @param d 
- * @returns 
  */
 async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
