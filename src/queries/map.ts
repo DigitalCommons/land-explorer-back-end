@@ -154,11 +154,11 @@ const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>)
 }
 
 /* Copy all data group objects to a specified map. */
-const copyDataGroupObjects = async (mapId: number, dataLayers: any) => {
-    for (const dataLayer of dataLayers) {
+const copyDataGroupObjects = async (mapId: number, dataGroupIds: any) => {
+    for (const id of dataGroupIds) {
         const dataGroupMarkers = await Marker.findAll({
             where: {
-                data_group_id: dataLayer.iddata_groups
+                data_group_id: id
             }
         });
         await saveMarkers(mapId, dataGroupMarkers.map((marker: any) => ({
@@ -170,7 +170,7 @@ const copyDataGroupObjects = async (mapId: number, dataLayers: any) => {
 
         const dataGroupPolygons = await Polygon.findAll({
             where: {
-                data_group_id: dataLayer.iddata_groups
+                data_group_id: id
             }
         });
         for (const polygon of dataGroupPolygons) {
@@ -180,7 +180,7 @@ const copyDataGroupObjects = async (mapId: number, dataLayers: any) => {
 
         const dataGroupLines = await Line.findAll({
             where: {
-                data_group_id: dataLayer.iddata_groups
+                data_group_id: id
             }
         });
         for (const line of dataGroupLines) {
@@ -223,7 +223,11 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
     await savePolygonsAndLines(newMap.id, polygonsAndLines);
 
     if (isSnapshot) {
-        await copyDataGroupObjects(newMap.id, myDataLayers);
+        // In old maps, dataLayers used to be array of objects, each with an iddata_groups
+        // field. In newer maps, myDataLayers is just an array of data group IDs.
+        const dataGroupIds = myDataLayers.map((item: any) => (typeof item === 'number') ? item : item.iddata_groups);
+
+        await copyDataGroupObjects(newMap.id, dataGroupIds);
     }
 }
 
