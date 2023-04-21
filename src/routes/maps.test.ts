@@ -79,6 +79,9 @@ describe("Get User Maps", () => {
             sandbox.replace(Model.Map, "findAll", fake.returns([testMap]));
             sandbox.replace(Model.Map, "findOne", fake.returns(testMap));
 
+            // fake MapMembership.findAll to return empty array
+            sandbox.replace(Model.MapMembership, "findAll", fake.returns([]));
+
             // fake UserMap.findAll to return 2 UserMaps
             sandbox.replace(Model.UserMap, "findAll", fake.returns([
                 { id: 2, viewed: 1, map_id: testMapId, user_id: 2 },
