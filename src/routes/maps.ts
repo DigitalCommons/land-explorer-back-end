@@ -662,7 +662,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                     sharedWith: sharedWith,
                     isSnapshot: map.is_snapshot
                 },
-                createdDate: myUserMap.created_date,
+                accessGrantedDate: myUserMap.created_date,
                 access: myUserMap.access === UserMapAccess.Readwrite ? "WRITE" : "READ",
                 viewed: myUserMap.viewed === 1
             })

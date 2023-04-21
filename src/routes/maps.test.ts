@@ -12,7 +12,7 @@ describe("Get User Maps", () => {
     let server: Server;
     const getUserMapsRequest = {
         method: "GET",
-        url: "/api/user/maps/",
+        url: "/api/user/maps",
         auth: {
             strategy: "simple",
             credentials: {
@@ -53,13 +53,12 @@ describe("Get User Maps", () => {
     context(`User has 1 map, shared with 2 users and 1 pending user`, () => {
         const testMapId = 1;
         const testMapName = "test map";
-        const testMapData = `{"map":{"zoom":[8.0],"lngLat":[-2.4,54.0],"gettingLocation":false,"currentLocation":null,"movingMethod":"flyTo","name":"test map"},"drawings":{"polygons":[],"activePolygon":null,"polygonCount":0,"lineCount":0,"loadingDrawings":false},"markers":{"markers":[]},"mapLayers":{"activeLayers":[]},"version":"1.1","name":"test map"}`
+        const testMapData = `{"map":{"zoom":[8],"lngLat":[-2.4,54.1],"gettingLocation":false,"currentLocation":null,"movingMethod":"flyTo","name":"test map"},"drawings":{"polygons":[],"activePolygon":null,"polygonCount":0,"lineCount":0,"loadingDrawings":false},"markers":{"markers":[]},"mapLayers":{"landDataLayers":[],"myDataLayers":[]},"version":"1.1","name":"test map"}`
         const testMapCreatedData = '2023-01-19 03:14:07';
         const testMapLastModified = '2023-01-22 06:24:11';
 
         beforeEach(() => {
-            // fake Map.findAll to return an array of 1 Map
-            sandbox.replace(Model.Map, "findAll", fake.returns([{
+            const testMap = {
                 id: testMapId,
                 name: testMapName,
                 data: testMapData,
@@ -75,7 +74,10 @@ describe("Get User Maps", () => {
                     access: 2,
                     created_date: testMapCreatedData
                 }]
-            }]));
+            };
+            // fake Map.findAll and Map.findOne return the same single Map
+            sandbox.replace(Model.Map, "findAll", fake.returns([testMap]));
+            sandbox.replace(Model.Map, "findOne", fake.returns(testMap));
 
             // fake UserMap.findAll to return 2 UserMaps
             sandbox.replace(Model.UserMap, "findAll", fake.returns([
@@ -130,11 +132,11 @@ describe("Get User Maps", () => {
                             { emailAddress: 'user3@mail.coop', viewed: false },
                             { emailAddress: 'pendingUser@mail.coop', viewed: false }
                         ],
+                        isSnapshot: false
                     },
                     accessGrantedDate: testMapCreatedData,
                     access: "WRITE",
                     viewed: true,
-                    isSnapshot: false
                 }]
             );
         });
