@@ -1,16 +1,14 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
+import { Op } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
 import { findPublicMap, createPublicMapView } from "../queries/query";
 import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
-import { UserMapAccess } from "../queries/database";
+import { Map, User, UserMap, PendingUserMap, UserMapAccess, Marker, Polygon, Line } from "../queries/database";
 import { ItemType } from "../enums";
-
-const Model = require('../queries/database');
-const { Op } = require("sequelize");
-const mailer = require('../queries/mails');
-const query = require('../queries/query');
+import * as mailer from '../queries/mails';
+import { getPolygon } from '../queries/query';
 
 /**
  * Endpoint for user to update or create new map.
@@ -55,7 +53,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
 
         if (isUpdate) {
             // check that the map exists and isn't a snapshot
-            const existsAndEditable = await Model.Map.findOne({
+            const existsAndEditable = await Map.findOne({
                 where: {
                     id: eid,
                     is_snapshot: { [Op.or]: [false, null] }
@@ -67,7 +65,7 @@ async function saveMap(request: SaveMapRequest, h: ResponseToolkit, d: any): Pro
             }
 
             // check that user has permission to update the map
-            const hasAccess = await Model.UserMap.findOne({
+            const hasAccess = await UserMap.findOne({
                 where: {
                     map_id: eid,
                     access: UserMapAccess.Readwrite,
@@ -110,7 +108,7 @@ async function saveMapMarker(request: SaveMapObjectRequest, h: ResponseToolkit, 
     const { object, eid } = request.payload;
 
     // check that user has permission to update this map
-    const hasAccess = await Model.UserMap.findOne({
+    const hasAccess = await UserMap.findOne({
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
@@ -131,7 +129,7 @@ async function saveMapPolygon(request: SaveMapObjectRequest, h: ResponseToolkit,
     const { object, eid } = request.payload;
 
     // check that user has permission to update this map
-    const hasAccess = await Model.UserMap.findOne({
+    const hasAccess = await UserMap.findOne({
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
@@ -154,7 +152,7 @@ async function saveMapLine(request: SaveMapObjectRequest, h: ResponseToolkit, d:
     const { object, eid } = request.payload;
 
     // check that user has permission to update this map
-    const hasAccess = await Model.UserMap.findOne({
+    const hasAccess = await UserMap.findOne({
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
@@ -184,7 +182,7 @@ async function saveMapZoom(request: SaveMapZoomRequest, h: ResponseToolkit, d: a
     const { eid, zoom } = request.payload;
 
     // check that user has permission to update this map
-    const hasAccess = await Model.UserMap.findOne({
+    const hasAccess = await UserMap.findOne({
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
@@ -211,7 +209,7 @@ async function saveMapLngLat(request: SaveMapLngLatRequest, h: ResponseToolkit, 
     const { eid, lngLat } = request.payload;
 
     // check that user has permission to update this map
-    const hasAccess = await Model.UserMap.findOne({
+    const hasAccess = await UserMap.findOne({
         where: {
             map_id: eid,
             access: UserMapAccess.Readwrite,
@@ -280,7 +278,7 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
 
         let payload: any = request.payload;
 
-        await Model.UserMap.update(
+        await UserMap.update(
             {
                 viewed: 1,
             },
@@ -325,24 +323,24 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
 
         const payload: any = request.payload;
 
-        let UserMap = await Model.UserMap.findOne(
+        let userMap = await UserMap.findOne(
             {
                 where: {
                     user_id: request.auth.credentials.user_id,
                     map_id: payload.eid
                 },
                 include: [
-                    Model.Map,
-                    Model.User
+                    Map,
+                    User
                 ]
             }
         );
 
-        if (!UserMap || UserMap.Map.deleted) {
+        if (!userMap || userMap.Map.deleted) {
             return h.response("Map not found").code(404);
         }
 
-        if (UserMap.access !== UserMapAccess.Readwrite) {
+        if (userMap.access !== UserMapAccess.Readwrite) {
             return h.response("Unauthorised!").code(403);
         }
 
@@ -351,7 +349,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         // performed on both table.
 
         //Get all email address from user_map that has access to map excluding current user
-        const UserEmailWithMapAccessViaUserMap = (await Model.UserMap.findAll(
+        const userEmailWithMapAccessViaUserMap = (await UserMap.findAll(
             {
                 where: {
                     map_id: payload.eid,
@@ -360,7 +358,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
                     }
                 },
                 include: [
-                    Model.User
+                    User
                 ]
             }
         )).map(function (element: any) {
@@ -368,7 +366,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         });
 
         //Get all email address from pending_user_map that has access to map
-        const UserEmailWithMapAccessViaPendingUserMap = (await Model.PendingUserMap.findAll(
+        const userEmailWithMapAccessViaPendingUserMap = (await PendingUserMap.findAll(
             {
                 where: {
                     map_id: payload.eid
@@ -382,8 +380,8 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         const emailAddresses = payload.emailAddresses.map(function (e: any) { return e.toLowerCase() });
 
         // Get emails that need to be removed from the DB (access has been revoked)
-        let emailsToRemoveFromUserMap = UserEmailWithMapAccessViaUserMap.filter(function (e: any) { return !emailAddresses.includes(e) });
-        let emailsToRemoveFromPendingUserMap = UserEmailWithMapAccessViaPendingUserMap.filter(function (e: any) { return !emailAddresses.includes(e) });
+        let emailsToRemoveFromUserMap = userEmailWithMapAccessViaUserMap.filter(function (e: any) { return !emailAddresses.includes(e) });
+        let emailsToRemoveFromPendingUserMap = userEmailWithMapAccessViaPendingUserMap.filter(function (e: any) { return !emailAddresses.includes(e) });
 
         console.log(emailsToRemoveFromUserMap);
         //return h.response().code(200);
@@ -395,16 +393,16 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         // Now get emails that are newly given the map access.
         const newEmailsToGrantAccess = emailAddresses
             .filter(function (x: any) {
-                return !UserEmailWithMapAccessViaUserMap.includes(x)
+                return !userEmailWithMapAccessViaUserMap.includes(x)
             })
             .filter(function (x: any) {
-                return !UserEmailWithMapAccessViaPendingUserMap.includes(x)
+                return !userEmailWithMapAccessViaPendingUserMap.includes(x)
             });
 
         // Now we split those emails into array of existing users and new users
 
         // This is array of existing users that we want to grant access to map
-        const UserListToAddToUserMap = (await Model.User.findAll(
+        const userListToAddToUserMap = (await User.findAll(
             {
                 where: {
                     username: {
@@ -414,18 +412,18 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
             }
         ));
 
-        const existingUserEmails = UserListToAddToUserMap.map(function (element: any) {
+        const existingUserEmails = userListToAddToUserMap.map(function (element: any) {
             return element.username.toLowerCase();
         });
 
         // This is array of email address string to be added to pending user map
-        const NewEmailsToAddToPendingUserMap = newEmailsToGrantAccess.filter(function (x: any) {
+        const newEmailsToAddToPendingUserMap = newEmailsToGrantAccess.filter(function (x: any) {
             return !existingUserEmails.includes(x)
         });
 
         // add to user map
-        await Model.UserMap.bulkCreate(
-            UserListToAddToUserMap.map(function (user: any) {
+        await UserMap.bulkCreate(
+            userListToAddToUserMap.map(function (user: any) {
                 return {
                     map_id: payload.eid,
                     user_id: user.id,
@@ -435,8 +433,8 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         );
 
         // add to pending user map
-        await Model.PendingUserMap.bulkCreate(
-            NewEmailsToAddToPendingUserMap.map(function (email: any) {
+        await PendingUserMap.bulkCreate(
+            newEmailsToAddToPendingUserMap.map(function (email: any) {
                 return {
                     map_id: payload.eid,
                     email_address: email,
@@ -452,11 +450,11 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
         const sharer_fullname: string = sharer_firstname + " " + UserMap.User.last_name;
         const map_name: string = UserMap.Map.name;
 
-        UserListToAddToUserMap.forEach(function (user: any) {
+        userListToAddToUserMap.forEach(function (user: any) {
             mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
-        NewEmailsToAddToPendingUserMap.forEach(function (email: any) {
+        newEmailsToAddToPendingUserMap.forEach(function (email: any) {
             mailer.shareMapUnregistered(email, sharer_fullname, sharer_firstname, map_name, originDomain);
         });
 
@@ -478,7 +476,7 @@ async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise
 async function deleteMapAccessByEmails(map_id: number, emails: string[]) {
 
     // delete from user map
-    let users = await Model.User.findAll({
+    let users = await User.findAll({
         where: {
             username: {
                 [Op.in]: emails
@@ -486,7 +484,7 @@ async function deleteMapAccessByEmails(map_id: number, emails: string[]) {
         }
     })
 
-    await Model.UserMap.destroy({
+    await UserMap.destroy({
         where: {
             map_id: map_id,
             user_id: {
@@ -498,7 +496,7 @@ async function deleteMapAccessByEmails(map_id: number, emails: string[]) {
     });
 
     // delete from pending user map
-    await Model.PendingUserMap.destroy({
+    await PendingUserMap.destroy({
         where: {
             email_address: {
                 [Op.in]: emails
@@ -528,30 +526,30 @@ async function deleteMap(request: Request, h: ResponseToolkit, d: any): Promise<
 
         let payload: any = request.payload;
 
-        let UserMap = await Model.UserMap.findOne(
+        let userMap = await UserMap.findOne(
             {
                 where: {
                     user_id: request.auth.credentials.user_id,
                     map_id: payload.eid
                 },
                 include: [
-                    Model.Map,
-                    Model.User
+                    Map,
+                    User
                 ]
             }
         );
 
 
-        if (!UserMap || UserMap.Map.deleted) {
+        if (!userMap || userMap.Map.deleted) {
             return h.response("Map not found").code(404);
         }
 
-        if (UserMap.access !== UserMapAccess.Readwrite) {
+        if (userMap.access !== UserMapAccess.Readwrite) {
             return h.response("Unauthorised!").code(403);
         }
 
 
-        await Model.Map.update(
+        await Map.update(
             {
                 deleted: 1,
             },
@@ -577,7 +575,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
     const userId = request.auth.credentials.user_id;
 
     try {
-        const allMaps = await Model.Map.findAll(
+        const allMaps = await Map.findAll(
             {
                 where: {
                     '$UserMaps.user_id$': userId,
@@ -585,14 +583,14 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 },
                 include: [
                     {
-                        model: Model.UserMap,
+                        model: UserMap,
                         as: 'UserMaps'
                     },
-                    Model.PendingUserMap
+                    PendingUserMap
                 ],
                 order: [
                     ['id', 'ASC'],
-                    [Model.UserMap, 'access', 'ASC']
+                    [UserMap, 'access', 'ASC']
                 ]
             });
 
@@ -621,7 +619,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
             // Get users with whom we have shared this map
             const sharedWith: any[] = [];
 
-            const otherUserMaps = await Model.UserMap.findAll({
+            const otherUserMaps = await UserMap.findAll({
                 where: {
                     map_id: map.id,
                     user_id: { [Op.not]: userId }
@@ -629,7 +627,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
             });
 
             for (const userMap of otherUserMaps) {
-                const { username } = await Model.User.findOne({
+                const { username } = await User.findOne({
                     where: { id: userMap.user_id }
                 })
 
@@ -639,7 +637,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                 });
             }
 
-            const pendingUserMaps = await Model.PendingUserMap.findAll({
+            const pendingUserMaps = await PendingUserMap.findAll({
                 where: {
                     map_id: map.id
                 }
@@ -697,7 +695,7 @@ async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: 
 
         const payload: any = request.query;
 
-        const polygon = await query.getPolygon(
+        const polygon = await getPolygon(
             payload.sw_lng,
             payload.sw_lat,
             payload.ne_lng,
@@ -731,7 +729,7 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
     const { mapId } = request.params;
     const { user_id } = request.auth.credentials;
 
-    const hasAccess = await Model.UserMap.findOne({
+    const hasAccess = await UserMap.findOne({
         where: {
             user_id,
             map_id: mapId
@@ -741,7 +739,7 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
         return h.response("Unauthorised!").code(403);
     }
 
-    const map = await Model.Map.findOne({
+    const map = await Map.findOne({
         where: {
             id: mapId
         }
@@ -774,17 +772,17 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
     // Add features from datagroup layers which are enabled
     const dataGroupFeatures: any[] = [];
     for (let layer of mapData.mapLayers.myDataLayers) {
-        const markers = await Model.Marker.findAll({
+        const markers = await Marker.findAll({
             where: {
                 data_group_id: layer.iddata_groups
             }
         });
-        const polygons = await Model.Polygon.findAll({
+        const polygons = await Polygon.findAll({
             where: {
                 data_group_id: layer.iddata_groups
             }
         });
-        const lines = await Model.Line.findAll({
+        const lines = await Line.findAll({
             where: {
                 data_group_id: layer.iddata_groups
             }

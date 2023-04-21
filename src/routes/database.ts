@@ -1,11 +1,10 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
+import jwt from 'jsonwebtoken';
 import { Validation } from '../validation';
-
-const jwt = require("jsonwebtoken");
-const query = require('../queries/query');
-const Model = require('../queries/database');
-const mailer = require('../queries/mails');
-const helper = require('../queries/helpers');
+import * as mailer from '../queries/mails';
+import { createUser, migrateGuestUserMap, checkAndReturnUser, getUserById } from '../queries/query';
+import { User } from "../queries/database";
+import { hashPassword, randomPassword } from "../queries/helpers";
 
 type RegisterRequest = Request & {
     payload: {
@@ -29,11 +28,11 @@ async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promi
         return h.response(validation.errors).code(400);
     }
 
-    // // create user on database
-    let user = await query.registerUser(request.payload);
+    // create user on database
+    let user = await createUser(request.payload);
 
     //migrate user map from guest account
-    await query.migrateGuestUserMap(user);
+    await migrateGuestUserMap(user);
 
     // sent register email
     console.log(request.payload)
@@ -58,10 +57,12 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
 
     try {
         const { username, password } = request.payload;
-        const result = await query.checkAndReturnUser(username, password);
+        const result = await checkAndReturnUser(username, password);
 
         if (result) {
             const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
+
+            const secretKey: string = process.env.TOKEN_KEY || '';
 
             // Create token
             const token = jwt.sign(
@@ -73,7 +74,7 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
                     enabled: (result.enabled && result.enabled[0] == '1') ? 1 : 0,
                     marketing: (result.enabled && result.enabled[0] == '1') ? 1 : 0,
                 },
-                process.env.TOKEN_KEY,
+                secretKey,
                 {
                     expiresIn: expiry_day + "d",
                 }
@@ -97,19 +98,23 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
     }
 }
 
-/**
- * Return the detail of authenticated user
- * @param request 
- * @param h 
- * @param d 
- * @returns 
- */
-async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+type UserDetailsRequest = Request & {
+    auth: {
+        credentials: {
+            user_id: number;
+        }
+    }
+};
 
-    let user: typeof Model.User;
+/**
+ * Return the details of authenticated user
+ */
+async function getAuthUserDetails(request: UserDetailsRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+
+    let user: typeof User;
 
     try {
-        user = await query.getUserById(request.auth.credentials.user_id);
+        user = await getUserById(request.auth.credentials.user_id);
 
         return h.response({
             username: user.username,
@@ -156,7 +161,7 @@ async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promis
     let payload: any = request.payload;
 
     try {
-        await Model.User.update({ username: payload.username }, {
+        await User.update({ username: payload.username }, {
             where: {
                 id: request.auth.credentials.user_id
             }
@@ -185,7 +190,7 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
     let payload: any = request.payload;
 
     try {
-        await Model.User.update(
+        await User.update(
             {
                 first_name: payload.firstName,
                 last_name: payload.lastName,
@@ -231,7 +236,7 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
     let payload: any = request.payload;
 
     try {
-        await Model.User.update({ password: helper.hashPassword(payload.password) }, {
+        await User.update({ password: hashPassword(payload.password) }, {
             where: {
                 id: request.auth.credentials.user_id
             }
@@ -268,7 +273,7 @@ async function resetPassword(request: Request, h: ResponseToolkit, d: any): Prom
     let payload: any = request.payload;
 
     try {
-        let user = await Model.User.findOne({
+        let user = await User.findOne({
             where: {
                 username: payload.username
             }
@@ -283,11 +288,11 @@ async function resetPassword(request: Request, h: ResponseToolkit, d: any): Prom
         }
 
         // generate new random password
-        const newPassword = helper.randomPassword();
+        const newPassword = randomPassword();
         console.log('New user password is: ' + newPassword)
 
         // update user password
-        await Model.User.update({ password: helper.hashPassword(newPassword) }, {
+        await User.update({ password: hashPassword(newPassword) }, {
             where: {
                 id: user.id
             }

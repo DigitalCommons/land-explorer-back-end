@@ -37,7 +37,7 @@ export const usernameExist = async (username: string): Promise<Boolean> => {
  * @param data
  * @returns 
  */
-export const registerUser = async (data: any) => {
+export const createUser = async (data: any) => {
   if (data.marketing) {
     axios.post("https://api.buttondown.email/v1/subscribers", {
       email: data.username,
