@@ -1,8 +1,8 @@
-import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, Marker, Polygon, Line, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
+import { User, Map, UserMap, UserMapAccess, PendingUserMap, PasswordResetToken, polygonDbSequelize, Marker, Polygon, Line, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
+import { Op, QueryTypes } from "sequelize";
 
-const { QueryTypes } = require('sequelize');
 const bcrypt = require('bcrypt');
-const helper = require('./helpers');
+const helper = require('./helper');
 const axios = require('axios').default;
 
 export const getUser = async (options = {}) => {
@@ -22,9 +22,6 @@ export const getUserById = async (id: number, options: any = {}): Promise<typeof
 
 /**
  * Check whether user with the given username exist
- * 
- * @param username 
- * @returns 
  */
 export const usernameExist = async (username: string): Promise<Boolean> => {
   return (await User.findOne({ where: { username: username } })) !== null;
@@ -115,9 +112,9 @@ export const migrateGuestUserMap = async (user: typeof User) => {
 
 
 /**
- * Return the user if they exist and the password matches, otherwise return false.
+ * Return the user if they exist and the password (or reset token) matches, otherwise return false.
  */
-export async function checkAndReturnUser(username: string, password: string): Promise<typeof User | false> {
+export async function checkAndReturnUser(username: string, password?: string, reset_token?: string): Promise<typeof User | false> {
 
   const user = await getUser({ where: { username: username }, raw: true });
 
@@ -125,10 +122,31 @@ export async function checkAndReturnUser(username: string, password: string): Pr
     return false;
   }
 
-  const match = await bcrypt.compare(password, user.password);
+  if (reset_token) {
+    // Logging in via the reset password flow
+    const result = await PasswordResetToken.findOne({
+      where: { user_id: user.id }
+    });
 
-  if (match) {
-    return user;
+    if (result) {
+      // Destroy one-time token
+      await PasswordResetToken.destroy({
+        where: { user_id: user.id }
+      });
+
+      // Check that token matches and has not expired
+      const match = result.token === reset_token && result.expires > Date.now();
+
+      if (match) {
+        return user;
+      }
+    }
+  } else if (password) {
+    const match = await bcrypt.compare(password, user.password);
+
+    if (match) {
+      return user;
+    }
   }
 
   return false;

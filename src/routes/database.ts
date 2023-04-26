@@ -3,8 +3,10 @@ import jwt from 'jsonwebtoken';
 import { Validation } from '../validation';
 import * as mailer from '../queries/mails';
 import { createUser, migrateGuestUserMap, checkAndReturnUser, getUserById } from '../queries/query';
-import { User } from "../queries/database";
-import { hashPassword, randomPassword } from "../queries/helpers";
+import { User, PasswordResetToken } from "../queries/database";
+import { hashPassword, generateRandomToken } from "../queries/helper";
+
+const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
 type RegisterRequest = Request & {
     payload: {
@@ -45,7 +47,8 @@ async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promi
 type LoginRequest = Request & {
     payload: {
         username: string;
-        password: string;
+        password?: string;
+        reset_token?: string;
     }
 };
 
@@ -56,8 +59,8 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
     console.log("login user");
 
     try {
-        const { username, password } = request.payload;
-        const result = await checkAndReturnUser(username, password);
+        const { username, password, reset_token } = request.payload;
+        const result = await checkAndReturnUser(username, password, reset_token);
 
         if (result) {
             const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
@@ -144,13 +147,8 @@ async function getAuthUserDetails(request: UserDetailsRequest, h: ResponseToolki
 
 /**
  * Update the email of autheticated user
- * @param request 
- * @param h 
- * @param d 
- * @returns 
  */
 async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-
     let validation = new Validation();
     await validation.validateChangeEmail(request.payload);
 
@@ -217,26 +215,27 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
     return h.response().code(200);
 }
 
+type ChangePasswordRequest = Request & {
+    payload: {
+        password: string
+    }
+};
+
 /**
- * Allow logged in user to change its password
- * 
- * @param request 
- * @param h 
- * @param d 
- * @returns 
+ * Allow logged in user to change their password
  */
-async function changePassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function changePassword(request: ChangePasswordRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { password } = request.payload;
+
     let validation = new Validation();
-    await validation.validateChangeEmail(request.payload);
+    await validation.validateChangePassword(request.payload);
 
     if (validation.fail()) {
         return h.response(validation.errors).code(400);
     }
 
-    let payload: any = request.payload;
-
     try {
-        await User.update({ password: hashPassword(payload.password) }, {
+        await User.update({ password: hashPassword(password) }, {
             where: {
                 id: request.auth.credentials.user_id
             }
@@ -250,56 +249,49 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
     return h.response().code(200);
 }
 
-
+type ResetPasswordRequest = Request & {
+    payload: {
+        username: string
+    }
+};
 
 /**
- * Allow user to request for password reset when they forget their password
- * 
- * @param request 
- * @param h 
- * @param d 
- * @returns 
+ * Allow user to request a password reset link when they forget their password
  */
-async function resetPassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = `https://${request.info.host}`;
-
-    let validation = new Validation();
-    await validation.validateResetPassword(request.payload);
-
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
-    }
-
-    let payload: any = request.payload;
+async function resetPassword(request: ResetPasswordRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { username } = request.payload;
 
     try {
         let user = await User.findOne({
             where: {
-                username: payload.username
+                username: username
             }
         });
 
         if (!user) {
-            // TODO: change this behaviour. We shouldn't spam an email that doesn't have an account...
-
-            //If this email is not an user, notify them accordingly 
-            mailer.resetPasswordNotFound(payload.username);
+            // To avoid username guesses by a hacker, just return 200 OK
             return h.response().code(200);
         }
 
-        // generate new random password
-        const newPassword = randomPassword();
-        console.log('New user password is: ' + newPassword)
-
-        // update user password
-        await User.update({ password: hashPassword(newPassword) }, {
-            where: {
-                id: user.id
-            }
+        // Generate a one-time token and store this in the database.
+        // Before this, remove any existing tokens for this user.
+        await PasswordResetToken.destroy({
+            where: { user_id: user.id }
         });
 
-        // send email
-        mailer.resetPassword(payload.username, user.first_name, newPassword, originDomain);
+        const passwordResetToken = await generateRandomToken();
+
+        await PasswordResetToken.create({
+            user_id: user.id,
+            token: passwordResetToken,
+            expires: Date.now() + RESET_PASSWORD_EXPIRY_HOURS * 3600 * 1000 // UNIX timestamp in ms
+        });
+
+        // Use the token to build the reset link
+        const passwordResetLink = `https://${request.info.host}/auth?email=${encodeURIComponent(username)}&reset_token=${passwordResetToken}`;
+
+        // Send email
+        mailer.sendResetPasswordEmail(username, user.first_name, passwordResetLink, RESET_PASSWORD_EXPIRY_HOURS);
 
     } catch (err: any) {
         console.log(err.message);
@@ -322,10 +314,10 @@ export const databaseRoutes: ServerRoute[] = [
     // Return logged in user's details
     { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
     // Allow user to change their email address
-    { method: "POST", path: "/api/user/email", handler: changeEmail, },
+    { method: "POST", path: "/api/user/email", handler: changeEmail },
     // Allow user to change their details
-    { method: "POST", path: "/api/user/details", handler: changeUserDetail, },
+    { method: "POST", path: "/api/user/details", handler: changeUserDetail },
     // Allow logged in user to change their password
-    { method: "POST", path: "/api/user/password", handler: changePassword, },
+    { method: "POST", path: "/api/user/password", handler: changePassword },
 
 ];
