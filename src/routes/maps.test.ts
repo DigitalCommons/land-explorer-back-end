@@ -8,11 +8,11 @@ const Model = require('../queries/database');
 
 const sandbox = createSandbox();
 
-describe("Get User Maps", () => {
+describe("GET /api/user/maps", () => {
     let server: Server;
     const getUserMapsRequest = {
         method: "GET",
-        url: "/api/user/maps/",
+        url: "/api/user/maps",
         auth: {
             strategy: "simple",
             credentials: {
@@ -33,7 +33,7 @@ describe("Get User Maps", () => {
     context("User has no maps", () => {
 
         beforeEach(() => {
-            sandbox.replace(Model.Map, "findAll", fake.returns([]));
+            sandbox.replace(Model.Map, "findAll", fake.resolves([]));
         });
 
         it("returns status 200", async () => {
@@ -59,7 +59,7 @@ describe("Get User Maps", () => {
 
         beforeEach(() => {
             // fake Map.findAll to return an array of 1 Map
-            sandbox.replace(Model.Map, "findAll", fake.returns([{
+            sandbox.replace(Model.Map, "findAll", fake.resolves([{
                 id: testMapId,
                 name: testMapName,
                 data: testMapData,
@@ -78,7 +78,7 @@ describe("Get User Maps", () => {
             }]));
 
             // fake UserMap.findAll to return 2 UserMaps
-            sandbox.replace(Model.UserMap, "findAll", fake.returns([
+            sandbox.replace(Model.UserMap, "findAll", fake.resolves([
                 { id: 2, viewed: 1, map_id: testMapId, user_id: 2 },
                 { id: 3, viewed: 0, map_id: testMapId, user_id: 3 }
             ]));
@@ -99,7 +99,7 @@ describe("Get User Maps", () => {
             }));
 
             // fake 1 PendingUser
-            sandbox.replace(Model.PendingUserMap, "findAll", fake.returns([{
+            sandbox.replace(Model.PendingUserMap, "findAll", fake.resolves([{
                 id: 1,
                 email_address: "pendingUser@mail.coop",
                 map_id: testMapId
