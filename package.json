@@ -8,7 +8,7 @@
     "dev:tsc": "tsc --watch -p .",
     "dev:serve": "nodemon -e js -w lib src/main.ts",
     "dev": "run-p dev:*",
-    "test": "ts-mocha",
+    "test": "env-cmd -f .env.test ts-mocha",
     "build": "tsc",
     "serve": "pm2 start lib/main.js"
   },
@@ -21,6 +21,7 @@
     "axios": "^0.26.1",
     "bcrypt": "^5.0.1",
     "dotenv": "^11.0.0",
+    "env-cmd": "^10.1.0",
     "fs": "*",
     "geojson2shp": "^0.5.0",
     "hapi-auth-bearer-token": "^8.0.0",

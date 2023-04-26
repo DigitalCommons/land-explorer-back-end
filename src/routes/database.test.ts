@@ -75,7 +75,7 @@ describe("Login", () => {
                 }
             });
 
-            const expectedExpiresIn = 365 * 24 * 60 * 60;
+            const expectedExpiresIn = 365 * 24 * 60 * 60; // 365 days is set in .env.test
             expect(res.result).to.have.property('expires_in', expectedExpiresIn);
         });
     });
