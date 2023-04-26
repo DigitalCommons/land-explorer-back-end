@@ -161,8 +161,6 @@ const UserGroupMembershipModel = sequelize.define('UserGroupMembership', {
   updatedAt: false,
 });
 
-//define the map membership and item type model
-
 const ItemTypeModel = sequelize.define('ItemType', {
   iditem_types: { type: DataTypes.BIGINT, allowNull: false, primaryKey: true },
   name: { type: DataTypes.STRING, allowNull: false },
@@ -185,13 +183,27 @@ const MapMembershipModel = sequelize.define('MapMembership', {
   updatedAt: false,
 });
 
+const PasswordResetTokenModel = sequelize.define('PasswordResetToken', {
+  idpassword_reset_token: { type: DataTypes.BIGINT, allowNull: false, autoIncrement: true, primaryKey: true },
+  user_id: { type: DataTypes.BIGINT, allowNull: false, references: { model: UserModel, key: 'id' } },
+  token: { type: DataTypes.STRING, allowNull: false },
+  expires: { type: DataTypes.BIGINT, allowNull: false },
+}, {
+  tableName: 'password_reset_token',
+  createdAt: false,
+  updatedAt: false,
+});
+
 UserModel.hasMany(UserMapModel, { foreignKey: { name: 'user_id' } });
+UserModel.hasMany(PasswordResetTokenModel, { foreignKey: { name: 'user_id' } });
+
 MapModel.hasMany(UserMapModel, { foreignKey: { name: 'map_id' } });
+MapModel.hasMany(PendingUserMapModel, { foreignKey: { name: 'map_id' } });
 
 UserMapModel.belongsTo(UserModel, { foreignKey: { name: 'user_id' } });
 UserMapModel.belongsTo(MapModel, { foreignKey: { name: 'map_id' } });
 
-MapModel.hasMany(PendingUserMapModel, { foreignKey: { name: 'map_id' } });
+PasswordResetTokenModel.belongsTo(UserModel, { foreignKey: { name: 'user_id' } });
 
 export const User = UserModel;
 export const Map = MapModel;
@@ -206,6 +218,7 @@ export const UserGroup = UserGroupModel;
 export const UserGroupMembership = UserGroupMembershipModel;
 export const MapMembership = MapMembershipModel;
 export const ItemType = ItemTypeModel;
+export const PasswordResetToken = PasswordResetTokenModel;
 
 /* The hardcoded datagroup ID used to signify no data group in Marker/Polygon/Line tables */
 export enum DataGroupId {
