@@ -18,7 +18,8 @@ describe("Send reset password email", () => {
     let fakeSend: SinonSpy;
 
     beforeEach(() => {
-        fakeSend = sandbox.replace(sgMail, "send", fake());
+        // Fake chained call of sgMail.send(...).catch(...)
+        fakeSend = sandbox.replace(sgMail, "send", fake.returns({ catch: fake() }));
     });
 
     afterEach(() => {

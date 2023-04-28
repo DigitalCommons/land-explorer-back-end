@@ -43,7 +43,7 @@ With this migration and seed, running the api/ownership/ endpoint will error.
  - The files `routes/database.test.ts` and `routes/maps.test.ts` contain good examples of UTs
  - In VS Code, install the extensions:
    - _ES6 Mocha Snippets_ to make writing test boilerplate code faster
-   - _Mocha Test Explorer_ to run individual tests from sidebar
+   - _Mocha Test Explorer_ to run individual tests from sidebar. Note, this extension sometimes doesn't catch exceptions that occur between tests, so you should also occasionally run `npm test` manually.
 
 ## APIs
 
