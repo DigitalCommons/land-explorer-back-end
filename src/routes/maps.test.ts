@@ -53,13 +53,12 @@ describe("GET /api/user/maps", () => {
     context(`User has 1 map, shared with 2 users and 1 pending user`, () => {
         const testMapId = 1;
         const testMapName = "test map";
-        const testMapData = `{"map":{"zoom":[8.0],"lngLat":[-2.4,54.0],"gettingLocation":false,"currentLocation":null,"movingMethod":"flyTo","name":"test map"},"drawings":{"polygons":[],"activePolygon":null,"polygonCount":0,"lineCount":0,"loadingDrawings":false},"markers":{"markers":[]},"mapLayers":{"activeLayers":[]},"version":"1.1","name":"test map"}`
+        const testMapData = `{"map":{"zoom":[8],"lngLat":[-2.4,54.1],"gettingLocation":false,"currentLocation":null,"movingMethod":"flyTo","name":"test map"},"drawings":{"polygons":[],"activePolygon":null,"polygonCount":0,"lineCount":0,"loadingDrawings":false},"markers":{"markers":[]},"mapLayers":{"landDataLayers":[],"myDataLayers":[]},"version":"1.1","name":"test map"}`
         const testMapCreatedData = '2023-01-19 03:14:07';
         const testMapLastModified = '2023-01-22 06:24:11';
 
         beforeEach(() => {
-            // fake Map.findAll to return an array of 1 Map
-            sandbox.replace(Model.Map, "findAll", fake.resolves([{
+            const testMap = {
                 id: testMapId,
                 name: testMapName,
                 data: testMapData,
@@ -75,7 +74,13 @@ describe("GET /api/user/maps", () => {
                     access: 2,
                     created_date: testMapCreatedData
                 }]
-            }]));
+            };
+            // fake Map.findAll and Map.findOne return the same single Map
+            sandbox.replace(Model.Map, "findAll", fake.resolves([testMap]));
+            sandbox.replace(Model.Map, "findOne", fake.resolves(testMap));
+
+            // fake MapMembership.findAll to return empty array
+            sandbox.replace(Model.MapMembership, "findAll", fake.resolves([]));
 
             // fake UserMap.findAll to return 2 UserMaps
             sandbox.replace(Model.UserMap, "findAll", fake.resolves([
@@ -130,11 +135,11 @@ describe("GET /api/user/maps", () => {
                             { emailAddress: 'user3@mail.coop', viewed: false },
                             { emailAddress: 'pendingUser@mail.coop', viewed: false }
                         ],
+                        isSnapshot: false
                     },
                     accessGrantedDate: testMapCreatedData,
                     access: "WRITE",
                     viewed: true,
-                    isSnapshot: false
                 }]
             );
         });

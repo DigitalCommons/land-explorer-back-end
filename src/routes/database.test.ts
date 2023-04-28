@@ -80,7 +80,7 @@ describe("POST /api/token", () => {
                 }
             });
 
-            const expectedExpiresIn = 365 * 24 * 60 * 60;
+            const expectedExpiresIn = 365 * 24 * 60 * 60; // 365 days is set in .env.test
             expect(res.result).to.have.property('expires_in', expectedExpiresIn);
         });
     });
@@ -287,8 +287,8 @@ describe("POST /api/user/password-reset", () => {
     context("User doesn't exist", async () => {
 
         beforeEach(() => {
-            // fake User.findOne to return our test user
-            sandbox.replace(Model.User, "findOne", fake.returns(null));
+            // fake User.findOne to return no results
+            sandbox.replace(Model.User, "findOne", fake.resolves(null));
         });
 
         it("doesn't send a password reset email", async () => {

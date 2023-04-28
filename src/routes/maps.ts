@@ -2,13 +2,12 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { Op } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
-import { findPublicMap, createPublicMapView } from "../queries/query";
+import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygon } from "../queries/query";
 import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { Map, User, UserMap, PendingUserMap, UserMapAccess, Marker, Polygon, Line } from "../queries/database";
 import { ItemType } from "../enums";
 import * as mailer from '../queries/mails';
-import { getPolygon } from '../queries/query';
 
 /**
  * Endpoint for user to update or create new map.
@@ -606,6 +605,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
             // landDataLayers field used to be called activeLayers
             if (mapData.mapLayers.activeLayers) {
                 mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
+                delete mapData.mapLayers.activeLayers;
             }
             // fix that some old maps may not have dataLayers field
             if (!mapData.mapLayers.myDataLayers) {
@@ -660,7 +660,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
                     sharedWith: sharedWith,
                     isSnapshot: map.is_snapshot
                 },
-                createdDate: myUserMap.created_date,
+                accessGrantedDate: myUserMap.created_date,
                 access: myUserMap.access === UserMapAccess.Readwrite ? "WRITE" : "READ",
                 viewed: myUserMap.viewed === 1
             })
@@ -739,94 +739,10 @@ async function downloadMap(request: PublicMapRequest, h: FileResponseToolkit): P
         return h.response("Unauthorised!").code(403);
     }
 
-    const map = await Map.findOne({
-        where: {
-            id: mapId
-        }
-    });
-    const mapData = JSON.parse(map.data);
-
-    // Add markers, polygons and lines that are saved to the map
-    const markers = await getMapMarkers(mapId);
-    const markerFeatures = markers.map((marker: any) => ({
-        type: "Feature",
-        geometry: {
-            type: "Point",
-            coordinates: marker.coordinates
-        },
-        properties: {
-            name: marker.name,
-            description: marker.description,
-        }
-    }));
-
-    const polygonsAndLines = await getMapPolygonsAndLines(mapId);
-    const polygonAndLineFeatures = polygonsAndLines.map((polygon: any) => ({
-        ...polygon.data,
-        properties: {
-            name: polygon.name,
-            description: polygon.description,
-        }
-    }));
-
-    // Add features from datagroup layers which are enabled
-    const dataGroupFeatures: any[] = [];
-    for (let layer of mapData.mapLayers.myDataLayers) {
-        const markers = await Marker.findAll({
-            where: {
-                data_group_id: layer.iddata_groups
-            }
-        });
-        const polygons = await Polygon.findAll({
-            where: {
-                data_group_id: layer.iddata_groups
-            }
-        });
-        const lines = await Line.findAll({
-            where: {
-                data_group_id: layer.iddata_groups
-            }
-        });
-
-        markers.forEach((marker: any) => {
-            dataGroupFeatures.push({
-                type: "Feature",
-                geometry: marker.location,
-                properties: {
-                    name: marker.name,
-                    description: marker.description,
-                    group: layer.title
-                }
-            })
-        });
-        polygons.forEach((polygon: any) => {
-            dataGroupFeatures.push({
-                type: "Feature",
-                geometry: polygon.vertices,
-                properties: {
-                    name: polygon.name,
-                    description: polygon.description,
-                    group: layer.title
-                }
-            })
-        });
-        lines.forEach((line: any) => {
-            dataGroupFeatures.push({
-                type: "Feature",
-                geometry: line.vertices,
-                properties: {
-                    name: line.name,
-                    description: line.description,
-                    group: layer.title
-                }
-            })
-        });
-    }
-
-    const features = [...markerFeatures, ...polygonAndLineFeatures, ...dataGroupFeatures];
+    const features = await getGeoJsonFeaturesForMap(mapId);
 
     const shapeFileDirectory = './data/shapefiles';
-    const shapeFileLocation = `${shapeFileDirectory}/${map.name}-${Date.now()}.zip`;
+    const shapeFileLocation = `${shapeFileDirectory}/Map-${mapId}-${Date.now()}.zip`;
 
     const fs = require('fs');
 
@@ -864,17 +780,39 @@ async function setMapPublic(request: PublicMapRequest, h: ResponseToolkit): Prom
     const { mapId } = request.payload;
     const { user_id } = request.auth.credentials;
 
-    const publicMapAddress = await createPublicMapView(mapId, user_id);
+    const userMapView = await UserMap.findOne({
+        where: {
+            map_id: mapId,
+            user_id: user_id
+        }
+    });
 
-    return h.response(publicMapAddress);
+    if (userMapView?.access === UserMapAccess.Readwrite) {
+        const publicMapAddress = await createPublicMapView(mapId);
+
+        return h.response(publicMapAddress);
+    } else {
+        return h.response("You don't have write access to this map, so can't make it public.").code(403);
+    }
 }
 
 async function getPublicMap(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
     const { mapId } = request.params;
 
-    const publicMapView = await findPublicMap(mapId);
+    const publicMapView = await UserMap.findOne({
+        where: {
+            map_id: mapId,
+            user_id: -1 // public user ID
+        }
+    })
 
-    return h.response(publicMapView);
+    if (publicMapView) {
+        const geoJsonData = await getGeoJsonFeaturesForMap(mapId);
+        return h.response(geoJsonData);
+    }
+    else {
+        return h.response("No public map at this address.").code(404);
+    }
 }
 
 export const mapRoutes: ServerRoute[] = [
