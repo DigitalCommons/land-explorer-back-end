@@ -52,7 +52,7 @@ describe("POST /api/token", () => {
             // our test value. We do this because we don't want the behaviour of the query module to
             // affect this unit test.
             // https://sinonjs.org/releases/latest/sandbox/#sandboxreplaceobject-property-replacement
-            sandbox.replace(query, "checkAndReturnUser", fake.resolves(testUser));
+            sandbox.replace(query, "checkAndReturnUser", fake.resolves({ success: true, user: testUser }));
         });
 
         // A testcase for an individual behaviour
@@ -87,7 +87,7 @@ describe("POST /api/token", () => {
 
     context("Login not found", () => {
         beforeEach(() => {
-            sandbox.replace(query, "checkAndReturnUser", fake.resolves(false));
+            sandbox.replace(query, "checkAndReturnUser", fake.resolves({ success: false, errorMessage: 'error' }));
         });
 
         it("returns status 401", async () => {
@@ -106,7 +106,7 @@ describe("POST /api/token", () => {
 
     context("JWT signing throws error", () => {
         beforeEach(() => {
-            sandbox.replace(query, "checkAndReturnUser", fake.resolves(testUser));
+            sandbox.replace(query, "checkAndReturnUser", fake.resolves({ success: true, user: testUser }));
             // Fake jwt.sign() so that it throws an error
             sandbox.replace(jwt, "sign", fake.throws("signing error"));
         });
@@ -129,7 +129,7 @@ describe("POST /api/token", () => {
         const testRandomToken = 'RaNDomTokEn123'
 
         beforeEach(() => {
-            sandbox.replace(query, "checkAndReturnUser", fake.resolves(testUser));
+            sandbox.replace(query, "checkAndReturnUser", fake.resolves({ success: true, user: testUser }));
         });
 
         it("returns status 200", async () => {

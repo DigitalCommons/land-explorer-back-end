@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { assert, createSandbox, fake } from "sinon"
+import { assert, createSandbox, fake, SinonSpy } from "sinon"
 
 // Dependencies to be stubbed
 const bcrypt = require("bcrypt");
@@ -64,6 +64,12 @@ describe("Check and return user", () => {
             expires: testExpiryTime
         };
 
+        let fakePasswordResetTokenDestroy: SinonSpy;
+
+        beforeEach(() => {
+            fakePasswordResetTokenDestroy = sandbox.replace(Model.PasswordResetToken, "destroy", fake());
+        });
+
         it("returns the user if token matches and hasn't expired", async () => {
             sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
             sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(testToken));
@@ -119,7 +125,6 @@ describe("Check and return user", () => {
         it("deletes the one-time token", async () => {
             sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
             sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(testToken));
-            const fakePasswordResetTokenDestroy = sandbox.replace(Model.PasswordResetToken, "destroy", fake());
 
             await query.checkAndReturnUser(testUsername, undefined, 't0k3n');
 
