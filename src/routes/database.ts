@@ -60,9 +60,9 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
 
     try {
         const { username, password, reset_token } = request.payload;
-        const result = await checkAndReturnUser(username, password, reset_token);
+        const { success, user, errorMessage } = await checkAndReturnUser(username, password, reset_token);
 
-        if (result) {
+        if (success) {
             const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
 
             const secretKey: string = process.env.TOKEN_KEY || '';
@@ -70,12 +70,12 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
             // Create token
             const token = jwt.sign(
                 {
-                    user_id: result.id,
-                    username: result.username,
-                    council_id: result.council_id,
-                    is_super_user: (result.is_super_user && result.is_super_user[0] == '1') ? 1 : 0,
-                    enabled: (result.enabled && result.enabled[0] == '1') ? 1 : 0,
-                    marketing: (result.enabled && result.enabled[0] == '1') ? 1 : 0,
+                    user_id: user.id,
+                    username: user.username,
+                    council_id: user.council_id,
+                    is_super_user: (user.is_super_user && user.is_super_user[0] == '1') ? 1 : 0,
+                    enabled: (user.enabled && user.enabled[0] == '1') ? 1 : 0,
+                    marketing: (user.enabled && user.enabled[0] == '1') ? 1 : 0,
                 },
                 secretKey,
                 {
@@ -90,10 +90,7 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
             });
         }
 
-        return h.response({
-            error: "invalid_credentials",
-            error_description: "Username and password combination does not match our record."
-        }).code(401);
+        return h.response({ message: errorMessage }).code(401);
 
     } catch (err: any) {
         console.log(err.message);
