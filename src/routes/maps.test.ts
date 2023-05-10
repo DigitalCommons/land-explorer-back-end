@@ -8,7 +8,7 @@ const Model = require('../queries/database');
 
 const sandbox = createSandbox();
 
-describe("Get User Maps", () => {
+describe("GET /api/user/maps", () => {
     let server: Server;
     const getUserMapsRequest = {
         method: "GET",
@@ -33,7 +33,7 @@ describe("Get User Maps", () => {
     context("User has no maps", () => {
 
         beforeEach(() => {
-            sandbox.replace(Model.Map, "findAll", fake.returns([]));
+            sandbox.replace(Model.Map, "findAll", fake.resolves([]));
         });
 
         it("returns status 200", async () => {
@@ -76,14 +76,14 @@ describe("Get User Maps", () => {
                 }]
             };
             // fake Map.findAll and Map.findOne return the same single Map
-            sandbox.replace(Model.Map, "findAll", fake.returns([testMap]));
-            sandbox.replace(Model.Map, "findOne", fake.returns(testMap));
+            sandbox.replace(Model.Map, "findAll", fake.resolves([testMap]));
+            sandbox.replace(Model.Map, "findOne", fake.resolves(testMap));
 
             // fake MapMembership.findAll to return empty array
-            sandbox.replace(Model.MapMembership, "findAll", fake.returns([]));
+            sandbox.replace(Model.MapMembership, "findAll", fake.resolves([]));
 
             // fake UserMap.findAll to return 2 UserMaps
-            sandbox.replace(Model.UserMap, "findAll", fake.returns([
+            sandbox.replace(Model.UserMap, "findAll", fake.resolves([
                 { id: 2, viewed: 1, map_id: testMapId, user_id: 2 },
                 { id: 3, viewed: 0, map_id: testMapId, user_id: 3 }
             ]));
@@ -104,7 +104,7 @@ describe("Get User Maps", () => {
             }));
 
             // fake 1 PendingUser
-            sandbox.replace(Model.PendingUserMap, "findAll", fake.returns([{
+            sandbox.replace(Model.PendingUserMap, "findAll", fake.resolves([{
                 id: 1,
                 email_address: "pendingUser@mail.coop",
                 map_id: testMapId
