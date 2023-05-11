@@ -36,6 +36,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "🚀 call webhook on staging server"
-        uses: joelwmale/webhook-action@ee20d8c
+        uses: joelwmale/webhook-action@ee20d8c79e728c2d339b114fd27772ee0226aa41
         with:
           url: https://staging.hook-runner.landexplorer.coop/run.php?target=land-explorer-back-end
