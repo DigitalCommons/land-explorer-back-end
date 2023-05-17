@@ -15,6 +15,9 @@ fi
 # Pull latest code
 git pull
 
+# Install dependencies
+npm ci
+
 # Transpile ts into js
 npm run build
 
