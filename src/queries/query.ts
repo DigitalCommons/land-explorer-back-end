@@ -1,9 +1,9 @@
-import { User, Map, UserMap, UserMapAccess, PendingUserMap, polygonDbSequelize, Marker, Polygon, Line, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
-
-const { QueryTypes } = require('sequelize');
-const bcrypt = require('bcrypt');
-const helper = require('./helpers');
-const axios = require('axios').default;
+import { User, Map, UserMap, UserMapAccess, PendingUserMap, PasswordResetToken, polygonDbSequelize, Marker, Polygon, Line, DataGroup, DataGroupMembership, UserGroup, UserGroupMembership } from './database';
+import { getMapMarkers, getMapPolygonsAndLines } from '../queries/map';
+import { hashPassword } from './helper';
+import bcrypt from 'bcrypt';
+import { QueryTypes } from 'sequelize';
+import axios from 'axios';
 
 export const getUser = async (options = {}) => {
   let result = await User.findOne(options);
@@ -11,20 +11,12 @@ export const getUser = async (options = {}) => {
   return result;
 }
 
-/**
- * 
- * @param id 
- * @returns 
- */
 export const getUserById = async (id: number, options: any = {}): Promise<typeof User | null> => {
   return await User.findByPk(id, options);
 }
 
 /**
- * Check whether user with the given username exist
- * 
- * @param username 
- * @returns 
+ * Check whether user with the given username exists
  */
 export const usernameExist = async (username: string): Promise<Boolean> => {
   return (await User.findOne({ where: { username: username } })) !== null;
@@ -33,11 +25,8 @@ export const usernameExist = async (username: string): Promise<Boolean> => {
 /**
  * Register user with data from API request.
  * Data should already be validated.
- * 
- * @param data
- * @returns 
  */
-export const registerUser = async (data: any) => {
+export const createUser = async (data: any) => {
   if (data.marketing) {
     axios.post("https://api.buttondown.email/v1/subscribers", {
       email: data.username,
@@ -51,7 +40,7 @@ export const registerUser = async (data: any) => {
 
   return await User.create({
     username: data.username,
-    password: helper.hashPassword(data.password),
+    password: hashPassword(data.password),
     enabled: 1,
     access: 2,
     is_super_user: 0,
@@ -74,9 +63,6 @@ export const registerUser = async (data: any) => {
  * Before a user is registered, other existing user may have shared a map to this user.
  * These map are stored in 'pending_user_map'. Now that a given user is registered,
  * we migrate the map to 'user_map'
- * 
- * @param user 
- * @returns 
  */
 export const migrateGuestUserMap = async (user: typeof User) => {
 
@@ -115,35 +101,69 @@ export const migrateGuestUserMap = async (user: typeof User) => {
 
 
 /**
- * 
- * @param username 
- * @param password 
- * @returns User
+ * Return the user if they exist and the password (or reset token) matches, otherwise return an
+ * error message.
  */
-export async function checkUser(username: string, password: string): Promise<typeof User | false> {
-
+export const checkAndReturnUser = async (username: string, password?: string, reset_token?: string) => {
   const user = await getUser({ where: { username: username }, raw: true });
 
-  if (user == null) {
-    return false;
+  if (reset_token) {
+    // Logging in via the reset password flow
+
+    if (user) {
+      const result = await PasswordResetToken.findOne({
+        where: { user_id: user.id }
+      });
+
+      if (result) {
+        // Destroy one-time token
+        await PasswordResetToken.destroy({
+          where: { user_id: user.id }
+        });
+
+        const expired = Date.now() > result.expires;
+        if (expired) {
+          return {
+            success: false,
+            errorMessage: 'Link has expired. Please make a new password reset request.'
+          };
+        }
+
+        const match = result.token === reset_token;
+        if (match) {
+          return {
+            success: true,
+            user: user
+          };
+        }
+      }
+    }
+
+    return {
+      success: false,
+      errorMessage: 'Password reset link is invalid.'
+    };
+  } else if (password && user) {
+    const match = await bcrypt.compare(password, user.password);
+
+    if (match) {
+      return {
+        success: true,
+        user: user
+      };
+    }
   }
 
-  const match = await bcrypt.compare(password, user.password);
-
-  if (match) {
-    return user;
-  }
-
-  return false;
+  return {
+    success: false,
+    errorMessage: 'You have entered an invalid username or password.'
+  };
 }
 
 /**
  * Return the geojson polygons of land ownership within a given bounding box area 
- * @param username 
- * @param password 
- * @returns User
  */
-export async function getPolygon(sw_lng: number, sw_lat: number, ne_lng: number, ne_lat: number) {
+export const getPolygon = async (sw_lng: number, sw_lat: number, ne_lng: number, ne_lat: number) => {
 
   const x1 = sw_lng;
   const y1 = sw_lat;
@@ -211,7 +231,7 @@ export async function getPolygon(sw_lng: number, sw_lat: number, ne_lng: number,
   return await polygonDbSequelize.query(query, { type: QueryTypes.SELECT });
 }
 
-export async function findAllDataGroupContentForUser(userId: number) {
+export const findAllDataGroupContentForUser = async (userId: number) => {
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
       user_id: userId
@@ -277,7 +297,7 @@ export async function findAllDataGroupContentForUser(userId: number) {
   return userGroupsAndData;
 }
 
-export async function hasAccessToDataGroup(userId: number, dataGroupId: number) {
+export const hasAccessToDataGroup = async (userId: number, dataGroupId: number): Promise<boolean> => {
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
       user_id: userId
@@ -300,80 +320,132 @@ export async function hasAccessToDataGroup(userId: number, dataGroupId: number) 
   return false;
 }
 
-/* Queries for the public map views  */
-
-const publicUserId = -1;
-
-export async function findPublicMap(mapId: number) {
-  const publicMapView = await UserMap.findOne({
+/**
+ * Get a GeoJSON feature collection containing all the markers, polys and lines in a map, including
+ * those in active data groups.
+ */
+export const getGeoJsonFeaturesForMap = async (mapId: number) => {
+  const map = await Map.findOne({
     where: {
-      map_id: mapId,
-      user_id: publicUserId
+      id: mapId
     }
-  })
+  });
+  const mapData = JSON.parse(map.data);
 
-  if (publicMapView) {
-    const publicMap = await Map.findOne({
+  // Get markers, polygons and lines that are saved to the map
+  const markers = await getMapMarkers(mapId);
+  const markerFeatures = markers.map((marker: any) => ({
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: marker.coordinates
+    },
+    properties: {
+      name: marker.name,
+      description: marker.description,
+      group: 'My Drawings'
+    }
+  }));
+
+  const polygonsAndLines = await getMapPolygonsAndLines(mapId);
+  const polygonAndLineFeatures = polygonsAndLines.map((polygon: any) => ({
+    ...polygon.data,
+    properties: {
+      name: polygon.name,
+      description: polygon.description,
+      group: 'My Drawings'
+    }
+  }));
+
+  // Get features from datagroup layers which are active
+  const dataGroupFeatures: any[] = [];
+  for (const dataGroupId of mapData.mapLayers.myDataLayers) {
+    const dataGroup = await DataGroup.findOne({
       where: {
-        id: mapId
+        // In old maps, myDataLayers used to be array of objects, each with an iddata_groups
+        // field. In newer maps, myDataLayers is just an array of data group IDs.
+        iddata_groups: dataGroupId.iddata_groups || dataGroupId
+      }
+    });
+    const dataGroupMarkers = await Marker.findAll({
+      where: {
+        data_group_id: dataGroupId.iddata_groups || dataGroupId
+      }
+    });
+    const dataGroupPolygons = await Polygon.findAll({
+      where: {
+        data_group_id: dataGroupId.iddata_groups || dataGroupId
+      }
+    });
+    const dataGroupLines = await Line.findAll({
+      where: {
+        data_group_id: dataGroupId.iddata_groups || dataGroupId
       }
     });
 
-    publicMap.data = JSON.parse(publicMap.data);
-
-    for (let dataGroup of publicMap.data.mapLayers.myDataLayers) {
-      dataGroup.markers = await Marker.findAll({
-        where: {
-          data_group_id: dataGroup.iddata_groups
+    dataGroupMarkers.forEach((marker: any) => {
+      dataGroupFeatures.push({
+        type: "Feature",
+        geometry: marker.location,
+        properties: {
+          name: marker.name,
+          description: marker.description,
+          group: dataGroup.title
         }
-      });
-    }
-
-    return publicMap;
+      })
+    });
+    dataGroupPolygons.forEach((polygon: any) => {
+      dataGroupFeatures.push({
+        type: "Feature",
+        geometry: polygon.vertices,
+        properties: {
+          name: polygon.name,
+          description: polygon.description,
+          group: dataGroup.title
+        }
+      })
+    });
+    dataGroupLines.forEach((line: any) => {
+      dataGroupFeatures.push({
+        type: "Feature",
+        geometry: line.vertices,
+        properties: {
+          name: line.name,
+          description: line.description,
+          group: dataGroup.title
+        }
+      })
+    });
   }
-  else
-    return "No public map at this address."
+
+  return {
+    type: "FeatureCollection",
+    features: [...markerFeatures, ...polygonAndLineFeatures, ...dataGroupFeatures]
+  };
 }
 
-export async function createPublicMapView(mapId: number, userId: number) {
-  const userMapView = await UserMap.findOne({
+/**
+ * Make a specified map available to the public.
+ * @returns URI for the public map view
+ */
+export const createPublicMapView = async (mapId: number): Promise<string> => {
+  const publicUserId = -1;
+
+  const publicViewExists = await UserMap.findOne({
     where: {
       map_id: mapId,
-      user_id: userId
+      user_id: publicUserId,
     }
   });
 
-  const readAccess = 1;
-  const readWriteAccess = 2;
-
-  if (userMapView.access == readWriteAccess) {
-    const publicViewExists = await UserMap.findOne({
-      where: {
-        map_id: mapId,
-        user_id: publicUserId,
-        access: readAccess,
-      }
+  if (!publicViewExists) {
+    await UserMap.create({
+      map_id: mapId,
+      user_id: publicUserId,
+      access: UserMapAccess.Readonly,
+      viewed: 0
     });
-
-    if (!publicViewExists) {
-      await UserMap.create({
-        map_id: mapId,
-        user_id: publicUserId,
-        access: readAccess,
-        viewed: 0
-      });
-    }
-
-    return {
-      success: true,
-      message: "Made map public",
-      URI: `/api/public/map/${mapId}`
-    };
   }
-  else {
-    return {
-      success: false,
-      message: "You don't have write access to this map, so can't make it public."
-    };
-  }
+
+  return `/api/public/map/${mapId}`;
 }

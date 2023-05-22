@@ -1,0 +1,8 @@
+{
+    "files.insertFinalNewline": true,
+    "mochaExplorer.envPath": ".env.test",
+    "mochaExplorer.require": "ts-node/register",
+    "mochaExplorer.configFile": ".mocharc.json",
+    "mocha-snippets.quote-type": "double",
+    "mocha-snippets.glob": "**/*.test.ts",
+}

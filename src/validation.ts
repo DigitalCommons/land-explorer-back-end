@@ -15,10 +15,6 @@ export class Validation {
     return Object.entries(this.errors).length !== 0;
   }
 
-  /**
-   * @param data
-   * @returns 
-   */
   async validateUserRegister(data: any) {
 
     //username: required | email | unique | length < 101
@@ -42,11 +38,11 @@ export class Validation {
       }
     }
 
-    //password: required | 4 < length < 101
+    //password: required | 5 < length < 101
     if (Joi.string().validate(data?.password, { presence: "required" }).error) {
       this.addErrorMessage("password", "The password field is required.")
     } else {
-      if (Joi.string().min(5).max(100).validate(data?.password).error) {
+      if (Joi.string().min(6).max(100).validate(data?.password).error) {
         this.addErrorMessage("password", "The password has to be between 5 and 100 characters.");
       };
     }
@@ -93,10 +89,6 @@ export class Validation {
     return this;
   }
 
-  /**
-   * @param data
-   * @returns 
-   */
   async validateUserDetailUpdate(data: any) {
 
     //firstName: required | length < 101
@@ -141,36 +133,8 @@ export class Validation {
     return this;
   }
 
-  /**
-   * @param data
-   * @returns 
-   */
   async validateChangeEmail(data: any) {
-
-    //password: required | 4 < length < 101
-    if (Joi.string().validate(data?.password, { presence: "required" }).error) {
-      this.addErrorMessage("password", "The password field is required.")
-    } else {
-      if (Joi.string().min(5).max(100).validate(data?.password).error) {
-        this.addErrorMessage("password", "The password has to be between 5 and 100 characters.");
-      };
-    }
-
-    //passwordConfirm must match password
-    if (data?.password !== data?.passwordConfirm) {
-      this.addErrorMessage("password", "Password and password confirmation does not match!");
-    }
-
-    return this;
-  }
-
-  /**
-   * @param data
-   * @returns 
-   */
-  async validateChangePassword(data: any) {
-
-    //password: required | email | unique | length < 101
+    //username: required | email | unique | length < 101
     if (Joi.string().validate(data?.username, { presence: "required" }).error) {
 
       this.addErrorMessage("username", "The email field is required.")
@@ -187,24 +151,22 @@ export class Validation {
       };
 
       if (await query.usernameExist(data?.username)) {
-        this.addErrorMessage("username", "This email has already been registered.");
+        this.addErrorMessage("username", "An account already exists with this email.");
       }
     }
 
     return this;
   }
 
-  /**
-   * @param data
-   * @returns 
-   */
-  async validateResetPassword(data: any) {
+  async validateChangePassword(data: any) {
 
-    //username: required
-    if (Joi.string().validate(data?.username, { presence: "required" }).error) {
-
-      this.addErrorMessage("username", "The email field is required.")
-
+    //password: required | 5 < length < 101
+    if (Joi.string().validate(data?.password, { presence: "required" }).error) {
+      this.addErrorMessage("password", "The password field is required.")
+    } else {
+      if (Joi.string().min(6).max(100).validate(data?.password).error) {
+        this.addErrorMessage("password", "The password must be between 5 and 100 characters.");
+      };
     }
 
     return this;

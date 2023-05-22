@@ -1,11 +1,8 @@
-const { QueryTypes } = require('sequelize');
-const { sequelize, User, Map, UserMap, PendingUserMap } = require('./database');
-const bcrypt = require('bcrypt');
+import sgMail from "@sendgrid/mail";
 
-const sgMail = require("@sendgrid/mail");
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
 
-const authRoute = "auth/";
+const authRoute = "/auth";
 let sender = "landexplorer@digitalcommons.coop";
 let senderName = "Land Explorer";
 
@@ -34,23 +31,24 @@ export const sendRegisterEmail = async (recipient: string, name: string, domain:
   });
 }
 
-export const resetPassword = async (recipient: string, name: string, newPassword: string, domain: string) => {
-  const loginLink = domain + authRoute;
-
-  let body = "Dear " + capitalizeFirstLetter(name) + ",";
-  body += "<br /><br />Here is your new password: " + newPassword;
-  body += "<br />You can <a href=\"" + loginLink + "\">login here</a>.";
-  body += "<br />You can change your password to something more memorable in My Account, once logged in.";
-  body += "<br /><br />Many thanks,";
-  body += "<br />The Digital Commons Team";
+export const sendResetPasswordEmail = async (recipientEmail: string, firstName: string, resetLink: string, expiryHours: number) => {
+  const body = `Dear ${capitalizeFirstLetter(firstName)},` +
+    `<br /><br />We received a request to reset your Land Explorer password. If you did not make this request, you can safely ignore this email.` +
+    `<br /><br />You can reset your password by clicking the link below:` +
+    `<br /><br /><a href="${resetLink}">${resetLink}</a>` +
+    `<br /><br />Please note this link will expire in ${expiryHours} hours. After ${expiryHours} hours, you must submit a new password reset request.` +
+    `<br /><br />If clicking the above link does not work try copying and pasting it into your browser.` +
+    `<br />If you continue to have problems please feel free to let us know so we can help.` +
+    `<br /><br />Many thanks,` +
+    `<br /><br />The Digital Commons Team`;
 
   const msg = {
-    to: recipient,
+    to: recipientEmail,
     from: {
       name: senderName,
       email: sender
     },
-    subject: name + ", you have reset your Land Explorer password",
+    subject: 'Request to reset your password',
     html: body,
   };
 

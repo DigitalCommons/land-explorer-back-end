@@ -1,45 +1,27 @@
 import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
-import { userInfo } from "os";
+import jwt from 'jsonwebtoken';
 import { Validation } from '../validation';
+import * as mailer from '../queries/mails';
+import { createUser, migrateGuestUserMap, checkAndReturnUser, getUserById } from '../queries/query';
+import { User, PasswordResetToken } from "../queries/database";
+import { hashPassword, generateRandomToken } from "../queries/helper";
 
-const jwt = require("jsonwebtoken");
-const query = require('../queries/query');
-const Model = require('../queries/database');
-const mailer = require('../queries/mails');
-const helper = require('../queries/helpers');
+const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
-// async function getUserByIdRoute(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-
-//     let result = await query.getUser({
-//         where: { id: request.params.id },
-//         raw: true
-//     });
-
-//     return h.response(result);
-// }
-
-// async function getUserByUsername(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-
-//     let result = await query.usernameExist(request.params.id);
-
-//     return h.response(result);
-// }
-
-/**
- * Register new user using request data from API
- * @param request 
- * @param h 
- * @returns 
- */
 type RegisterRequest = Request & {
     payload: {
         username: string;
+        password: string;
         firstName: string;
+        lastName: string;
     }
 };
 
+/**
+ * Register new user using request data from API
+ */
 async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const originDomain = request.headers.referer;
+    const originDomain = `https://${request.info.host}`;
 
     let validation = new Validation();
     await validation.validateUserRegister(request.payload);
@@ -48,11 +30,11 @@ async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promi
         return h.response(validation.errors).code(400);
     }
 
-    // // create user on database
-    let user = await query.registerUser(request.payload);
+    // create user on database
+    let user = await createUser(request.payload);
 
     //migrate user map from guest account
-    await query.migrateGuestUserMap(user);
+    await migrateGuestUserMap(user);
 
     // sent register email
     console.log(request.payload)
@@ -62,41 +44,45 @@ async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promi
     return h.response(user);
 }
 
+type LoginRequest = Request & {
+    payload: {
+        username: string;
+        password?: string;
+        reset_token?: string;
+    }
+};
+
 /**
  * Handle user login using request data from API
- * @param request 
- * @param h 
- * @returns 
  */
-async function loginUser(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-    console.log("hello")
+async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<ResponseObject> {
+    console.log("login user");
 
     try {
-        let payload: any = request.payload;
-        let result = await query.checkUser(payload.username, payload.password);
+        const { username, password, reset_token } = request.payload;
+        const { success, user, errorMessage } = await checkAndReturnUser(username, password, reset_token);
 
-        if (result) {
-            const config = process.env;
+        if (success) {
             const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
+
+            const secretKey: string = process.env.TOKEN_KEY || '';
 
             // Create token
             const token = jwt.sign(
                 {
-                    user_id: result.id,
-                    username: result.username,
-                    council_id: result.council_id,
-                    is_super_user: (result.is_super_user && result.is_super_user[0] == '1') ? 1 : 0,
-                    enabled: (result.enabled && result.enabled[0] == '1') ? 1 : 0,
-                    marketing: (result.enabled && result.enabled[0] == '1') ? 1 : 0,
+                    user_id: user.id,
+                    username: user.username,
+                    council_id: user.council_id,
+                    is_super_user: (user.is_super_user && user.is_super_user[0] == '1') ? 1 : 0,
+                    enabled: (user.enabled && user.enabled[0] == '1') ? 1 : 0,
+                    marketing: (user.enabled && user.enabled[0] == '1') ? 1 : 0,
                 },
-                process.env.TOKEN_KEY,
+                secretKey,
                 {
                     expiresIn: expiry_day + "d",
                 }
             );
 
-            // save user token
-            result.token = token;
             return h.response({
                 access_token: token,
                 token_type: "bearer",
@@ -104,33 +90,33 @@ async function loginUser(request: Request, h: ResponseToolkit): Promise<Response
             });
         }
 
-        return h.response({
-            error: "invalid_credentials",
-            error_description: "Username and password combination does not match our record."
-        }).code(400);
+        return h.response({ message: errorMessage }).code(401);
 
     } catch (err: any) {
         console.log(err.message);
         return h.response("internal server error!").code(500);
     }
-
 }
 
-/**
- * Return the detail of authenticated user
- * @param request 
- * @param h 
- * @param d 
- * @returns 
- */
-async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+type UserDetailsRequest = Request & {
+    auth: {
+        credentials: {
+            user_id: number;
+        }
+    }
+};
 
-    let user: typeof Model.User;
+/**
+ * Return the details of authenticated user
+ */
+async function getAuthUserDetails(request: UserDetailsRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+
+    let user: typeof User;
 
     try {
-        user = await query.getUserById(request.auth.artifacts.user_id);
+        user = await getUserById(request.auth.credentials.user_id);
 
-        return h.response([{
+        return h.response({
             username: user.username,
             firstName: user.first_name,
             lastName: user.last_name,
@@ -146,7 +132,7 @@ async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any):
             phone: user.phone ?? "",
             council_id: user.council_id ?? 0,
             is_super_user: user.is_super_user ?? 0,
-        }]);
+        });
     }
     catch (err: any) {
         console.log(err.message);
@@ -158,13 +144,8 @@ async function getAuthUserDetails(request: Request, h: ResponseToolkit, d: any):
 
 /**
  * Update the email of autheticated user
- * @param request 
- * @param h 
- * @param d 
- * @returns 
  */
 async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-
     let validation = new Validation();
     await validation.validateChangeEmail(request.payload);
 
@@ -175,9 +156,9 @@ async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promis
     let payload: any = request.payload;
 
     try {
-        await Model.User.update({ username: payload.username }, {
+        await User.update({ username: payload.username }, {
             where: {
-                id: request.auth.artifacts.user_id
+                id: request.auth.credentials.user_id
             }
         });
     }
@@ -191,10 +172,6 @@ async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promis
 
 /**
  * Change the user detail of the authenticated user
- * @param request 
- * @param h 
- * @param d 
- * @returns 
  */
 async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
@@ -208,7 +185,7 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
     let payload: any = request.payload;
 
     try {
-        await Model.User.update(
+        await User.update(
             {
                 first_name: payload.firstName,
                 last_name: payload.lastName,
@@ -223,7 +200,7 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
             },
             {
                 where: {
-                    id: request.auth.artifacts.user_id
+                    id: request.auth.credentials.user_id
                 }
             });
     }
@@ -235,28 +212,29 @@ async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): P
     return h.response().code(200);
 }
 
+type ChangePasswordRequest = Request & {
+    payload: {
+        password: string
+    }
+};
+
 /**
- * Allow logged in user to change its password
- * 
- * @param request 
- * @param h 
- * @param d 
- * @returns 
+ * Allow logged in user to change their password
  */
-async function changePassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function changePassword(request: ChangePasswordRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { password } = request.payload;
+
     let validation = new Validation();
-    await validation.validateChangeEmail(request.payload);
+    await validation.validateChangePassword(request.payload);
 
     if (validation.fail()) {
         return h.response(validation.errors).code(400);
     }
 
-    let payload: any = request.payload;
-
     try {
-        await Model.User.update({ password: helper.hashPassword(payload.password) }, {
+        await User.update({ password: hashPassword(password) }, {
             where: {
-                id: request.auth.artifacts.user_id
+                id: request.auth.credentials.user_id
             }
         });
     }
@@ -268,54 +246,49 @@ async function changePassword(request: Request, h: ResponseToolkit, d: any): Pro
     return h.response().code(200);
 }
 
-
+type ResetPasswordRequest = Request & {
+    payload: {
+        username: string
+    }
+};
 
 /**
- * Allow user to request for password reset when they forget their password
- * 
- * @param request 
- * @param h 
- * @param d 
- * @returns 
+ * Allow user to request a password reset link when they forget their password
  */
-async function resetPassword(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = request.headers.referer;
-
-    let validation = new Validation();
-    await validation.validateResetPassword(request.payload);
-
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
-    }
-
-    let payload: any = request.payload;
+async function resetPassword(request: ResetPasswordRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+    const { username } = request.payload;
 
     try {
-        let user = await Model.User.findOne({
+        let user = await User.findOne({
             where: {
-                username: payload.username
+                username: username
             }
         });
 
         if (!user) {
-            //If this email is not an user, notify them accordingly 
-            mailer.resetPasswordNotFound(payload.username);
+            // To avoid username guesses by a hacker, just return 200 OK
             return h.response().code(200);
         }
 
-        // generate new random password
-        const newPassword = helper.randomPassword();
-        console.log('New user password is: ' + newPassword)
-
-        // update user password
-        await Model.User.update({ password: helper.hashPassword(newPassword) }, {
-            where: {
-                id: user.id
-            }
+        // Generate a one-time token and store this in the database.
+        // Before this, remove any existing tokens for this user.
+        await PasswordResetToken.destroy({
+            where: { user_id: user.id }
         });
 
-        // send email
-        mailer.resetPassword(payload.username, user.first_name, newPassword, originDomain);
+        const passwordResetToken = await generateRandomToken();
+
+        await PasswordResetToken.create({
+            user_id: user.id,
+            token: passwordResetToken,
+            expires: Date.now() + RESET_PASSWORD_EXPIRY_HOURS * 3600 * 1000 // UNIX timestamp in ms
+        });
+
+        // Use the token to build the reset link
+        const passwordResetLink = `https://${request.info.host}/auth?email=${encodeURIComponent(username)}&reset_token=${passwordResetToken}`;
+
+        // Send email
+        mailer.sendResetPasswordEmail(username, user.first_name, passwordResetLink, RESET_PASSWORD_EXPIRY_HOURS);
 
     } catch (err: any) {
         console.log(err.message);
@@ -326,14 +299,22 @@ async function resetPassword(request: Request, h: ResponseToolkit, d: any): Prom
 }
 
 export const databaseRoutes: ServerRoute[] = [
-    // public API
-    { method: "POST", path: "/api/user/register/", handler: registerUser, options: { auth: false } },
-    { method: "POST", path: "/api/user/password-reset/", handler: resetPassword, options: { auth: false } },
+    /** Public APIs */
+    // Register a new account
+    { method: "POST", path: "/api/user/register", handler: registerUser, options: { auth: false } },
+    // Request a password reset for an email address
+    { method: "POST", path: "/api/user/password-reset", handler: resetPassword, options: { auth: false } },
+    // Login user and retrieve a token
     { method: "POST", path: "/api/token", handler: loginUser, options: { auth: false } },
-    // Authenticated users only
-    { method: "GET", path: "/api/user/details/", handler: getAuthUserDetails },
-    { method: "POST", path: "/api/user/email", handler: changeEmail, },
-    { method: "POST", path: "/api/user/details", handler: changeUserDetail, },
-    { method: "POST", path: "/api/user/password", handler: changePassword, },
+
+    /** Authenticated users only */
+    // Return logged in user's details
+    { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
+    // Allow user to change their email address
+    { method: "POST", path: "/api/user/email", handler: changeEmail },
+    // Allow user to change their details
+    { method: "POST", path: "/api/user/details", handler: changeUserDetail },
+    // Allow logged in user to change their password
+    { method: "POST", path: "/api/user/password", handler: changePassword },
 
 ];
