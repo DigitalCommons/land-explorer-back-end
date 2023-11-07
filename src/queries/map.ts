@@ -129,24 +129,27 @@ export const createMapMembership = async (mapId: number, itemTypeId: number, ite
 }
 
 /* Save array of markers to DB for a given map. */
-const saveMarkers = async (mapId: number, markers: Array<any>) => {
+const saveMarkers = async (mapId: number, markers: Array<any>, update: boolean) => {
     for (const m of markers) {
-        const newMarker = await createMarker(m.name, m.description, m.coordinates, m.uuid || uuidv4());
+        const uuid = (update && m.uuid) ? m.uuid : uuidv4();
+        const newMarker = await createMarker(m.name, m.description, m.coordinates, uuid);
         await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
     }
 }
 
 /* Save array of polygons and lines to DB for a given map. */
-const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>) => {
+const savePolygonsAndLines = async (mapId: number, polygonsAndLines: Array<any>, update: boolean) => {
     for (const p of polygonsAndLines) {
+        const uuid = (update && p.data.id) ? p.data.id : uuidv4();
+
         if (p.type === "Polygon") {
             const newPolygon = await createPolygon(
-                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, p.data.id || uuidv4()
+                p.name, p.description, p.data.geometry.coordinates, p.center, p.length, p.area, uuid
             );
             await createMapMembership(mapId, ItemTypeId.Polygon, newPolygon.idpolygons);
         } else {
             const newLine = await createLine(
-                p.name, p.description, p.data.geometry.coordinates, p.length, p.data.id || uuidv4()
+                p.name, p.description, p.data.geometry.coordinates, p.length, uuid
             );
             await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
         }
@@ -165,8 +168,7 @@ const copyDataGroupObjects = async (mapId: number, dataGroupIds: any) => {
             name: marker.name,
             description: marker.description,
             coordinates: marker.location.coordinates,
-            uuid: uuidv4()
-        })));
+        })), false);
 
         const dataGroupPolygons = await Polygon.findAll({
             where: {
@@ -218,9 +220,9 @@ export const createMap: CreateMapFunction = async (name, data, userId, isSnapsho
         access: UserMapAccess.Readwrite
     });
 
-    await saveMarkers(newMap.id, markers);
+    await saveMarkers(newMap.id, markers, false);
 
-    await savePolygonsAndLines(newMap.id, polygonsAndLines);
+    await savePolygonsAndLines(newMap.id, polygonsAndLines, false);
 
     if (isSnapshot) {
         // In old maps, dataLayers used to be array of objects, each with an iddata_groups
@@ -284,9 +286,9 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     });
 
     console.log(`Adding ${mapData.markers.markers.length} markers to DB for map ${mapId}`);
-    await saveMarkers(mapId, mapData.markers.markers);
+    await saveMarkers(mapId, mapData.markers.markers, true);
     console.log(`Adding ${mapData.drawings.polygons.length} polygons/lines to DB for map ${mapId}`);
-    await savePolygonsAndLines(mapId, mapData.drawings.polygons);
+    await savePolygonsAndLines(mapId, mapData.drawings.polygons, true);
 
     // Remove drawings from data since they are now in the DB
     mapData.markers.markers = [];
