@@ -815,6 +815,17 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
     }
 }
 
+async function searchOwnership(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
+    const polygon = await getPolygon(
+        -0.123092,
+        51.473825,
+        -0.121923,
+        51.474291,
+    );
+
+    return h.response(polygon).code(200);
+}
+
 export const mapRoutes: ServerRoute[] = [
     // Create or update a map
     { method: "POST", path: "/api/user/map/save", handler: saveMap },
@@ -844,6 +855,8 @@ export const mapRoutes: ServerRoute[] = [
     { method: "GET", path: "/api/user/maps", handler: getUserMaps },
     // Get the geojson polygons of land ownership within a given bounding box area
     { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygon },
+    // search the public ownership information
+    { method: "GET", path: "/api/search", handler: searchOwnership },
     // Get a public map
     { method: "GET", path: "/api/public/map/{mapId}", handler: getPublicMap, options: { auth: false } },
 ];
