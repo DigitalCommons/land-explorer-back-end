@@ -2,7 +2,7 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { Op } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
-import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygon } from "../queries/query";
+import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygon, searchOwner } from "../queries/query";
 import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { Map, User, UserMap, PendingUserMap, UserMapAccess, Marker, Polygon, Line } from "../queries/database";
@@ -710,6 +710,14 @@ async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: 
     }
 }
 
+async function searchOwnership(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
+    const { proprietorName } = request.query;
+
+    const polygonsAndOwnerships = await searchOwner(proprietorName);
+
+    return h.response(polygonsAndOwnerships).code(200);
+}
+
 type PublicMapRequest = Request & {
     payload: {
         mapId: number
@@ -813,17 +821,6 @@ async function getPublicMap(request: Request, h: ResponseToolkit): Promise<Respo
     else {
         return h.response("No public map at this address.").code(404);
     }
-}
-
-async function searchOwnership(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
-    const polygon = await getPolygon(
-        -0.123092,
-        51.473825,
-        -0.121923,
-        51.474291,
-    );
-
-    return h.response(polygon).code(200);
 }
 
 export const mapRoutes: ServerRoute[] = [

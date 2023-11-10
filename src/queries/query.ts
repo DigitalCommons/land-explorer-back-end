@@ -165,8 +165,6 @@ export const checkAndReturnUser = async (username: string, password?: string, re
  */
 export const getPolygon = async (sw_lng: number, sw_lat: number, ne_lng: number, ne_lat: number) => {
 
-  console.log("hello")
-
   const boundaryResponse = await axios.get(`${process.env.BOUNDARY_SERVICE_URL}/boundaries`, {
     params: {
       sw_lat,
@@ -177,7 +175,19 @@ export const getPolygon = async (sw_lng: number, sw_lat: number, ne_lng: number,
     }
   });
 
-  return boundaryResponse.data[0]
+  return boundaryResponse.data[0];
+}
+
+export const searchOwner = async (proprietorName: string) => {
+
+  const boundaryResponse = await axios.get(`${process.env.BOUNDARY_SERVICE_URL}/search`, {
+    params: {
+      proprietorName,
+      secret: process.env.BOUNDARY_SERVICE_SECRET
+    }
+  });
+
+  return boundaryResponse.data[0];
 }
 
 export const findAllDataGroupContentForUser = async (userId: number) => {
