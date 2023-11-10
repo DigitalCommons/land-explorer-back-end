@@ -187,7 +187,7 @@ export const searchOwner = async (proprietorName: string) => {
     }
   });
 
-  return boundaryResponse.data[0];
+  return boundaryResponse.data;
 }
 
 export const findAllDataGroupContentForUser = async (userId: number) => {
