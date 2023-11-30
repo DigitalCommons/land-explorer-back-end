@@ -165,70 +165,19 @@ export const checkAndReturnUser = async (username: string, password?: string, re
  */
 export const getPolygon = async (sw_lng: number, sw_lat: number, ne_lng: number, ne_lat: number) => {
 
-  const x1 = sw_lng;
-  const y1 = sw_lat;
+  console.log("hello")
 
-  const x2 = ne_lng;
-  const y2 = sw_lat;
+  const boundaryResponse = await axios.get(`${process.env.BOUNDARY_SERVICE_URL}/boundaries`, {
+    params: {
+      sw_lat,
+      sw_lng,
+      ne_lat,
+      ne_lng,
+      secret: process.env.BOUNDARY_SERVICE_SECRET
+    }
+  });
 
-  const x3 = ne_lng;
-  const y3 = ne_lat;
-
-  const x4 = sw_lng;
-  const y4 = ne_lat;
-
-  const searchArea = "POLYGON ((" + x1 + " " + y1 + ", " + x2 + " " + y2 + ", " + x3 + " " + y3 + ", " + x4 + " " + y4 + ", " + x1 + " " + y1 + "))";
-
-  const query = `SELECT 
-  lop.id as id, 
-  lop.poly_id as poly_id, 
-  lop.title_no as title_no, 
-  ST_AsGeoJSON(geom) as geojson, 
-  lo.tenure as tenure,
-  lo.property_address as property_address,
-  lo.district as district,
-  lo.county as county,
-  lo.region as region,
-  lo.postcode as postcode,
-  lo.multiple_address_indicator as multiple_address_indicator,
-
-  lo.proprietor_name_1 as proprietor_name_1,
-  lo.company_registration_no_1 as company_registration_no_1,
-  lo.proprietor_category_1 as proprietor_category_1,
-  lo.proprietor_1_address_1 as proprietor_1_address_1,
-  lo.proprietor_1_address_2 as proprietor_1_address_2,
-  lo.proprietor_1_address_3 as proprietor_1_address_3,
-
-  lo.proprietor_name_2 as proprietor_name_2,
-  lo.company_registration_no_2 as company_registration_no_2,
-  lo.proprietor_category_2 as proprietor_category_2,
-  lo.proprietor_2_address_1 as proprietor_2_address_1,
-  lo.proprietor_2_address_2 as proprietor_2_address_2,
-  lo.proprietor_2_address_3 as proprietor_2_address_3,
-
-  lo.proprietor_name_3 as proprietor_name_3,
-  lo.company_registration_no_3 as company_registration_no_3,
-  lo.proprietor_category_3 as proprietor_category_3,
-  lo.proprietor_3_address_1 as proprietor_3_address_1,
-  lo.proprietor_3_address_2 as proprietor_3_address_2,
-  lo.proprietor_3_address_3 as proprietor_3_address_3,
-
-  lo.proprietor_name_4 as proprietor_name_4,
-  lo.company_registration_no_4 as company_registration_no_4,
-  lo.proprietor_category_4 as proprietor_category_4,
-  lo.proprietor_4_address_1 as proprietor_4_address_1,
-  lo.proprietor_4_address_2 as proprietor_4_address_2,
-  lo.proprietor_4_address_3 as proprietor_4_address_3,
-
-  lo.date_proprietor_added as date_proprietor_added,
-  lo.additional_proprietor_indicator as additional_proprietor_indicator
-
-  FROM land_ownership_polygon lop
-  LEFT JOIN land_ownerships lo
-  ON lop.title_no = lo.title_no
-  WHERE ST_Intersects(lop.geom, ST_GeomFromText("` + searchArea + `"))`;
-
-  return await polygonDbSequelize.query(query, { type: QueryTypes.SELECT });
+  return boundaryResponse.data[0]
 }
 
 export const findAllDataGroupContentForUser = async (userId: number) => {
