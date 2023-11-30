@@ -2,7 +2,7 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { Op } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
-import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygon } from "../queries/query";
+import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygon, searchOwner } from "../queries/query";
 import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { Map, User, UserMap, PendingUserMap, UserMapAccess, Marker, Polygon, Line } from "../queries/database";
@@ -710,6 +710,14 @@ async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: 
     }
 }
 
+async function searchOwnership(request: Request, h: ResponseToolkit): Promise<ResponseObject> {
+    const { proprietorName } = request.query;
+
+    const polygonsAndOwnerships = await searchOwner(proprietorName);
+
+    return h.response(polygonsAndOwnerships).code(200);
+}
+
 type PublicMapRequest = Request & {
     payload: {
         mapId: number
@@ -844,6 +852,8 @@ export const mapRoutes: ServerRoute[] = [
     { method: "GET", path: "/api/user/maps", handler: getUserMaps },
     // Get the geojson polygons of land ownership within a given bounding box area
     { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygon },
+    // search the public ownership information
+    { method: "GET", path: "/api/search", handler: searchOwnership },
     // Get a public map
     { method: "GET", path: "/api/public/map/{mapId}", handler: getPublicMap, options: { auth: false } },
 ];
