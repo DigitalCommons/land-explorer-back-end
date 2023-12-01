@@ -23,6 +23,8 @@ export const init = async function (): Promise<Server> {
         port: process.env.PORT || 4000,
         host: '0.0.0.0',
         debug: { log: ['error'], request: ['error'] },
+        // if we are running in development, allow requests from the expected localhost:8080 origin
+        routes: { cors: process.env.NODE_ENV === 'development' && { origin: ['http://localhost:8080'] } },
     });
 
     await server.register(AuthBearer);
