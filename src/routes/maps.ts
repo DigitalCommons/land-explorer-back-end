@@ -2,7 +2,7 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import { Op } from "sequelize";
 import { v4 as uuidv4 } from 'uuid';
 import { Validation } from '../validation';
-import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygon, searchOwner } from "../queries/query";
+import { createPublicMapView, getGeoJsonFeaturesForMap, getPolygons, searchOwner } from "../queries/query";
 import { createMap, updateMap, updateMapZoom, updateMapLngLat, getMapMarkers, createMapMembership, getMapPolygonsAndLines } from '../queries/map';
 import { createMarker, createPolygon, createLine, updateMarker, updatePolygon, updateLine } from '../queries/object';
 import { Map, User, UserMap, PendingUserMap, UserMapAccess, Marker, Polygon, Line } from "../queries/database";
@@ -682,7 +682,7 @@ async function getUserMaps(request: Request, h: ResponseToolkit, d: any): Promis
  * @param d 
  * @returns 
  */
-async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function getLandOwnershipPolygons(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
 
     let validation = new Validation();
     await validation.validateLandOwnershipPolygonRequest(request.query);
@@ -692,20 +692,23 @@ async function getLandOwnershipPolygon(request: Request, h: ResponseToolkit, d: 
     }
 
     try {
-
         const payload: any = request.query;
 
-        const polygon = await getPolygon(
+        const polygons = await getPolygons(
             payload.sw_lng,
             payload.sw_lat,
             payload.ne_lng,
             payload.ne_lat,
         );
 
-        return h.response(polygon).code(200);
+        return h.response(polygons).code(200);
 
     } catch (err: any) {
         console.log(err.message);
+        if (!err.response) {
+            // network error
+            return h.response("Could not retrieve polygons").code(404);
+        }
         return h.response("internal server error!").code(500);
     }
 }
@@ -851,7 +854,7 @@ export const mapRoutes: ServerRoute[] = [
     // Returns a list of all maps that the user has access to
     { method: "GET", path: "/api/user/maps", handler: getUserMaps },
     // Get the geojson polygons of land ownership within a given bounding box area
-    { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygon },
+    { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygons },
     // search the public ownership information
     { method: "GET", path: "/api/search", handler: searchOwnership },
     // Get a public map

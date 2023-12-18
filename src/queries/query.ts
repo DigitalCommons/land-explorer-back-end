@@ -163,7 +163,7 @@ export const checkAndReturnUser = async (username: string, password?: string, re
 /**
  * Return the geojson polygons of land ownership within a given bounding box area 
  */
-export const getPolygon = async (sw_lng: number, sw_lat: number, ne_lng: number, ne_lat: number) => {
+export const getPolygons = async (sw_lng: number, sw_lat: number, ne_lng: number, ne_lat: number) => {
 
   const boundaryResponse = await axios.get(`${process.env.BOUNDARY_SERVICE_URL}/boundaries`, {
     params: {
