@@ -9,12 +9,12 @@ module.exports = {
       question_2 text,
       question_3 text,
       question_4 text,
-      feedback_user_id bigint DEFAULT NULL,
+      user_id bigint DEFAULT NULL,
       submission_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
-      KEY feedback_user_id (feedback_user_id),
-      CONSTRAINT user_feedback_ibfk_1 FOREIGN KEY (feedback_user_id) REFERENCES user (id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=latin1`
+      KEY user_id (user_id),
+      CONSTRAINT user_feedback_user FOREIGN KEY (user_id) REFERENCES user (id) 
+    ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1`
     );
   },
   async down(queryInterface, Sequelize) {
