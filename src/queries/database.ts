@@ -355,11 +355,11 @@ const UserFeedbackModel = sequelize.define(
     question_2: { type: DataTypes.TEXT, allowNull: false },
     question_3: { type: DataTypes.TEXT, allowNull: false },
     question_4: { type: DataTypes.TEXT, allowNull: false },
-    // user_id: {
-    //   type: DataTypes.BIGINT,
-    //   references: { model: UserModel, key: "id" },
-    //   allowNull: false,
-    // },
+    user_id: {
+      type: DataTypes.BIGINT,
+      references: { model: UserModel, key: "id" },
+      allowNull: false,
+    },
     submission_date: Sequelize.DATE,
   },
   {
