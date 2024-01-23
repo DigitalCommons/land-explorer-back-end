@@ -351,10 +351,10 @@ const PasswordResetTokenModel = sequelize.define(
 const UserFeedbackModel = sequelize.define(
   "UserFeedback",
   {
-    question_use_case: { type: DataTypes.TEXT, allowNull: false },
-    question_impact: { type: DataTypes.TEXT, allowNull: false },
-    question_who_benefits: { type: DataTypes.TEXT, allowNull: false },
-    question_improvements: { type: DataTypes.TEXT, allowNull: false },
+    question_use_case: { type: DataTypes.TEXT },
+    question_impact: { type: DataTypes.TEXT },
+    question_who_benefits: { type: DataTypes.TEXT },
+    question_improvements: { type: DataTypes.TEXT },
     user_id: {
       type: DataTypes.BIGINT,
       references: { model: UserModel, key: "id" },
