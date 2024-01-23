@@ -334,13 +334,7 @@ export class Validation {
     return this;
   }
 
-  /**
-   * Validate user feedback
-   *
-   * @param data
-   * @returns
-   */
-
+  /***  Validate user feedback ***/
   async validateUserFeedback(data: any) {
     // question_1: required
     if (
