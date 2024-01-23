@@ -456,10 +456,10 @@ export const createUserFeedback = async (data: any) => {
   try {
     // Create a new user feedback entry in the database
     const userFeedback = await UserFeedback.create({
-      question_1: data.question_1,
-      question_2: data.question_2,
-      question_3: data.question_3,
-      question_4: data.question_4,
+      question_use_case: data.question_use_case,
+      question_impact: data.question_impact,
+      question_who_benefits: data.question_who_benefits,
+      question_improvements: data.question_improvements,
       user_id: data.user_id, // Assuming the user is authenticated
       submission_date: new Date(), // Set the current date as the submission date
     });

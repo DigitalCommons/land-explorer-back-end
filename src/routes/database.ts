@@ -378,10 +378,10 @@ async function userFeedback(
 
   try {
     let userFeedback = await createUserFeedback({
-      question_1: payload.question1,
-      question_2: payload.question2,
-      question_3: payload.question3,
-      question_4: payload.question4,
+      question_use_case: payload.question1,
+      question_impact: payload.question2,
+      question_who_benefits: payload.question3,
+      question_improvements: payload.question4,
       user_id: request.auth.credentials.user_id,
     });
 

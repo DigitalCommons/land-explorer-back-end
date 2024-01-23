@@ -5,10 +5,10 @@ module.exports = {
     await queryInterface.sequelize.query(
       `CREATE TABLE user_feedback (
       id bigint NOT NULL AUTO_INCREMENT,
-      question_1 text,
-      question_2 text,
-      question_3 text,
-      question_4 text,
+      question_use_case text,
+      question_impact text,
+      question_who_benefits text,
+      question_improvements text,
       user_id bigint DEFAULT NULL,
       submission_date timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (id),

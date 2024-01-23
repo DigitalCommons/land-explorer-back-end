@@ -346,28 +346,28 @@ export class Validation {
     if (
       Joi.string().validate(data?.question1, { presence: "required" }).error
     ) {
-      this.addErrorMessage("question_1", "Dance is required.");
+      this.addErrorMessage("question_use_case", "Dance is required.");
     }
 
     // question_2: required
     if (
       Joi.string().validate(data?.question2, { presence: "required" }).error
     ) {
-      this.addErrorMessage("question_2", "Hats are required.");
+      this.addErrorMessage("question_impact", "Hats are required.");
     }
 
     // question_3: required
     if (
       Joi.string().validate(data?.question3, { presence: "required" }).error
     ) {
-      this.addErrorMessage("question_3", "Fun is required.");
+      this.addErrorMessage("question_who_benefits", "Fun is required.");
     }
 
     // question_4: required
     if (
       Joi.string().validate(data?.question4, { presence: "required" }).error
     ) {
-      this.addErrorMessage("question_4", "Pizza is required.");
+      this.addErrorMessage("question_improvements", "Pizza is required.");
     }
 
     return this;
