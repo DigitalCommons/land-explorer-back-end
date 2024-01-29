@@ -308,161 +308,201 @@ async function setMapAsViewed(request: Request, h: ResponseToolkit, d: any): Pro
  * @param d 
  * @returns 
  */
-async function mapSharing(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const originDomain = `https://${request.info.host}`;
+async function mapSharing(
+  request: Request,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  const originDomain = `https://${request.info.host}`;
 
-    const validation = new Validation();
-    await validation.validateShareMap(request.payload);
+  const validation = new Validation();
+  await validation.validateShareMap(request.payload);
 
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
+  if (validation.fail()) {
+    return h.response(validation.errors).code(400);
+  }
+
+  try {
+    const payload: any = request.payload;
+
+    // let userMap = await UserMap.findOne(
+    //     {
+    //         where: {
+    //             user_id: request.auth.credentials.user_id,
+    //             map_id: payload.eid
+    //         },
+    //         include: [
+    //             Map,
+    //             User
+    //         ]
+    //     }
+    // );
+
+    let userMap = await UserMap.findOne({
+      where: {
+        user_id: request.auth.credentials.user_id,
+        map_id: payload.eid,
+      },
+      include: [{ model: Map }, { model: User }],
+    });
+
+    if (!userMap || userMap.Map.deleted) {
+      return h.response("Map not found").code(404);
     }
 
-    try {
-
-        const payload: any = request.payload;
-
-        let userMap = await UserMap.findOne(
-            {
-                where: {
-                    user_id: request.auth.credentials.user_id,
-                    map_id: payload.eid
-                },
-                include: [
-                    Map,
-                    User
-                ]
-            }
-        );
-
-        if (!userMap || userMap.Map.deleted) {
-            return h.response("Map not found").code(404);
-        }
-
-        if (userMap.access !== UserMapAccess.Readwrite) {
-            return h.response("Unauthorised!").code(403);
-        }
-
-        // Since map sharing is stored on both UserMap (for registered user)
-        // and PendingUserMap (for non-registered user), the sync need to be
-        // performed on both table.
-
-        //Get all email address from user_map that has access to map excluding current user
-        const userEmailWithMapAccessViaUserMap = (await UserMap.findAll(
-            {
-                where: {
-                    map_id: payload.eid,
-                    user_id: {
-                        [Op.ne]: request.auth.credentials.user_id,
-                    }
-                },
-                include: [
-                    User
-                ]
-            }
-        )).map(function (element: any) {
-            return element.User.username.toLowerCase();
-        });
-
-        //Get all email address from pending_user_map that has access to map
-        const userEmailWithMapAccessViaPendingUserMap = (await PendingUserMap.findAll(
-            {
-                where: {
-                    map_id: payload.eid
-                }
-            }
-        )).map(function (element: any) {
-            return element.email_address.toLowerCase();
-        });
-
-        // email address comparison should be case insensitive
-        const emailAddresses = payload.emailAddresses.map(function (e: any) { return e.toLowerCase() });
-
-        // Get emails that need to be removed from the DB (access has been revoked)
-        let emailsToRemoveFromUserMap = userEmailWithMapAccessViaUserMap.filter(function (e: any) { return !emailAddresses.includes(e) });
-        let emailsToRemoveFromPendingUserMap = userEmailWithMapAccessViaPendingUserMap.filter(function (e: any) { return !emailAddresses.includes(e) });
-
-        console.log(emailsToRemoveFromUserMap);
-        //return h.response().code(200);
-
-        // Remove emails from user_map
-        await deleteMapAccessByEmails(payload.eid, [...emailsToRemoveFromUserMap, ...emailsToRemoveFromPendingUserMap]);
-
-
-        // Now get emails that are newly given the map access.
-        const newEmailsToGrantAccess = emailAddresses
-            .filter(function (x: any) {
-                return !userEmailWithMapAccessViaUserMap.includes(x)
-            })
-            .filter(function (x: any) {
-                return !userEmailWithMapAccessViaPendingUserMap.includes(x)
-            });
-
-        // Now we split those emails into array of existing users and new users
-
-        // This is array of existing users that we want to grant access to map
-        const userListToAddToUserMap = (await User.findAll(
-            {
-                where: {
-                    username: {
-                        [Op.in]: newEmailsToGrantAccess
-                    }
-                }
-            }
-        ));
-
-        const existingUserEmails = userListToAddToUserMap.map(function (element: any) {
-            return element.username.toLowerCase();
-        });
-
-        // This is array of email address string to be added to pending user map
-        const newEmailsToAddToPendingUserMap = newEmailsToGrantAccess.filter(function (x: any) {
-            return !existingUserEmails.includes(x)
-        });
-
-        // add to user map
-        await UserMap.bulkCreate(
-            userListToAddToUserMap.map(function (user: any) {
-                return {
-                    map_id: payload.eid,
-                    user_id: user.id,
-                    access: UserMapAccess.Readonly,
-                };
-            })
-        );
-
-        // add to pending user map
-        await PendingUserMap.bulkCreate(
-            newEmailsToAddToPendingUserMap.map(function (email: any) {
-                return {
-                    map_id: payload.eid,
-                    email_address: email,
-                    access: UserMapAccess.Readonly,
-                };
-            })
-        );
-
-        // send emails
-
-        // Get sharer information for email
-        const sharer_firstname: string = UserMap.User.first_name
-        const sharer_fullname: string = sharer_firstname + " " + UserMap.User.last_name;
-        const map_name: string = UserMap.Map.name;
-
-        userListToAddToUserMap.forEach(function (user: any) {
-            mailer.shareMapRegistered(user.username, user.first_name, sharer_fullname, sharer_firstname, map_name, originDomain);
-        });
-
-        newEmailsToAddToPendingUserMap.forEach(function (email: any) {
-            mailer.shareMapUnregistered(email, sharer_fullname, sharer_firstname, map_name, originDomain);
-        });
-
-    } catch (err: any) {
-        console.log(err.message);
-        return h.response("internal server error!").code(500);
+    if (userMap.access !== UserMapAccess.Readwrite) {
+      return h.response("Unauthorised!").code(403);
     }
 
-    return h.response().code(200);
+    // Since map sharing is stored on both UserMap (for registered user)
+    // and PendingUserMap (for non-registered user), the sync need to be
+    // performed on both table.
+
+    //Get all email address from user_map that has access to map excluding current user
+    const userEmailWithMapAccessViaUserMap = (
+      await UserMap.findAll({
+        where: {
+          map_id: payload.eid,
+          user_id: {
+            [Op.ne]: request.auth.credentials.user_id,
+          },
+        },
+        include: [User],
+      })
+    ).map(function (element: any) {
+      return element.User.username.toLowerCase();
+    });
+
+    //Get all email address from pending_user_map that has access to map
+    const userEmailWithMapAccessViaPendingUserMap = (
+      await PendingUserMap.findAll({
+        where: {
+          map_id: payload.eid,
+        },
+      })
+    ).map(function (element: any) {
+      return element.email_address.toLowerCase();
+    });
+
+    // email address comparison should be case insensitive
+    const emailAddresses = payload.emailAddresses.map(function (e: any) {
+      return e.toLowerCase();
+    });
+
+    // Get emails that need to be removed from the DB (access has been revoked)
+    let emailsToRemoveFromUserMap = userEmailWithMapAccessViaUserMap.filter(
+      function (e: any) {
+        return !emailAddresses.includes(e);
+      }
+    );
+    let emailsToRemoveFromPendingUserMap =
+      userEmailWithMapAccessViaPendingUserMap.filter(function (e: any) {
+        return !emailAddresses.includes(e);
+      });
+
+    console.log(emailsToRemoveFromUserMap);
+    //return h.response().code(200);
+
+    // Remove emails from user_map
+    await deleteMapAccessByEmails(payload.eid, [
+      ...emailsToRemoveFromUserMap,
+      ...emailsToRemoveFromPendingUserMap,
+    ]);
+
+    // Now get emails that are newly given the map access.
+    const newEmailsToGrantAccess = emailAddresses
+      .filter(function (x: any) {
+        return !userEmailWithMapAccessViaUserMap.includes(x);
+      })
+      .filter(function (x: any) {
+        return !userEmailWithMapAccessViaPendingUserMap.includes(x);
+      });
+
+    // Now we split those emails into array of existing users and new users
+
+    // This is array of existing users that we want to grant access to map
+    const userListToAddToUserMap = await User.findAll({
+      where: {
+        username: {
+          [Op.in]: newEmailsToGrantAccess,
+        },
+      },
+    });
+
+    const existingUserEmails = userListToAddToUserMap.map(function (
+      element: any
+    ) {
+      return element.username.toLowerCase();
+    });
+
+    // This is array of email address string to be added to pending user map
+    const newEmailsToAddToPendingUserMap = newEmailsToGrantAccess.filter(
+      function (x: any) {
+        return !existingUserEmails.includes(x);
+      }
+    );
+
+    // add to user map
+    await UserMap.bulkCreate(
+      userListToAddToUserMap.map(function (user: any) {
+        return {
+          map_id: payload.eid,
+          user_id: user.id,
+          access: UserMapAccess.Readonly,
+        };
+      })
+    );
+
+    // add to pending user map
+    await PendingUserMap.bulkCreate(
+      newEmailsToAddToPendingUserMap.map(function (email: any) {
+        return {
+          map_id: payload.eid,
+          email_address: email,
+          access: UserMapAccess.Readonly,
+        };
+      })
+    );
+
+    // send emails
+
+    // Get sharer information for email
+    // const sharer_firstname: string = UserMap.User.first_name;
+    const sharer_firstname: string = userMap.User.get("first_name");
+    const sharer_lastname: string = userMap.User.get("last_name");
+
+    const sharer_fullname: string =
+      //   sharer_firstname + " " + UserMap.User.last_name;
+      sharer_firstname + " " + sharer_lastname;
+    // const map_name: string = UserMap.Map.name;
+    const map_name: string = userMap.Map.get("name");
+
+    userListToAddToUserMap.forEach(function (user: any) {
+      mailer.shareMapRegistered(
+        user.username,
+        user.first_name,
+        sharer_fullname,
+        sharer_firstname,
+        map_name,
+        originDomain
+      );
+    });
+
+    newEmailsToAddToPendingUserMap.forEach(function (email: any) {
+      mailer.shareMapUnregistered(
+        email,
+        sharer_fullname,
+        sharer_firstname,
+        map_name,
+        originDomain
+      );
+    });
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
+
+  return h.response().code(200);
 }
 
 /**
