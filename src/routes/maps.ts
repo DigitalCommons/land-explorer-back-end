@@ -103,7 +103,7 @@ async function saveMap(
       const hasAccess = await UserMap.findOne({
         where: {
           map_id: eid,
-          access: UserMapAccess.Readwrite,
+          access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
           user_id: request.auth.credentials.user_id,
         },
       });
@@ -149,7 +149,7 @@ async function saveMapMarker(
   const hasAccess = await UserMap.findOne({
     where: {
       map_id: eid,
-      access: UserMapAccess.Readwrite,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
       user_id: request.auth.credentials.user_id,
     },
   });
@@ -179,7 +179,7 @@ async function saveMapPolygon(
   const hasAccess = await UserMap.findOne({
     where: {
       map_id: eid,
-      access: UserMapAccess.Readwrite,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
       user_id: request.auth.credentials.user_id,
     },
   });
@@ -212,7 +212,7 @@ async function saveMapLine(
   const hasAccess = await UserMap.findOne({
     where: {
       map_id: eid,
-      access: UserMapAccess.Readwrite,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
       user_id: request.auth.credentials.user_id,
     },
   });
@@ -250,7 +250,7 @@ async function saveMapZoom(
   const hasAccess = await UserMap.findOne({
     where: {
       map_id: eid,
-      access: UserMapAccess.Readwrite,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
       user_id: request.auth.credentials.user_id,
     },
   });
@@ -281,7 +281,7 @@ async function saveMapLngLat(
   const hasAccess = await UserMap.findOne({
     where: {
       map_id: eid,
-      access: UserMapAccess.Readwrite,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
       user_id: request.auth.credentials.user_id,
     },
   });
@@ -429,7 +429,8 @@ async function mapSharing(
       return h.response("Map not found").code(404);
     }
 
-    if (userMap.access !== UserMapAccess.Readwrite) {
+    // changed from UserMapAccess.Readwrite
+    if (userMap.access !== UserMapAccess.Owner) {
       return h.response("Unauthorised!").code(403);
     }
 
@@ -657,7 +658,8 @@ async function deleteMap(
       return h.response("Map not found").code(404);
     }
 
-    if (userMap.access !== UserMapAccess.Readwrite) {
+    // changed from UserMapAccess.Readwrite
+    if (userMap.access !== UserMapAccess.Owner) {
       return h.response("Unauthorised!").code(403);
     }
 
@@ -776,7 +778,12 @@ async function getUserMaps(
           isSnapshot: map.is_snapshot,
         },
         accessGrantedDate: myUserMap.created_date,
-        access: myUserMap.access === UserMapAccess.Readwrite ? "WRITE" : "READ",
+        access:
+          myUserMap.access === UserMapAccess.Owner
+            ? "OWNER"
+            : myUserMap.access === UserMapAccess.Readwrite
+            ? "WRITE"
+            : "READ",
         viewed: myUserMap.viewed === 1,
       });
     }
@@ -923,7 +930,8 @@ async function setMapPublic(
     },
   });
 
-  if (userMapView?.access === UserMapAccess.Readwrite) {
+  // changed from UserMapAccess.Readwrite
+  if (userMapView?.access === UserMapAccess.Owner) {
     const publicMapAddress = await createPublicMapView(mapId);
 
     return h.response(publicMapAddress);

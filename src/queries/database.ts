@@ -226,9 +226,11 @@ export enum DataGroupId {
 }
 
 /* The access values in the UserMap table */
+// 2 changed from Readwrite to Owner
 export enum UserMapAccess {
   Readonly = 1,
-  Readwrite = 2,
+  Owner = 2,
+  Readwrite = 3
 }
 
 /* All the possible values of the iditem_types column in the ItemType table */
