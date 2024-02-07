@@ -360,6 +360,11 @@ type UserFeedbackRequest = Request & {
     question3: string;
     question4: string;
   };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
 };
 
 async function userFeedback(
