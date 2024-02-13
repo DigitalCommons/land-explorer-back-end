@@ -21,6 +21,7 @@ import {
   getMapMarkers,
   createMapMembership,
   getMapPolygonsAndLines,
+  lockMap,
 } from "../queries/map";
 import {
   createMarker,
@@ -965,6 +966,109 @@ async function getPublicMap(
   }
 }
 
+type LockMapRequest = Request & {
+  payload: {
+    mapId: number;
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
+/**
+ * A method to lock a map for editing.
+ *
+ * @param request
+ * @param h
+ * @param d
+ * @returns
+ */
+
+async function setMapAsLocked(
+  request: LockMapRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  const { mapId } = request.payload;
+
+  const userMapView = await UserMap.findOne({
+    where: {
+      map_id: mapId,
+      user_id: request.auth.credentials.user_id,
+    },
+  });
+
+  if (
+    userMapView?.access === UserMapAccess.Owner ||
+    userMapView?.access === UserMapAccess.Readwrite
+  ) {
+    await lockMap(mapId, true);
+    // await Map.update(
+    //   {
+    //     is_locked: 1,
+    //   },
+    //   {
+    //     where: {
+    //       id: mapId,
+    //     },
+    //   }
+    // );
+
+    console.log("Map locked");
+    return h.response().code(200);
+  } else {
+    return h.response("Unauthorised!").code(403);
+  }
+}
+
+/**
+ * A method to unlock a map for editing.
+ *
+ * @param request
+ * @param h
+ * @param d
+ * @returns
+ */
+
+async function setMapAsUnlocked(
+  request: LockMapRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  const { mapId } = request.payload;
+
+  const userMapView = await UserMap.findOne({
+    where: {
+      map_id: mapId,
+      user_id: request.auth.credentials.user_id,
+    },
+  });
+
+  if (
+    userMapView?.access === UserMapAccess.Owner ||
+    userMapView?.access === UserMapAccess.Readwrite
+  ) {
+    // await Map.update(
+    //   {
+    //     is_locked: 0,
+    //   },
+    //   {
+    //     where: {
+    //       id: mapId,
+    //     },
+    //   }
+    // );
+    console.log("Map unlocked");
+    await lockMap(mapId, false);
+
+    return h.response().code(200);
+  } else {
+    return h.response("Unauthorised!").code(403);
+  }
+}
+
 export const mapRoutes: ServerRoute[] = [
   // Create or update a map
   { method: "POST", path: "/api/user/map/save", handler: saveMap },
@@ -1010,5 +1114,17 @@ export const mapRoutes: ServerRoute[] = [
     path: "/api/public/map/{mapId}",
     handler: getPublicMap,
     options: { auth: false },
+  },
+  // Lock a map for editing
+  {
+    method: "POST",
+    path: "/api/user/map/lock",
+    handler: setMapAsLocked,
+  },
+  // Unlock a map for editing
+  {
+    method: "POST",
+    path: "/api/user/map/unlock",
+    handler: setMapAsUnlocked,
   },
 ];

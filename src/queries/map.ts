@@ -449,3 +449,35 @@ export const updateMapLngLat: MapUpdateLngLatFunction = async (
     }
   );
 };
+
+type MapLockFunction = (eid: number, isLocked: boolean) => Promise<void>;
+
+export const lockMap: MapLockFunction = async (mapId, isLocked) => {
+  console.log(`Setting is_locked to ${isLocked} for map ${mapId}`);
+  await Map.update(
+    {
+      is_locked: isLocked,
+    },
+    {
+      where: {
+        id: mapId,
+      },
+    }
+  );
+};
+
+
+// export const unlockMap: MapLockFunction = async (mapId, isLocked) => {
+//   console.log(`Setting is_locked to ${isLocked} for map ${mapId}`);
+//   await Map.update(
+//     {
+//       is_locked: isLocked,
+//     },
+//     {
+//       where: {
+//         id: mapId,
+//       },
+//     }
+//   );
+// }
+
