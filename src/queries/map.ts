@@ -466,7 +466,6 @@ export const lockMap: MapLockFunction = async (mapId, isLocked) => {
   );
 };
 
-
 // export const unlockMap: MapLockFunction = async (mapId, isLocked) => {
 //   console.log(`Setting is_locked to ${isLocked} for map ${mapId}`);
 //   await Map.update(
@@ -480,4 +479,3 @@ export const lockMap: MapLockFunction = async (mapId, isLocked) => {
 //     }
 //   );
 // }
-
