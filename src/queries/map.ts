@@ -7,6 +7,7 @@ import {
   Line,
   MapMembership,
   ItemTypeId,
+  LockedMaps,
 } from "./database";
 import { createMarker, createPolygon, createLine } from "./object";
 import { v4 as uuidv4 } from "uuid";
@@ -450,32 +451,25 @@ export const updateMapLngLat: MapUpdateLngLatFunction = async (
   );
 };
 
-type MapLockFunction = (eid: number, isLocked: boolean) => Promise<void>;
+// #306 Enable multiple users to write to a map
+// M.S. Lock or unlock a map
 
-export const lockMap: MapLockFunction = async (mapId, isLocked) => {
+type MapLockFunction = (
+  mapId: number,
+  userId: number,
+  isLocked: boolean
+) => Promise<void>;
+
+export const lockMap: MapLockFunction = async (mapId, userId, isLocked) => {
   console.log(`Setting is_locked to ${isLocked} for map ${mapId}`);
-  await Map.update(
-    {
+  const lock = await LockedMaps.findOne({ where: { map_id: mapId } });
+  if (lock) {
+    await lock.update({ is_locked: isLocked });
+  } else {
+    await LockedMaps.create({
+      map_id: mapId,
+      user_id: userId,
       is_locked: isLocked,
-    },
-    {
-      where: {
-        id: mapId,
-      },
-    }
-  );
+    });
+  }
 };
-
-// export const unlockMap: MapLockFunction = async (mapId, isLocked) => {
-//   console.log(`Setting is_locked to ${isLocked} for map ${mapId}`);
-//   await Map.update(
-//     {
-//       is_locked: isLocked,
-//     },
-//     {
-//       where: {
-//         id: mapId,
-//       },
-//     }
-//   );
-// }

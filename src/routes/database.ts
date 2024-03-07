@@ -132,6 +132,7 @@ async function getAuthUserDetails(request: UserDetailsRequest, h: ResponseToolki
             phone: user.phone ?? "",
             council_id: user.council_id ?? 0,
             is_super_user: user.is_super_user ?? 0,
+            id: user.id ?? ""
         });
     }
     catch (err: any) {

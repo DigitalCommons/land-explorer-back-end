@@ -37,12 +37,22 @@ import {
   UserMap,
   PendingUserMap,
   UserMapAccess,
+  LockedMaps,
   Marker,
   Polygon,
   Line,
 } from "../queries/database";
 import { ItemType } from "../enums";
 import * as mailer from "../queries/mails";
+import { EventEmitter } from "events";
+
+const eventEmitter = new EventEmitter();
+
+eventEmitter.on("error", (error) => {
+  console.error("Error occurred: ", error);
+});
+
+eventEmitter.emit("message", "Hello world!");
 
 /**
  * Endpoint for user to update or create new map.
@@ -404,19 +414,6 @@ async function mapSharing(
 
   try {
     const payload: any = request.payload;
-
-    // let userMap = await UserMap.findOne(
-    //     {
-    //         where: {
-    //             user_id: request.auth.credentials.user_id,
-    //             map_id: payload.eid
-    //         },
-    //         include: [
-    //             Map,
-    //             User
-    //         ]
-    //     }
-    // );
 
     let userMap = await UserMap.findOne({
       where: {
@@ -966,6 +963,9 @@ async function getPublicMap(
   }
 }
 
+// #306 Enable multiple users to write to a map
+// M.S. Request type for locking a map
+
 type LockMapRequest = Request & {
   payload: {
     mapId: number;
@@ -986,98 +986,8 @@ type LockMapRequest = Request & {
  * @returns
  */
 
-// async function setMapAsLocked(
-//   request: LockMapRequest,
-//   h: ResponseToolkit,
-//   d: any
-// ): Promise<ResponseObject> {
-//   const { mapId } = request.payload;
-//   const userMapView = await UserMap.findOne({
-//     where: {
-//       map_id: mapId,
-//       user_id: request.auth.credentials.user_id,
-//     },
-//   });
-
-//   if (!userMapView) {
-//     return h.response("User does not have access to this map").code(403);
-//   }
-
-//   if (
-//     userMapView.access !== UserMapAccess.Owner &&
-//     userMapView.access !== UserMapAccess.Readwrite
-//   ) {
-//     return h
-//       .response("User does not have permission to edit this map")
-//       .code(403);
-//   }
-
-//   const map = await Map.findOne({
-//     where: {
-//       id: mapId,
-//       is_locked: true, // Check if the map is already locked
-//     },
-//   });
-
-//   if (map) {
-//     return h.response("Map is already locked").code(403); // Inform the user that the map is already being edited
-//   }
-
-//   await lockMap(mapId, true); // Lock the map for editing
-//   console.log("Map locked");
-//   return h.response().code(200);
-// }
-
-// /**
-//  * A method to unlock a map for editing.
-//  *
-//  * @param request
-//  * @param h
-//  * @param d
-//  * @returns
-//  */
-
-// async function setMapAsUnlocked(
-//   request: LockMapRequest,
-//   h: ResponseToolkit,
-//   d: any
-// ): Promise<ResponseObject> {
-//   const { mapId } = request.payload;
-//   const userMapView = await UserMap.findOne({
-//     where: {
-//       map_id: mapId,
-//       user_id: request.auth.credentials.user_id,
-//     },
-//   });
-
-//   if (!userMapView) {
-//     return h.response("User does not have access to this map").code(403);
-//   }
-
-//   if (
-//     userMapView.access !== UserMapAccess.Owner &&
-//     userMapView.access !== UserMapAccess.Readwrite
-//   ) {
-//     return h
-//       .response("User does not have permission to edit this map")
-//       .code(403);
-//   }
-
-//   const map = await Map.findOne({
-//     where: {
-//       id: mapId,
-//       is_locked: false, // Check if the map is not locked
-//     },
-//   });
-
-//   if (map) {
-//     return h.response("Map is already unlocked").code(403); // Inform the user that the map is already unlocked
-//   }
-
-//   await lockMap(mapId, false); // Unlock the map
-//   console.log("Map unlocked");
-//   return h.response().code(200);
-// }
+// #306 Enable multiple users to write to a map
+// M.S. Promise function to lock a map
 
 async function setMapLockStatus(
   request: LockMapRequest,
@@ -1086,11 +996,12 @@ async function setMapLockStatus(
   isLocked: boolean
 ): Promise<ResponseObject> {
   const { mapId } = request.payload;
+  const userId = request.auth.credentials.user_id;
 
   const userMapView = await UserMap.findOne({
     where: {
       map_id: mapId,
-      user_id: request.auth.credentials.user_id,
+      user_id: userId,
     },
   });
 
@@ -1098,14 +1009,18 @@ async function setMapLockStatus(
     userMapView?.access === UserMapAccess.Owner ||
     userMapView?.access === UserMapAccess.Readwrite
   ) {
-    await lockMap(mapId, isLocked);
+    await lockMap(mapId, userId, isLocked);
 
     console.log(`Map ${isLocked ? "locked" : "unlocked"}`);
+    eventEmitter.emit("message", JSON.stringify({ mapId, isLocked }));
     return h.response().code(200);
   } else {
     return h.response("Unauthorised!").code(403);
   }
 }
+
+// #306 Enable multiple users to write to a map
+// M.S. Request type for checking if a map is locked
 
 type RequestHandler = (
   request: LockMapRequest,
@@ -1113,36 +1028,49 @@ type RequestHandler = (
   d: any
 ) => Promise<ResponseObject>;
 
+// #306 Enable multiple users to write to a map
 // Lock a map for editing
 export const setMapAsLocked: RequestHandler = async (request, h, d) => {
   return await setMapLockStatus(request, h, d, true);
 };
 
+// #306 Enable multiple users to write to a map
 // Unlock a map for editing
 export const setMapAsUnlocked: RequestHandler = async (request, h, d) => {
   return await setMapLockStatus(request, h, d, false);
 };
 
+// #306 Enable multiple users to write to a map
+// M.S. Request type for checking if a map is locked
 type checkMapLockStatusRequest = Request & {
   query: {
     mapId: number;
   };
 };
 
-// Check if a map is locked
+// #306 Enable multiple users to write to a map
+// M.S. Promise function to check if a map is locked
+
 export const checkMapLockStatus = async (
   request: checkMapLockStatusRequest,
   h: ResponseToolkit
 ): Promise<ResponseObject> => {
   const { mapId } = request.query;
 
-  const map = await Map.findOne({
-    where: {
-      id: mapId,
-    },
+  const lock = await LockedMaps.findOne({
+    where: { map_id: mapId },
+    attributes: ["is_locked", "user_id"], // Include user_id in the query result
   });
 
-  return h.response({ isLocked: map?.is_locked }).code(200);
+  if (lock) {
+    // If the map is locked, return the lock status and the associated user_id
+    return h
+      .response({ isLocked: lock.is_locked, userId: lock.user_id })
+      .code(200);
+  } else {
+    // If the map is not locked, return the lock status as false
+    return h.response({ isLocked: false }).code(200);
+  }
 };
 
 export const mapRoutes: ServerRoute[] = [
@@ -1172,13 +1100,15 @@ export const mapRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/map/delete", handler: deleteMap },
   // Make a map accessible to the public
   { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
-  // Lock a map for editing
+  // #306 Enable multiple users to write to a map
+  // M.S. Lock a map for editing
   {
     method: "POST",
     path: "/api/user/map/lock",
     handler: setMapAsLocked,
   },
-  // Unlock a map for editing
+  // #306 Enable multiple users to write to a map
+  // M.S. Unlock a map for editing
   {
     method: "POST",
     path: "/api/user/map/unlock",
@@ -1203,7 +1133,8 @@ export const mapRoutes: ServerRoute[] = [
     handler: getPublicMap,
     options: { auth: false },
   },
-  // Check if a map is locked
+  // #306 Enable multiple users to write to a map
+  // M.S. Check if a map is locked
   {
     method: "GET",
     path: "/api/user/map/lockStatus",
