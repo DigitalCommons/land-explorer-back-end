@@ -7,12 +7,14 @@ import { emailRoutes } from "./routes/emails";
 import { mapRoutes } from "./routes/maps";
 import { dataGroupRoutes } from "./routes/datagroups";
 import { EventEmitter } from "events";
+import { Server as SocketIOServer } from "socket.io";
 
 const AuthBearer = require("hapi-auth-bearer-token");
 const Inert = require("@hapi/inert");
 const jwt = require("jsonwebtoken");
 
 export let server: Server;
+let io: SocketIOServer;
 
 function index(request: Request): string {
   console.log("Processing request", request.info.id);
@@ -20,40 +22,61 @@ function index(request: Request): string {
 }
 
 // #306 Enable multiple users to write to a map
+
+function setupWebsocket(server: Server): void {
+  io = new SocketIOServer(server.listener);
+
+  io.on("connection", (socket) => {
+    console.log("User connected", socket.id);
+
+    socket.on("disconnect", () => {
+      console.log("User disconnected", socket.id);
+    });
+
+    socket.emit("update", { message: "Welcome to the server" });
+
+    socket.on("update", (data) => {
+      console.log("Received update", data);
+      io.emit("update", data);
+    });
+  });
+}
+
+// #306 Enable multiple users to write to a map
 // M.S. Server-Sent Events (SSE) for real-time updates
 // https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
 
-function sse(request: Request, h: any): any {
-  const eventEmitter = new EventEmitter();
+// function sse(request: Request, h: any): any {
+//   const eventEmitter = new EventEmitter();
 
-  // Set up CORS headers conditionally
-  const response = h
-    .response()
-    .header("Content-Type", "text/event-stream")
-    .header("Cache-Control", "no-cache")
-    .header("Connection", "keep-alive");
+//   // Set up CORS headers conditionally
+//   const response = h
+//     .response()
+//     .header("Content-Type", "text/event-stream")
+//     .header("Cache-Control", "no-cache")
+//     .header("Connection", "keep-alive");
 
-  if (process.env.NODE_ENV === "development") {
-    response.header("Access-Control-Allow-Origin", "http://localhost:8080"); // Adjust origin as needed
-  }
+//   if (process.env.NODE_ENV === "development") {
+//     response.header("Access-Control-Allow-Origin", "http://localhost:8080"); // Adjust origin as needed
+//   }
 
-  response.code(200);
+//   response.code(200);
 
-  // Notify that a new client has connected
-  eventEmitter.emit("newConnection", response);
+//   // Notify that a new client has connected
+//   eventEmitter.emit("newConnection", response);
 
-  // Send SSE events to clients
-  eventEmitter.on("event", (data) => {
-    response.write("data: " + JSON.stringify(data) + "\n\n");
-  });
+//   // Send SSE events to clients
+//   eventEmitter.on("event", (data) => {
+//     response.write("data: " + JSON.stringify(data) + "\n\n");
+//   });
 
-  // Clear the interval when the client disconnects
-  eventEmitter.on("disconnect", () => {
-    eventEmitter.removeAllListeners();
-  });
+//   // Clear the interval when the client disconnects
+//   eventEmitter.on("disconnect", () => {
+//     eventEmitter.removeAllListeners();
+//   });
 
-  return response;
-}
+//   return response;
+// }
 
 export const init = async function (): Promise<Server> {
   server = Hapi.server({
@@ -64,6 +87,8 @@ export const init = async function (): Promise<Server> {
     routes: {
       cors: process.env.NODE_ENV === "development" && {
         origin: ["http://localhost:8080"],
+        // Allow WebSocket connections
+        additionalHeaders: ["authorization", "content-type"],
       },
     },
   });
@@ -105,14 +130,14 @@ export const init = async function (): Promise<Server> {
   // #306 Enable multiple users to write to a map
   // M.S. SSE route
 
-  server.route({
-    method: "GET",
-    path: "/api/sse",
-    handler: sse,
-    options: {
-      auth: false,
-    },
-  });
+  // server.route({
+  //   method: "GET",
+  //   path: "/api/sse",
+  //   handler: sse,
+  //   options: {
+  //     auth: false,
+  //   },
+  // });
 
   server.route(databaseRoutes);
   server.route(mapRoutes);
@@ -131,6 +156,8 @@ export const init = async function (): Promise<Server> {
         request.response.statusCode
     );
   });
+
+  setupWebsocket(server);
 
   return server;
 };
