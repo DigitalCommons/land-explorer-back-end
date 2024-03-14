@@ -95,8 +95,8 @@ async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<Res
     } catch (err: any) {
         console.log(err.message);
         return h.response("internal server error!").code(500);
-    }
-}
+    }}
+
 
 type UserDetailsRequest = Request & {
     auth: {

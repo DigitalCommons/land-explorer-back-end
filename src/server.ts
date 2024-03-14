@@ -6,40 +6,18 @@ import { databaseRoutes } from "./routes/database";
 import { emailRoutes } from "./routes/emails";
 import { mapRoutes } from "./routes/maps";
 import { dataGroupRoutes } from "./routes/datagroups";
+import { setupWebsockets } from "./websockets/server";
 import { EventEmitter } from "events";
-import { Server as SocketIOServer } from "socket.io";
 
 const AuthBearer = require("hapi-auth-bearer-token");
 const Inert = require("@hapi/inert");
 const jwt = require("jsonwebtoken");
 
 export let server: Server;
-let io: SocketIOServer;
 
 function index(request: Request): string {
   console.log("Processing request", request.info.id);
   return "Hello! Nice to have met you...";
-}
-
-// #306 Enable multiple users to write to a map
-
-function setupWebsocket(server: Server): void {
-  io = new SocketIOServer(server.listener);
-
-  io.on("connection", (socket) => {
-    console.log("User connected", socket.id);
-
-    socket.on("disconnect", () => {
-      console.log("User disconnected", socket.id);
-    });
-
-    socket.emit("update", { message: "Welcome to the server" });
-
-    socket.on("update", (data) => {
-      console.log("Received update", data);
-      io.emit("update", data);
-    });
-  });
 }
 
 // #306 Enable multiple users to write to a map
@@ -157,7 +135,7 @@ export const init = async function (): Promise<Server> {
     );
   });
 
-  setupWebsocket(server);
+  setupWebsockets(server);
 
   return server;
 };
