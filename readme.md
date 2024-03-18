@@ -12,14 +12,14 @@ This application provides the back-end functionality for Land Explorer. It has 4
 ## Requirements
 
  - Nodejs
- - Nodemon
  - MySQL
 
 ## Installation
 
  - Run `npm install`
  - Copy `.env.example` and rename the copy to `.env`
- - Fill in the `.env` with database credential
+ - If in development, create a MySql schema for testing
+ - Fill in the `.env` with database credentials
  - Run migration `npx sequelize-cli db:migrate`
  - Run seeder `npx sequelize-cli db:seed:all`
  - Run `npm run dev:serve`
