@@ -5,8 +5,11 @@ const jwt = require("jsonwebtoken");
 
 // #306 Enable multiple users to write to a map
 
+// Export io instance
+export let io: SocketIOServer;
+
 export const setupWebsockets = (server: HapiServer): void => {
-  const io: SocketIOServer = new SocketIOServer(
+  io = new SocketIOServer(
     server.listener,
     process.env.NODE_ENV === "development"
       ? {
