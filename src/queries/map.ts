@@ -269,8 +269,9 @@ type CreateMapFunction = (
   data: any,
   userId: number,
   isSnapshot: boolean
-) => Promise<void>;
+) => Promise<number>;
 
+/** Returns ID of the created map */
 export const createMap: CreateMapFunction = async (
   name,
   data,
@@ -318,6 +319,7 @@ export const createMap: CreateMapFunction = async (
     await copyDataGroupObjects(newMap.id, dataGroupIds);
   }
   console.log(`Created map ${newMap.id} with name ${name}`);
+  return newMap.id;
 };
 
 type MapUpdateFunction = (

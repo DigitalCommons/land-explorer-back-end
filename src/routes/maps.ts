@@ -45,6 +45,7 @@ import {
 import { ItemType } from "../enums";
 import * as mailer from "../queries/mails";
 import { EventEmitter } from "events";
+import { tryLockMap } from "../websockets/locking";
 
 const eventEmitter = new EventEmitter();
 
@@ -93,6 +94,7 @@ async function saveMap(
 
   try {
     const { eid, name, data, isSnapshot } = request.payload;
+    const userId = request.auth.credentials.user_id;
 
     // eid provided means update map
     const isUpdate = eid !== null;
@@ -115,7 +117,7 @@ async function saveMap(
         where: {
           map_id: eid,
           access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-          user_id: request.auth.credentials.user_id,
+          user_id: userId,
         },
       });
 
@@ -123,9 +125,16 @@ async function saveMap(
         return h.response("Unauthorised").code(403);
       }
 
+      // Try to acquire lock for user
+      const success = tryLockMap(eid, userId);
+      if (!success) {
+        return h.response("Map is locked").code(503);
+      }
+
       await updateMap(eid, name, data);
     } else {
-      await createMap(name, data, request.auth.credentials.user_id, isSnapshot);
+      const newMapId = await createMap(name, data, userId, isSnapshot);
+      tryLockMap(newMapId, userId);
     }
   } catch (err: any) {
     console.log(err.message);
@@ -147,6 +156,11 @@ type SaveMapObjectRequest = Request & {
     };
     eid: number;
   };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
 };
 
 async function saveMapMarker(
@@ -166,6 +180,12 @@ async function saveMapMarker(
   });
   if (hasAccess === null) {
     return h.response("Unauthorised").code(403);
+  }
+
+  // Try to acquire lock for user
+  const success = tryLockMap(eid, request.auth.credentials.user_id);
+  if (!success) {
+    return h.response("Map is locked").code(503);
   }
 
   const newMarker = await createMarker(
@@ -197,6 +217,12 @@ async function saveMapPolygon(
   if (hasAccess === null) {
     return h.response("Unauthorised").code(403);
   }
+
+  // Try to acquire lock for user
+  // const success = tryLockMap(eid, request.auth.credentials.user_id);
+  // if (!success) {
+  //   return h.response("Map is locked").code(503);
+  // }
 
   const newPolygon = await createPolygon(
     object.name,
@@ -230,6 +256,12 @@ async function saveMapLine(
   if (hasAccess === null) {
     return h.response("Unauthorised").code(403);
   }
+
+  // Try to acquire lock for user
+  // const success = tryLockMap(eid, request.auth.credentials.user_id);
+  // if (!success) {
+  //   return h.response("Map is locked").code(503);
+  // }
 
   const newLine = await createLine(
     object.name,
@@ -307,9 +339,15 @@ async function saveMapLngLat(
 
 type EditRequest = Request & {
   payload: {
+    // eid: number;
     uuid: string;
     name: string;
     description: string;
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
   };
 };
 
@@ -318,6 +356,23 @@ async function editMarker(
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const { uuid, name, description } = request.payload;
+
+  // check that user has permission to update this map
+  // const hasAccess = await UserMap.findOne({
+  //   where: {
+  //     mapId: eid,
+  //     access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+  //     user_id: request.auth.credentials.user_id,
+  //   },
+  // });
+  // if (hasAccess === null) {
+  //   return h.response("Unauthorised").code(403);
+  // }
+
+  //  const success = tryLockMap(eid, request.auth.credentials.user_id);
+  //  if (!success) {
+  //    return h.response("Map is locked").code(503);
+  //  }
 
   await updateMarker(uuid, name, description);
 
@@ -330,6 +385,23 @@ async function editPolygon(
 ): Promise<ResponseObject> {
   const { uuid, name, description } = request.payload;
 
+  // // check that user has permission to update this map
+  // const hasAccess = await UserMap.findOne({
+  //   where: {
+  //     mapId: eid,
+  //     access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+  //     user_id: request.auth.credentials.user_id,
+  //   },
+  // });
+  // if (hasAccess === null) {
+  //   return h.response("Unauthorised").code(403);
+  // }
+
+  // const success = tryLockMap(eid, request.auth.credentials.user_id);
+  // if (!success) {
+  //   return h.response("Map is locked").code(503);
+  // }
+
   await updatePolygon(uuid, name, description);
 
   return h.response();
@@ -340,6 +412,23 @@ async function editLine(
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const { uuid, name, description } = request.payload;
+
+  // // check that user has permission to update this map
+  // const hasAccess = await UserMap.findOne({
+  //   where: {
+  //     mapId: eid,
+  //     access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+  //     user_id: request.auth.credentials.user_id,
+  //   },
+  // });
+  // if (hasAccess === null) {
+  //   return h.response("Unauthorised").code(403);
+  // }
+
+  // const success = tryLockMap(eid, request.auth.credentials.user_id);
+  // if (!success) {
+  //   return h.response("Map is locked").code(503);
+  // }
 
   await updateLine(uuid, name, description);
 
@@ -1102,18 +1191,18 @@ export const mapRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
   // #306 Enable multiple users to write to a map
   // M.S. Lock a map for editing
-  {
-    method: "POST",
-    path: "/api/user/map/lock",
-    handler: setMapAsLocked,
-  },
+  // {
+  //   method: "POST",
+  //   path: "/api/user/map/lock",
+  //   handler: setMapAsLocked,
+  // },
   // #306 Enable multiple users to write to a map
   // M.S. Unlock a map for editing
-  {
-    method: "POST",
-    path: "/api/user/map/unlock",
-    handler: setMapAsUnlocked,
-  },
+  // {
+  //   method: "POST",
+  //   path: "/api/user/map/unlock",
+  //   handler: setMapAsUnlocked,
+  // },
   // Returns a map converted to shapefile format
   {
     method: "GET",

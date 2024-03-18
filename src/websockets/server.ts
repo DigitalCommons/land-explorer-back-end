@@ -1,11 +1,10 @@
-import { Server as SocketIOServer } from "socket.io";
+import { Socket, Server as SocketIOServer } from "socket.io";
 import { Server as HapiServer } from "@hapi/hapi";
-import { clearAllLocks, unlockMapIfHasLock } from "./locking";
+import { clearAllLocks, unlockMap, getUserIdWithLock, tryLockMap } from "./locking";
 const jwt = require("jsonwebtoken");
 
 // #306 Enable multiple users to write to a map
 
-// Export io instance
 export let io: SocketIOServer;
 
 export const setupWebsockets = (server: HapiServer): void => {
@@ -33,27 +32,56 @@ export const setupWebsockets = (server: HapiServer): void => {
 
     console.log("User websocket connected", socket.data.userId);
 
-    socket.on("disconnect", () => {
-      console.log("User websocket disconnected", socket.data.userId);
+    socket.on("disconnecting", () => {
+      console.log("User websocket disconnecting", socket.data.userId);
+      leaveAllMaps(socket);
     });
-
-    socket.emit("update", { message: "Welcome to the server" });
 
     socket.on("currentMap", (mapId) => {
-      console.log(`User ${socket.data.userId} opened map ${mapId}`);
+      if (mapId !== null) {
+        if (getCurrentMapId(socket) != mapId) {
+          console.log(`User ${socket.data.userId} opened map ${mapId}`);
+          leaveAllMaps(socket);
+          socket.join(`${mapId}`);
+        }
+
+        // Try locking the map (or send info about who has the lock)
+        const success = tryLockMap(mapId, socket.data.userId);
+        const userId = success ? socket.data.userId : getUserIdWithLock(mapId);
+        socket.emit(`mapLock`, { mapId, userId });
+      } else {
+        // null map id means a new map was opened
+        leaveAllMaps(socket);
+      }
     });
 
-    socket.on("closeMap", (mapId) => {
-      const userId = socket.data.userId;
-      console.log(`User ${userId} closed map ${mapId}`);
-      unlockMapIfHasLock(mapId, userId);
-    });
-
-    socket.on("update", (data) => {
-      console.log("Received update", data);
-      io.emit("update", data);
-    });
+    // socket.on("closeMap", (mapId) => {
+    //   const userId = socket.data.userId;
+    //   console.log(`User ${userId} closed map ${mapId}`);
+    //   unlockMap(mapId, userId);
+    //   socket.leave(`${mapId}`);
+    // });
   });
 
   clearAllLocks();
+};
+
+const getCurrentMapId = (userSocket: Socket): number | null => {
+  const currentMaps = [...userSocket.rooms].filter((room) => room !== userSocket.id);
+
+  if (currentMaps.length === 0) {
+    return null;
+  }
+
+  // a user should only be in one map
+  return Number(currentMaps[0]);
+};
+
+const leaveAllMaps = (userSocket: Socket) => {
+  [...userSocket.rooms]
+    .filter((room) => room !== userSocket.id)
+    .forEach((mapId) => {
+      userSocket.leave(mapId);
+      unlockMap(Number(mapId), userSocket.data.userId);
+    });
 };
