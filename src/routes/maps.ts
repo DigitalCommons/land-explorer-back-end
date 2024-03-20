@@ -351,6 +351,18 @@ type EditRequest = Request & {
   };
 };
 
+/**
+ * This API can be used to edit the title/description of a map or datagroup marker.
+ *
+ * TODO: lock down this API so that a user can only edit a marker if they have write access (to the
+ * map or datagroup), and are able to acquire the map's lock. And do the same for editLine and
+ * editPolygon.
+ *
+ * In order to achieve this, we may need to change the API (e.g. split it up for maps/datagroups) so
+ * that it includes more info about the map/datagroup rather than only the object UUID... or,
+ * improve the MapMemberships table to use uuids so that matching a uuid to a map/datagroup is
+ * easier. The first option is probably easier.
+ */
 async function editMarker(
   request: EditRequest,
   h: ResponseToolkit
@@ -436,12 +448,8 @@ async function editLine(
 }
 
 /**
+ * TODO: remove this API since we get same info from websocket connections anyway?
  * Set a map as viewed.
- *
- * @param request
- * @param h
- * @param d
- * @returns
  */
 async function setMapAsViewed(
   request: Request,
