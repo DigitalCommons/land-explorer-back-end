@@ -1,16 +1,20 @@
 import {
   Map,
+  User,
   UserMap,
+  PendingUserMap,
   UserMapAccess,
   Marker,
   Polygon,
   Line,
   MapMembership,
   ItemTypeId,
-  LockedMaps,
 } from "./database";
 import { createMarker, createPolygon, createLine } from "./object";
+import { Op } from "sequelize";
 import { v4 as uuidv4 } from "uuid";
+import { getUserByEmail } from "./query";
+import * as mailer from "./mails";
 
 const getMap = async (mapId: number) =>
   await Map.findOne({
@@ -414,7 +418,7 @@ export const updateMapZoom: MapUpdateZoomFunction = async (mapId, zoom) => {
   const existingMap = await getMap(mapId);
   const mapData = await JSON.parse(existingMap.data);
 
-  console.log(`Setting zoom to ${zoom} for map ${mapId}`);
+  // set new zoom
   mapData.map.zoom = zoom;
 
   await Map.update(
@@ -438,7 +442,7 @@ export const updateMapLngLat: MapUpdateLngLatFunction = async (
   const existingMap = await getMap(mapId);
   const mapData = await JSON.parse(existingMap.data);
 
-  console.log(`Setting lngLat to ${lngLat} for map ${mapId}`);
+  // set new lnglat
   mapData.map.lngLat = lngLat;
 
   await Map.update(
@@ -453,25 +457,174 @@ export const updateMapLngLat: MapUpdateLngLatFunction = async (
   );
 };
 
-// #306 Enable multiple users to write to a map
-// M.S. Lock or unlock a map
+/**
+ * Get the email addresses that have been granted access to a map by the owner, and their associated
+ * access levels (read-only or read-write). We don't include the owner's email.
+ */
+export const getUserEmailsWithSharedMapAccess = async (
+  mapId: number
+): Promise<{ email: string; access: UserMapAccess }[]> => {
+  // Since map sharing is stored on both UserMap (for registered users) and PendingUserMap (for
+  // non-registered users), perform lookup on both tables
 
-type MapLockFunction = (
+  const userEmails = (
+    await UserMap.findAll({
+      where: {
+        map_id: mapId,
+        access: {
+          [Op.ne]: UserMapAccess.Owner,
+        },
+      },
+      include: [User],
+    })
+  ).map((entry: any) => ({
+    email: entry.User.username,
+    access: entry.access,
+  }));
+
+  const pendingUserEmails = (
+    await PendingUserMap.findAll({
+      where: {
+        map_id: mapId,
+      },
+    })
+  ).map((entry: any) => ({
+    email: entry.email_address,
+    access: entry.access,
+  }));
+
+  return [...userEmails, ...pendingUserEmails];
+};
+
+/**
+ * Takes an array of email addresses and delete their access to a given map id.
+ * This method will check and delete both access via user_map and pending_user_map
+ */
+export const deleteMapAccessByEmails = async (
   mapId: number,
-  userId: number,
-  isLocked: boolean
-) => Promise<void>;
-
-export const lockMap: MapLockFunction = async (mapId, userId, isLocked) => {
-  console.log(`Setting is_locked to ${isLocked} for map ${mapId}`);
-  const lock = await LockedMaps.findOne({ where: { map_id: mapId } });
-  if (lock) {
-    await lock.update({ is_locked: isLocked });
-  } else {
-    await LockedMaps.create({
+  emails: string[]
+) => {
+  // Narrow our set of potential UserMaps, so we don't have to perform an expensive search over all
+  // usernames
+  const potentialUserMaps = await UserMap.findAll({
+    where: {
       map_id: mapId,
-      user_id: userId,
-      is_locked: isLocked,
+    },
+  });
+
+  const users = await User.findAll({
+    where: {
+      id: {
+        [Op.in]: potentialUserMaps.map((userMap: any) => userMap.user_id),
+      },
+      username: {
+        [Op.in]: emails,
+      },
+    },
+  });
+
+  await UserMap.destroy({
+    where: {
+      map_id: mapId,
+      user_id: {
+        [Op.in]: users.map((user: any) => user.id),
+      },
+    },
+  });
+
+  await PendingUserMap.destroy({
+    where: {
+      map_id: mapId,
+      email_address: {
+        [Op.in]: emails,
+      },
+    },
+  });
+};
+
+/**
+ * Takes an array of email addresses and grants their access to a given map id.
+ *
+ * If the email address corresponds to a user, grant their access via user_map, otherwise via
+ * pending_user_map.
+ *
+ * @param sendEmailNotification whether to send an email to the emails that are granted access
+ * @param domain if sendEmailNotification is true, this website domain must to be included
+ */
+export const grantMapAccessByEmails = async (
+  mapId: number,
+  users: { email: string; access: UserMapAccess }[],
+  sendEmailNotification: boolean,
+  domain: string = ""
+) => {
+  let ownerFirstName: string;
+  let ownerLastName: string;
+  let mapName: string;
+
+  if (sendEmailNotification && domain) {
+    const ownerUserMap = await UserMap.findOne({
+      where: {
+        map_id: mapId,
+        access: UserMapAccess.Owner,
+      },
+      include: [{ model: Map }, { model: User }],
     });
+    ownerFirstName = ownerUserMap.User.get("first_name");
+    ownerLastName = ownerUserMap.User.get("last_name");
+    mapName = ownerUserMap.Map.get("name");
+  }
+
+  for (const { email, access } of users) {
+    const user = await getUserByEmail(email);
+
+    if (user) {
+      // Remove any previous access, to avoid conflicting duplicates
+      // TODO: create unique index over (map_id, user_id) on user_map, so we can upsert?
+      await UserMap.destroy({
+        where: {
+          map_id: mapId,
+          user_id: user.id,
+        },
+      });
+      await UserMap.create({
+        map_id: mapId,
+        user_id: user.id,
+        access,
+      });
+
+      if (sendEmailNotification && domain) {
+        mailer.shareMapRegistered(
+          user.username,
+          user.first_name,
+          ownerFirstName!!,
+          ownerLastName!!,
+          mapName!!,
+          domain
+        );
+      }
+    } else {
+      // Remove any previous entries, to avoid conflicting duplicates
+      await PendingUserMap.destroy({
+        where: {
+          map_id: mapId,
+          email_address: email,
+        },
+      });
+      await PendingUserMap.create({
+        map_id: mapId,
+        email_address: email,
+        access,
+      });
+
+      if (sendEmailNotification && domain) {
+        mailer.shareMapUnregistered(
+          email,
+          ownerFirstName!!,
+          ownerLastName!!,
+          mapName!!,
+          domain
+        );
+      }
+    }
   }
 };

@@ -7,7 +7,6 @@ import { emailRoutes } from "./routes/emails";
 import { mapRoutes } from "./routes/maps";
 import { dataGroupRoutes } from "./routes/datagroups";
 import { setupWebsockets } from "./websockets/server";
-import { EventEmitter } from "events";
 
 const AuthBearer = require("hapi-auth-bearer-token");
 const Inert = require("@hapi/inert");
@@ -19,42 +18,6 @@ function index(request: Request): string {
   console.log("Processing request", request.info.id);
   return "Hello! Nice to have met you...";
 }
-
-// #306 Enable multiple users to write to a map
-// M.S. Server-Sent Events (SSE) for real-time updates
-// https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events
-
-// function sse(request: Request, h: any): any {
-//   const eventEmitter = new EventEmitter();
-
-//   // Set up CORS headers conditionally
-//   const response = h
-//     .response()
-//     .header("Content-Type", "text/event-stream")
-//     .header("Cache-Control", "no-cache")
-//     .header("Connection", "keep-alive");
-
-//   if (process.env.NODE_ENV === "development") {
-//     response.header("Access-Control-Allow-Origin", "http://localhost:8080"); // Adjust origin as needed
-//   }
-
-//   response.code(200);
-
-//   // Notify that a new client has connected
-//   eventEmitter.emit("newConnection", response);
-
-//   // Send SSE events to clients
-//   eventEmitter.on("event", (data) => {
-//     response.write("data: " + JSON.stringify(data) + "\n\n");
-//   });
-
-//   // Clear the interval when the client disconnects
-//   eventEmitter.on("disconnect", () => {
-//     eventEmitter.removeAllListeners();
-//   });
-
-//   return response;
-// }
 
 export const init = async function (): Promise<Server> {
   server = Hapi.server({
@@ -104,18 +67,6 @@ export const init = async function (): Promise<Server> {
       auth: false,
     },
   });
-
-  // #306 Enable multiple users to write to a map
-  // M.S. SSE route
-
-  // server.route({
-  //   method: "GET",
-  //   path: "/api/sse",
-  //   handler: sse,
-  //   options: {
-  //     auth: false,
-  //   },
-  // });
 
   server.route(databaseRoutes);
   server.route(mapRoutes);

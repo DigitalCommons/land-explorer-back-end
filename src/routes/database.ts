@@ -2,145 +2,177 @@ import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hap
 import jwt from 'jsonwebtoken';
 import { Validation } from '../validation';
 import * as mailer from '../queries/mails';
-import { createUser, migrateGuestUserMap, checkAndReturnUser, getUserById } from '../queries/query';
+import {
+  createUser,
+  migrateGuestUserMap,
+  checkAndReturnUser,
+  getUserById,
+  getUserByEmail,
+} from "../queries/query";
 import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
 type RegisterRequest = Request & {
-    payload: {
-        username: string;
-        password: string;
-        firstName: string;
-        lastName: string;
-    }
+  payload: {
+    username: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+  };
 };
 
 /**
  * Register new user using request data from API
  */
-async function registerUser(request: RegisterRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    const originDomain = `https://${request.info.host}`;
+async function registerUser(
+  request: RegisterRequest,
+  h: ResponseToolkit
+): Promise<ResponseObject> {
+  const originDomain = `https://${request.info.host}`;
 
-    let validation = new Validation();
-    await validation.validateUserRegister(request.payload);
+  let validation = new Validation();
+  await validation.validateUserRegister(request.payload);
 
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
-    }
+  if (validation.fail()) {
+    return h.response(validation.errors).code(400);
+  }
 
-    // create user on database
-    let user = await createUser(request.payload);
+  // create user on database
+  let user = await createUser(request.payload);
 
-    //migrate user map from guest account
-    await migrateGuestUserMap(user);
+  // migrate user map from guest account
+  await migrateGuestUserMap(user);
 
-    // sent register email
-    console.log(request.payload)
-    mailer.sendRegisterEmail(request.payload.username, request.payload.firstName, originDomain)
+  // sent register email
+  console.log(request.payload);
+  mailer.sendRegisterEmail(
+    request.payload.username,
+    request.payload.firstName,
+    originDomain
+  );
 
-    // return h.response(user);
-    return h.response(user);
+  // return h.response(user);
+  return h.response(user);
 }
 
 type LoginRequest = Request & {
-    payload: {
-        username: string;
-        password?: string;
-        reset_token?: string;
-    }
+  payload: {
+    username: string;
+    password?: string;
+    reset_token?: string;
+  };
 };
 
 /**
  * Handle user login using request data from API
  */
-async function loginUser(request: LoginRequest, h: ResponseToolkit): Promise<ResponseObject> {
-    console.log("login user");
+async function loginUser(
+  request: LoginRequest,
+  h: ResponseToolkit
+): Promise<ResponseObject> {
+  console.log("login user");
 
-    try {
-        const { username, password, reset_token } = request.payload;
-        const { success, user, errorMessage } = await checkAndReturnUser(username, password, reset_token);
+  try {
+    const { username, password, reset_token } = request.payload;
+    const { success, user, errorMessage } = await checkAndReturnUser(
+      username,
+      password,
+      reset_token
+    );
 
-        if (success) {
-            const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || '10');
+    if (success) {
+      const expiry_day: number = parseInt(
+        process.env.TOKEN_EXPIRY_DAYS || "10"
+      );
 
-            const secretKey: string = process.env.TOKEN_KEY || '';
+      const secretKey: string = process.env.TOKEN_KEY || "";
 
-            // Create token
-            const token = jwt.sign(
-                {
-                    user_id: user.id,
-                    username: user.username,
-                    council_id: user.council_id,
-                    is_super_user: (user.is_super_user && user.is_super_user[0] == '1') ? 1 : 0,
-                    enabled: (user.enabled && user.enabled[0] == '1') ? 1 : 0,
-                    marketing: (user.enabled && user.enabled[0] == '1') ? 1 : 0,
-                },
-                secretKey,
-                {
-                    expiresIn: expiry_day + "d",
-                }
-            );
-
-            return h.response({
-                access_token: token,
-                token_type: "bearer",
-                expires_in: expiry_day * 24 * 60 * 60
-            });
+      // Create token
+      const token = jwt.sign(
+        {
+          user_id: user.id,
+          username: user.username,
+          council_id: user.council_id,
+          is_super_user:
+            user.is_super_user && user.is_super_user[0] == "1" ? 1 : 0,
+          enabled: user.enabled && user.enabled[0] == "1" ? 1 : 0,
+          marketing: user.enabled && user.enabled[0] == "1" ? 1 : 0,
+        },
+        secretKey,
+        {
+          expiresIn: expiry_day + "d",
         }
+      );
 
-        return h.response({ message: errorMessage }).code(401);
+      return h.response({
+        access_token: token,
+        token_type: "bearer",
+        expires_in: expiry_day * 24 * 60 * 60,
+      });
+    }
 
-    } catch (err: any) {
-        console.log(err.message);
-        return h.response("internal server error!").code(500);
-    }}
-
+    return h.response({ message: errorMessage }).code(401);
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
+}
 
 type UserDetailsRequest = Request & {
-    auth: {
-        credentials: {
-            user_id: number;
-        }
-    }
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
 };
 
 /**
  * Return the details of authenticated user
  */
-async function getAuthUserDetails(request: UserDetailsRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function getAuthUserDetails(
+  request: UserDetailsRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  let user: typeof User;
 
-    let user: typeof User;
+  try {
+    user = await getUserById(request.auth.credentials.user_id);
 
-    try {
-        user = await getUserById(request.auth.credentials.user_id);
-
-        return h.response({
-            username: user.username,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            marketing: user.marketing ? 1 : 0,
-            organisation: user.organisation ?? "",
-            organisationNumber: user.organisation_number ?? "",
-            organisationType: user.organisation_type ?? "",
-            organisationActivity: user.organisation_activity ?? "",
-            address1: user.address1 ?? "",
-            address2: user.address2 ?? "",
-            city: user.city ?? "",
-            postcode: user.postcode ?? "",
-            phone: user.phone ?? "",
-            council_id: user.council_id ?? 0,
-            is_super_user: user.is_super_user ?? 0,
-            id: user.id ?? ""
-        });
-    }
-    catch (err: any) {
-        console.log(err.message);
-
-        return h.response("internal server error!").code(500);
+    if (!user) {
+      return h.response("please re-authenticate").code(401);
     }
 
+    const initials =
+      (user.first_name || "?")[0].toUpperCase() +
+      (user.last_name || "?")[0].toUpperCase();
+
+    return h.response({
+      id: user.id ?? "",
+      username: user.username,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      initials,
+      marketing: user.marketing ? 1 : 0,
+      organisation: user.organisation ?? "",
+      organisationNumber: user.organisation_number ?? "",
+      organisationType: user.organisation_type ?? "",
+      organisationActivity: user.organisation_activity ?? "",
+      address1: user.address1 ?? "",
+      address2: user.address2 ?? "",
+      city: user.city ?? "",
+      postcode: user.postcode ?? "",
+      phone: user.phone ?? "",
+      council_id: user.council_id ?? 0,
+      is_super_user: user.is_super_user ?? 0,
+    });
+  } catch (err: any) {
+    console.log(err.message);
+
+    return h.response("internal server error!").code(500);
+  }
 }
 
 /**

@@ -21,7 +21,9 @@ import {
   getMapMarkers,
   createMapMembership,
   getMapPolygonsAndLines,
-  lockMap,
+  getUserEmailsWithSharedMapAccess,
+  deleteMapAccessByEmails,
+  grantMapAccessByEmails,
 } from "../queries/map";
 import {
   createMarker,
@@ -37,13 +39,8 @@ import {
   UserMap,
   PendingUserMap,
   UserMapAccess,
-  LockedMaps,
-  Marker,
-  Polygon,
-  Line,
 } from "../queries/database";
 import { ItemType } from "../enums";
-import * as mailer from "../queries/mails";
 import { EventEmitter } from "events";
 import { tryLockMap } from "../websockets/locking";
 
@@ -58,14 +55,8 @@ eventEmitter.emit("message", "Hello world!");
 /**
  * Endpoint for user to update or create new map.
  * When "eid" field is provided as part of payload, it means map update.
- * Without "eid" means create new map.
- *
- * @param request
- * @param h
- * @param d
- * @returns
+ * If "eid" is null, create a new map.
  */
-
 type SaveMapRequest = Request & {
   payload: {
     eid: number | null;
@@ -126,7 +117,7 @@ async function saveMap(
       }
 
       // Try to acquire lock for user
-      const success = tryLockMap(eid, userId);
+      const success = await tryLockMap(eid, userId);
       if (!success) {
         return h.response("Map is locked").code(503);
       }
@@ -134,7 +125,7 @@ async function saveMap(
       await updateMap(eid, name, data);
     } else {
       const newMapId = await createMap(name, data, userId, isSnapshot);
-      tryLockMap(newMapId, userId);
+      await tryLockMap(newMapId, userId);
     }
   } catch (err: any) {
     console.log(err.message);
@@ -183,7 +174,7 @@ async function saveMapMarker(
   }
 
   // Try to acquire lock for user
-  const success = tryLockMap(eid, request.auth.credentials.user_id);
+  const success = await tryLockMap(eid, request.auth.credentials.user_id);
   if (!success) {
     return h.response("Map is locked").code(503);
   }
@@ -219,10 +210,10 @@ async function saveMapPolygon(
   }
 
   // Try to acquire lock for user
-  // const success = tryLockMap(eid, request.auth.credentials.user_id);
-  // if (!success) {
-  //   return h.response("Map is locked").code(503);
-  // }
+  const success = await tryLockMap(eid, request.auth.credentials.user_id);
+  if (!success) {
+    return h.response("Map is locked").code(503);
+  }
 
   const newPolygon = await createPolygon(
     object.name,
@@ -258,10 +249,10 @@ async function saveMapLine(
   }
 
   // Try to acquire lock for user
-  // const success = tryLockMap(eid, request.auth.credentials.user_id);
-  // if (!success) {
-  //   return h.response("Map is locked").code(503);
-  // }
+  const success = await tryLockMap(eid, request.auth.credentials.user_id);
+  if (!success) {
+    return h.response("Map is locked").code(503);
+  }
 
   const newLine = await createLine(
     object.name,
@@ -339,7 +330,7 @@ async function saveMapLngLat(
 
 type EditRequest = Request & {
   payload: {
-    // eid: number;
+    eid: number;
     uuid: string;
     name: string;
     description: string;
@@ -352,95 +343,88 @@ type EditRequest = Request & {
 };
 
 /**
- * This API can be used to edit the title/description of a map or datagroup marker.
+ * This API can be used to edit the title/description of a map marker.
  *
- * TODO: lock down this API so that a user can only edit a marker if they have write access (to the
- * map or datagroup), and are able to acquire the map's lock. And do the same for editLine and
- * editPolygon.
- *
- * In order to achieve this, we may need to change the API (e.g. split it up for maps/datagroups) so
- * that it includes more info about the map/datagroup rather than only the object UUID... or,
- * improve the MapMemberships table to use uuids so that matching a uuid to a map/datagroup is
- * easier. The first option is probably easier.
+ * The edit will fail if the user doesn't have write access to the map, or if the map is locked.
  */
-async function editMarker(
+async function editMapMarker(
   request: EditRequest,
   h: ResponseToolkit
 ): Promise<ResponseObject> {
-  const { uuid, name, description } = request.payload;
+  const { uuid, name, description, eid } = request.payload;
 
   // check that user has permission to update this map
-  // const hasAccess = await UserMap.findOne({
-  //   where: {
-  //     mapId: eid,
-  //     access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-  //     user_id: request.auth.credentials.user_id,
-  //   },
-  // });
-  // if (hasAccess === null) {
-  //   return h.response("Unauthorised").code(403);
-  // }
+  const hasAccess = await UserMap.findOne({
+    where: {
+      map_id: eid,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+      user_id: request.auth.credentials.user_id,
+    },
+  });
+  if (hasAccess === null) {
+    return h.response("Unauthorised").code(403);
+  }
 
-  //  const success = tryLockMap(eid, request.auth.credentials.user_id);
-  //  if (!success) {
-  //    return h.response("Map is locked").code(503);
-  //  }
+  const success = await tryLockMap(eid, request.auth.credentials.user_id);
+  if (!success) {
+    return h.response("Map is locked").code(503);
+  }
 
   await updateMarker(uuid, name, description);
 
   return h.response();
 }
 
-async function editPolygon(
+async function editMapPolygon(
   request: EditRequest,
   h: ResponseToolkit
 ): Promise<ResponseObject> {
-  const { uuid, name, description } = request.payload;
+  const { uuid, name, description, eid } = request.payload;
 
-  // // check that user has permission to update this map
-  // const hasAccess = await UserMap.findOne({
-  //   where: {
-  //     mapId: eid,
-  //     access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-  //     user_id: request.auth.credentials.user_id,
-  //   },
-  // });
-  // if (hasAccess === null) {
-  //   return h.response("Unauthorised").code(403);
-  // }
+  // check that user has permission to update this map
+  const hasAccess = await UserMap.findOne({
+    where: {
+      map_id: eid,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+      user_id: request.auth.credentials.user_id,
+    },
+  });
+  if (hasAccess === null) {
+    return h.response("Unauthorised").code(403);
+  }
 
-  // const success = tryLockMap(eid, request.auth.credentials.user_id);
-  // if (!success) {
-  //   return h.response("Map is locked").code(503);
-  // }
+  const success = await tryLockMap(eid, request.auth.credentials.user_id);
+  if (!success) {
+    return h.response("Map is locked").code(503);
+  }
 
   await updatePolygon(uuid, name, description);
 
   return h.response();
 }
 
-async function editLine(
+async function editMapLine(
   request: EditRequest,
   h: ResponseToolkit
 ): Promise<ResponseObject> {
-  const { uuid, name, description } = request.payload;
+  const { uuid, name, description, eid } = request.payload;
 
-  // // check that user has permission to update this map
-  // const hasAccess = await UserMap.findOne({
-  //   where: {
-  //     mapId: eid,
-  //     access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-  //     user_id: request.auth.credentials.user_id,
-  //   },
-  // });
-  // if (hasAccess === null) {
-  //   return h.response("Unauthorised").code(403);
-  // }
+  // check that user has permission to update this map
+  const hasAccess = await UserMap.findOne({
+    where: {
+      map_id: eid,
+      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+      user_id: request.auth.credentials.user_id,
+    },
+  });
+  if (hasAccess === null) {
+    return h.response("Unauthorised").code(403);
+  }
 
-  // const success = tryLockMap(eid, request.auth.credentials.user_id);
-  // if (!success) {
-  //   return h.response("Map is locked").code(503);
-  // }
+  const success = await tryLockMap(eid, request.auth.credentials.user_id);
+  if (!success) {
+    return h.response("Map is locked").code(503);
+  }
 
   await updateLine(uuid, name, description);
 
@@ -448,13 +432,12 @@ async function editLine(
 }
 
 /**
- * TODO: remove this API since we get same info from websocket connections anyway?
  * Set a map as viewed.
+ * TODO: remove this API since we get same info from websocket connections anyway?
  */
 async function setMapAsViewed(
   request: Request,
-  h: ResponseToolkit,
-  d: any
+  h: ResponseToolkit
 ): Promise<ResponseObject> {
   let validation = new Validation();
   await validation.validateEid(request.payload);
@@ -485,20 +468,76 @@ async function setMapAsViewed(
   return h.response().code(200);
 }
 
+type GetMapSharedToRequest = Request & {
+  params: {
+    eid: number;
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
+/**
+ * Returns the list of email addresses that a map has been shared to, and their access level.
+ * This API can only be called by owners of the map.
+ */
+async function getMapSharedTo(
+  request: GetMapSharedToRequest,
+  h: ResponseToolkit
+): Promise<ResponseObject> {
+  const { eid } = request.params;
+
+  try {
+    let userMap = await UserMap.findOne({
+      where: {
+        user_id: request.auth.credentials.user_id,
+        map_id: eid,
+      },
+      include: [{ model: Map }, { model: User }],
+    });
+
+    if (!userMap || userMap.Map.deleted) {
+      return h.response("Map not found").code(404);
+    }
+
+    if (userMap.access !== UserMapAccess.Owner) {
+      return h.response("Unauthorised!").code(403);
+    }
+
+    const userEmailsWithSharedMapAccess: {
+      email: string;
+      access: UserMapAccess;
+    }[] = await getUserEmailsWithSharedMapAccess(eid);
+
+    return h.response(userEmailsWithSharedMapAccess);
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
+}
+
+type ShareMapRequest = Request & {
+  payload: {
+    eid: number;
+    users: { email: string; access: UserMapAccess }[];
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
 /**
  * A method to share access of a map to a list of email addresses
- * Email address may or may not be a registered land-ex user and need to be handled accordingly.
+ * Email address may or may not be a registered LX user and needs to be handled accordingly.
  * Email address given may already be recorded in the database (do not resend email invitation).
- *
- * @param request
- * @param h
- * @param d
- * @returns
  */
-async function mapSharing(
-  request: Request,
-  h: ResponseToolkit,
-  d: any
+async function shareMap(
+  request: ShareMapRequest,
+  h: ResponseToolkit
 ): Promise<ResponseObject> {
   const originDomain = `https://${request.info.host}`;
 
@@ -510,12 +549,18 @@ async function mapSharing(
   }
 
   try {
-    const payload: any = request.payload;
+    const { eid, users } = request.payload;
+
+    // email address comparison should be case insensitive
+    const newUsersWithSharedMapAccess = users.map(({ email, access }) => ({
+      email: email.toLowerCase(),
+      access,
+    }));
 
     let userMap = await UserMap.findOne({
       where: {
         user_id: request.auth.credentials.user_id,
-        map_id: payload.eid,
+        map_id: eid,
       },
       include: [{ model: Map }, { model: User }],
     });
@@ -524,198 +569,69 @@ async function mapSharing(
       return h.response("Map not found").code(404);
     }
 
-    // changed from UserMapAccess.Readwrite
     if (userMap.access !== UserMapAccess.Owner) {
       return h.response("Unauthorised!").code(403);
     }
 
-    // Since map sharing is stored on both UserMap (for registered user)
-    // and PendingUserMap (for non-registered user), the sync need to be
-    // performed on both table.
-
-    //Get all email address from user_map that has access to map excluding current user
-    const userEmailWithMapAccessViaUserMap = (
-      await UserMap.findAll({
-        where: {
-          map_id: payload.eid,
-          user_id: {
-            [Op.ne]: request.auth.credentials.user_id,
-          },
-        },
-        include: [User],
+    const oldUsersWithSharedMapAccess: {
+      email: string;
+      access: UserMapAccess;
+    }[] = (await getUserEmailsWithSharedMapAccess(eid)).map(
+      ({ email, access }) => ({
+        email: email.toLowerCase(),
+        access,
       })
-    ).map(function (element: any) {
-      return element.User.username.toLowerCase();
-    });
+    );
 
-    //Get all email address from pending_user_map that has access to map
-    const userEmailWithMapAccessViaPendingUserMap = (
-      await PendingUserMap.findAll({
-        where: {
-          map_id: payload.eid,
-        },
-      })
-    ).map(function (element: any) {
-      return element.email_address.toLowerCase();
-    });
+    // Get emails that need to be removed from the DB (access has been completely revoked)
+    const emailsToRemove = oldUsersWithSharedMapAccess
+      .map((oldUser) => oldUser.email)
+      .filter(
+        (oldEmail) =>
+          !newUsersWithSharedMapAccess
+            .map((newUser) => newUser.email)
+            .includes(oldEmail)
+      );
 
-    // email address comparison should be case insensitive
-    const emailAddresses = payload.emailAddresses.map(function (e: any) {
-      return e.toLowerCase();
-    });
+    console.log("emails to remove", emailsToRemove);
+    await deleteMapAccessByEmails(eid, emailsToRemove);
 
-    // Get emails that need to be removed from the DB (access has been revoked)
-    let emailsToRemoveFromUserMap = userEmailWithMapAccessViaUserMap.filter(
-      function (e: any) {
-        return !emailAddresses.includes(e);
+    // Get new users or users that have changes to their access level
+    const usersToChangeAccess = [];
+    const newUsersToGrantAccess = [];
+
+    for (const newUser of newUsersWithSharedMapAccess) {
+      const oldUser = oldUsersWithSharedMapAccess.find(
+        (oldUser) => oldUser.email === newUser.email
+      );
+      if (oldUser) {
+        if (oldUser.access !== newUser.access) {
+          usersToChangeAccess.push(newUser);
+        }
+      } else {
+        newUsersToGrantAccess.push(newUser);
       }
-    );
-    let emailsToRemoveFromPendingUserMap =
-      userEmailWithMapAccessViaPendingUserMap.filter(function (e: any) {
-        return !emailAddresses.includes(e);
-      });
 
-    console.log(emailsToRemoveFromUserMap);
-    //return h.response().code(200);
+      console.log("users to change access", usersToChangeAccess);
+      await grantMapAccessByEmails(eid, usersToChangeAccess, false);
 
-    // Remove emails from user_map
-    await deleteMapAccessByEmails(payload.eid, [
-      ...emailsToRemoveFromUserMap,
-      ...emailsToRemoveFromPendingUserMap,
-    ]);
-
-    // Now get emails that are newly given the map access.
-    const newEmailsToGrantAccess = emailAddresses
-      .filter(function (x: any) {
-        return !userEmailWithMapAccessViaUserMap.includes(x);
-      })
-      .filter(function (x: any) {
-        return !userEmailWithMapAccessViaPendingUserMap.includes(x);
-      });
-
-    // Now we split those emails into array of existing users and new users
-
-    // This is array of existing users that we want to grant access to map
-    const userListToAddToUserMap = await User.findAll({
-      where: {
-        username: {
-          [Op.in]: newEmailsToGrantAccess,
-        },
-      },
-    });
-
-    const existingUserEmails = userListToAddToUserMap.map(function (
-      element: any
-    ) {
-      return element.username.toLowerCase();
-    });
-
-    // This is array of email address string to be added to pending user map
-    const newEmailsToAddToPendingUserMap = newEmailsToGrantAccess.filter(
-      function (x: any) {
-        return !existingUserEmails.includes(x);
-      }
-    );
-
-    console.log("Received payload.access:", payload.access);
-
-    await UserMap.bulkCreate(
-      userListToAddToUserMap.map(function (user: any) {
-        return {
-          map_id: payload.eid,
-          user_id: user.id,
-          access: payload.access[user.username],
-        };
-      })
-    );
-
-    await PendingUserMap.bulkCreate(
-      newEmailsToAddToPendingUserMap.map(function (email: any) {
-        return {
-          map_id: payload.eid,
-          email_address: email,
-          access: payload.access[email],
-        };
-      })
-    );
-
-    // send emails
-
-    // Get sharer information for email
-    // const sharer_firstname: string = UserMap.User.first_name;
-    const sharer_firstname: string = userMap.User.get("first_name");
-    const sharer_lastname: string = userMap.User.get("last_name");
-
-    const sharer_fullname: string =
-      //   sharer_firstname + " " + UserMap.User.last_name;
-      sharer_firstname + " " + sharer_lastname;
-    // const map_name: string = UserMap.Map.name;
-    const map_name: string = userMap.Map.get("name");
-
-    userListToAddToUserMap.forEach(function (user: any) {
-      mailer.shareMapRegistered(
-        user.username,
-        user.first_name,
-        sharer_fullname,
-        sharer_firstname,
-        map_name,
+      console.log(
+        "new users to grant access (and send email notification)",
+        newUsersToGrantAccess
+      );
+      await grantMapAccessByEmails(
+        eid,
+        newUsersToGrantAccess,
+        true,
         originDomain
       );
-    });
-
-    newEmailsToAddToPendingUserMap.forEach(function (email: any) {
-      mailer.shareMapUnregistered(
-        email,
-        sharer_fullname,
-        sharer_firstname,
-        map_name,
-        originDomain
-      );
-    });
+    }
   } catch (err: any) {
-    console.log(err.message);
+    console.log(err.message, err.stack);
     return h.response("internal server error!").code(500);
   }
 
   return h.response().code(200);
-}
-
-/**
- * Takes an array of email addresses and delete their access to a given map id.
- * This method will check and delete both access via user_map and pending_user_map
- *
- * @param map_id
- * @param emails
- */
-async function deleteMapAccessByEmails(map_id: number, emails: string[]) {
-  // delete from user map
-  let users = await User.findAll({
-    where: {
-      username: {
-        [Op.in]: emails,
-      },
-    },
-  });
-
-  await UserMap.destroy({
-    where: {
-      map_id: map_id,
-      user_id: {
-        [Op.in]: users.map(function (user: any) {
-          return user.id;
-        }),
-      },
-    },
-  });
-
-  // delete from pending user map
-  await PendingUserMap.destroy({
-    where: {
-      email_address: {
-        [Op.in]: emails,
-      },
-    },
-  });
 }
 
 /**
@@ -797,7 +713,6 @@ async function getUserMaps(
           model: UserMap,
           as: "UserMaps",
         },
-        PendingUserMap,
       ],
       order: [
         ["id", "ASC"],
@@ -827,40 +742,12 @@ async function getUserMaps(
       map.data = JSON.stringify(mapData);
 
       const myUserMap = map.UserMaps[0];
+      let sharedWith: { email: string; access: UserMapAccess }[] = [];
 
-      // Get users with whom we have shared this map
-      const sharedWith: any[] = [];
-
-      const otherUserMaps = await UserMap.findAll({
-        where: {
-          map_id: map.id,
-          user_id: { [Op.not]: userId },
-        },
-      });
-
-      for (const userMap of otherUserMaps) {
-        const { username } = await User.findOne({
-          where: { id: userMap.user_id },
-        });
-
-        sharedWith.push({
-          emailAddress: username,
-          viewed: userMap.viewed === 1,
-        });
+      // If we are the owner, get emails with whom we have shared this map
+      if (myUserMap.access === UserMapAccess.Owner) {
+        sharedWith = await getUserEmailsWithSharedMapAccess(map.id);
       }
-
-      const pendingUserMaps = await PendingUserMap.findAll({
-        where: {
-          map_id: map.id,
-        },
-      });
-
-      pendingUserMaps.forEach((pendingUserMap: any) => {
-        sharedWith.push({
-          emailAddress: pendingUserMap.email_address,
-          viewed: false,
-        });
-      });
 
       allMapsData.push({
         map: {
@@ -873,19 +760,14 @@ async function getUserMaps(
           isSnapshot: map.is_snapshot,
         },
         accessGrantedDate: myUserMap.created_date,
-        access:
-          myUserMap.access === UserMapAccess.Owner
-            ? "OWNER"
-            : myUserMap.access === UserMapAccess.Readwrite
-            ? "WRITE"
-            : "READ",
-        viewed: myUserMap.viewed === 1,
+        access: myUserMap.access,
+        viewed: myUserMap.viewed == 1,
       });
     }
 
     return h.response(allMapsData).code(200);
   } catch (err: any) {
-    console.log(err.message);
+    console.error("error getting user maps:", err.message);
     return h.response("internal server error!").code(500);
   }
 }
@@ -923,10 +805,6 @@ async function getLandOwnershipPolygons(
     return h.response(polygons).code(200);
   } catch (err: any) {
     console.log(err.message);
-    if (!err.response) {
-      // network error
-      return h.response("Could not retrieve polygons").code(404);
-    }
     return h.response("internal server error!").code(500);
   }
 }
@@ -1060,116 +938,6 @@ async function getPublicMap(
   }
 }
 
-// #306 Enable multiple users to write to a map
-// M.S. Request type for locking a map
-
-type LockMapRequest = Request & {
-  payload: {
-    mapId: number;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
-  };
-};
-
-/**
- * A method to lock a map for editing.
- *
- * @param request
- * @param h
- * @param d
- * @returns
- */
-
-// #306 Enable multiple users to write to a map
-// M.S. Promise function to lock a map
-
-async function setMapLockStatus(
-  request: LockMapRequest,
-  h: ResponseToolkit,
-  d: any,
-  isLocked: boolean
-): Promise<ResponseObject> {
-  const { mapId } = request.payload;
-  const userId = request.auth.credentials.user_id;
-
-  const userMapView = await UserMap.findOne({
-    where: {
-      map_id: mapId,
-      user_id: userId,
-    },
-  });
-
-  if (
-    userMapView?.access === UserMapAccess.Owner ||
-    userMapView?.access === UserMapAccess.Readwrite
-  ) {
-    await lockMap(mapId, userId, isLocked);
-
-    console.log(`Map ${isLocked ? "locked" : "unlocked"}`);
-    eventEmitter.emit("message", JSON.stringify({ mapId, isLocked }));
-    return h.response().code(200);
-  } else {
-    return h.response("Unauthorised!").code(403);
-  }
-}
-
-// #306 Enable multiple users to write to a map
-// M.S. Request type for checking if a map is locked
-
-type RequestHandler = (
-  request: LockMapRequest,
-  h: ResponseToolkit,
-  d: any
-) => Promise<ResponseObject>;
-
-// #306 Enable multiple users to write to a map
-// Lock a map for editing
-export const setMapAsLocked: RequestHandler = async (request, h, d) => {
-  return await setMapLockStatus(request, h, d, true);
-};
-
-// #306 Enable multiple users to write to a map
-// Unlock a map for editing
-export const setMapAsUnlocked: RequestHandler = async (request, h, d) => {
-  return await setMapLockStatus(request, h, d, false);
-};
-
-// #306 Enable multiple users to write to a map
-// M.S. Request type for checking if a map is locked
-type checkMapLockStatusRequest = Request & {
-  query: {
-    mapId: number;
-  };
-};
-
-// #306 Enable multiple users to write to a map
-// M.S. Promise function to check if a map is locked
-
-export const checkMapLockStatus = async (
-  request: checkMapLockStatusRequest,
-  h: ResponseToolkit
-): Promise<ResponseObject> => {
-  const { mapId } = request.query;
-
-  const lock = await LockedMaps.findOne({
-    where: { map_id: mapId },
-    attributes: ["is_locked", "user_id"], // Include user_id in the query result
-  });
-
-  if (lock) {
-    // If the map is locked, return the lock status and the associated user_id
-    return h
-      .response({ isLocked: lock.is_locked, userId: lock.user_id })
-      .code(200);
-  } else {
-    // If the map is not locked, return the lock status as false
-    return h.response({ isLocked: false }).code(200);
-  }
-};
-
 export const mapRoutes: ServerRoute[] = [
   // Create or update a map
   { method: "POST", path: "/api/user/map/save", handler: saveMap },
@@ -1186,31 +954,23 @@ export const mapRoutes: ServerRoute[] = [
   // Save the longitude and latitude of a map (i.e. when the frame is moved)
   { method: "POST", path: "/api/user/map/save/lngLat", handler: saveMapLngLat },
   // Edit an object
-  { method: "POST", path: "/api/user/edit/marker", handler: editMarker },
-  { method: "POST", path: "/api/user/edit/polygon", handler: editPolygon },
-  { method: "POST", path: "/api/user/edit/line", handler: editLine },
+  { method: "POST", path: "/api/user/map/edit/marker", handler: editMapMarker },
+  {
+    method: "POST",
+    path: "/api/user/map/edit/polygon",
+    handler: editMapPolygon,
+  },
+  { method: "POST", path: "/api/user/map/edit/line", handler: editMapLine },
   // Record that the user has viewed a map
   { method: "POST", path: "/api/user/map/view", handler: setMapAsViewed },
+  // Get the email addresses and their access level that a map is shared to
+  { method: "GET", path: "/api/user/map/share", handler: getMapSharedTo },
   // Share access of a map to a list of email addresses
-  { method: "POST", path: "/api/user/map/share/sync", handler: mapSharing },
+  { method: "POST", path: "/api/user/map/share/sync", handler: shareMap },
   // Delete a map
   { method: "POST", path: "/api/user/map/delete", handler: deleteMap },
   // Make a map accessible to the public
   { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
-  // #306 Enable multiple users to write to a map
-  // M.S. Lock a map for editing
-  // {
-  //   method: "POST",
-  //   path: "/api/user/map/lock",
-  //   handler: setMapAsLocked,
-  // },
-  // #306 Enable multiple users to write to a map
-  // M.S. Unlock a map for editing
-  // {
-  //   method: "POST",
-  //   path: "/api/user/map/unlock",
-  //   handler: setMapAsUnlocked,
-  // },
   // Returns a map converted to shapefile format
   {
     method: "GET",
@@ -1229,12 +989,5 @@ export const mapRoutes: ServerRoute[] = [
     path: "/api/public/map/{mapId}",
     handler: getPublicMap,
     options: { auth: false },
-  },
-  // #306 Enable multiple users to write to a map
-  // M.S. Check if a map is locked
-  {
-    method: "GET",
-    path: "/api/user/map/lockStatus",
-    handler: checkMapLockStatus,
   },
 ];
