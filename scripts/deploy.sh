@@ -16,7 +16,6 @@ fi
 git pull
 
 # Install dependencies
-export NODE_ENV=production
 npm ci
 
 # Transpile ts into js
