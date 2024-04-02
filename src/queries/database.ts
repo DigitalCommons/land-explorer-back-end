@@ -353,14 +353,38 @@ const PasswordResetTokenModel = sequelize.define(
   }
 );
 
+const UserFeedbackModel = sequelize.define(
+  "UserFeedback",
+  {
+    question_use_case: { type: DataTypes.TEXT },
+    question_impact: { type: DataTypes.TEXT },
+    question_who_benefits: { type: DataTypes.TEXT },
+    question_improvements: { type: DataTypes.TEXT },
+    user_id: {
+      type: DataTypes.BIGINT,
+      references: { model: UserModel, key: "id" },
+      allowNull: false,
+    },
+    submission_date: Sequelize.DATE,
+  },
+  {
+    tableName: "user_feedback",
+    createdAt: "submission_date",
+    updatedAt: false,
+  }
+);
+
 UserModel.hasMany(UserMapModel, { foreignKey: { name: "user_id" } });
 UserModel.hasMany(PasswordResetTokenModel, { foreignKey: { name: "user_id" } });
+UserModel.hasMany(UserFeedbackModel, { foreignKey: { name: "user_id" } });
 
 MapModel.hasMany(UserMapModel, { foreignKey: { name: "map_id" } });
 MapModel.hasMany(PendingUserMapModel, { foreignKey: { name: "map_id" } });
 
 UserMapModel.belongsTo(UserModel, { foreignKey: { name: "user_id" } });
 UserMapModel.belongsTo(MapModel, { foreignKey: { name: "map_id" } });
+
+UserFeedbackModel.belongsTo(UserModel, { foreignKey: { name: "user_id" } });
 
 PasswordResetTokenModel.belongsTo(UserModel, {
   foreignKey: { name: "user_id" },
@@ -380,6 +404,7 @@ export const UserGroupMembership = UserGroupMembershipModel;
 export const MapMembership = MapMembershipModel;
 export const ItemType = ItemTypeModel;
 export const PasswordResetToken = PasswordResetTokenModel;
+export const UserFeedback = UserFeedbackModel;
 
 /* The hardcoded datagroup ID used to signify no data group in Marker/Polygon/Line tables */
 export enum DataGroupId {

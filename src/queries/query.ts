@@ -1,5 +1,4 @@
 // TODO: separate the functions in this file into more appropriate filenames
-
 import {
   User,
   Map,
@@ -14,6 +13,7 @@ import {
   DataGroupMembership,
   UserGroup,
   UserGroupMembership,
+  UserFeedback,
 } from "./database";
 import { getMapMarkers, getMapPolygonsAndLines } from "../queries/map";
 import { hashPassword } from "./helper";
@@ -142,7 +142,7 @@ export const checkAndReturnUser = async (
   password?: string,
   reset_token?: string
 ) => {
-  const user = await User.findOne({ where: { username: username }, raw: true });
+  const user = await getUserByEmail(username);
 
   if (reset_token) {
     // Logging in via the reset password flow
@@ -463,4 +463,29 @@ export const createPublicMapView = async (mapId: number): Promise<string> => {
   }
 
   return `/api/public/map/${mapId}`;
+};
+
+export const createUserFeedback = async (
+  question_use_case: string,
+  question_impact: string,
+  question_who_benefits: string,
+  question_improvements: string,
+  user_id: number
+) => {
+  try {
+    // Create a new user feedback entry in the database
+    const userFeedback = await UserFeedback.create({
+      question_use_case,
+      question_impact,
+      question_who_benefits,
+      question_improvements,
+      user_id,
+      submission_date: new Date(), // Set the current date as the submission date
+    });
+
+    return userFeedback;
+  } catch (error: any) {
+    console.error(error.message);
+    throw new Error("Failed to create user feedback");
+  }
 };

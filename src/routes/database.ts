@@ -1,13 +1,19 @@
-import { Request, ResponseToolkit, ResponseObject, ServerRoute } from "@hapi/hapi";
-import jwt from 'jsonwebtoken';
-import { Validation } from '../validation';
-import * as mailer from '../queries/mails';
+import {
+  Request,
+  ResponseToolkit,
+  ResponseObject,
+  ServerRoute,
+} from "@hapi/hapi";
+import jwt from "jsonwebtoken";
+import { Validation } from "../validation";
+import * as mailer from "../queries/mails";
 import {
   createUser,
   migrateGuestUserMap,
   checkAndReturnUser,
   getUserById,
   getUserByEmail,
+  createUserFeedback,
 } from "../queries/query";
 import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
@@ -178,176 +184,259 @@ async function getAuthUserDetails(
 /**
  * Update the email of autheticated user
  */
-async function changeEmail(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    let validation = new Validation();
-    await validation.validateChangeEmail(request.payload);
+async function changeEmail(
+  request: Request,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  let validation = new Validation();
+  await validation.validateChangeEmail(request.payload);
 
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
-    }
+  if (validation.fail()) {
+    return h.response(validation.errors).code(400);
+  }
 
-    let payload: any = request.payload;
+  let payload: any = request.payload;
 
-    try {
-        await User.update({ username: payload.username }, {
-            where: {
-                id: request.auth.credentials.user_id
-            }
-        });
-    }
-    catch (err: any) {
-        console.log(err.message);
-        return h.response("internal server error!").code(500);
-    }
+  try {
+    await User.update(
+      { username: payload.username },
+      {
+        where: {
+          id: request.auth.credentials.user_id,
+        },
+      }
+    );
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
 
-    return h.response().code(200);
+  return h.response().code(200);
 }
 
 /**
  * Change the user detail of the authenticated user
  */
-async function changeUserDetail(request: Request, h: ResponseToolkit, d: any): Promise<ResponseObject> {
+async function changeUserDetail(
+  request: Request,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  let validation = new Validation();
+  await validation.validateUserDetailUpdate(request.payload);
 
-    let validation = new Validation();
-    await validation.validateUserDetailUpdate(request.payload);
+  if (validation.fail()) {
+    return h.response(validation.errors).code(400);
+  }
 
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
-    }
+  let payload: any = request.payload;
 
-    let payload: any = request.payload;
+  try {
+    await User.update(
+      {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        address1: payload.address1,
+        address2: payload.address2,
+        postcode: payload.postcode,
+        phone: payload.phone,
+        organisation: payload.organisation,
+        organisation_number: payload.organisationNumber,
+        organisation_type: payload.organisationType,
+        organisation_activity: payload.organisationActivity,
+      },
+      {
+        where: {
+          id: request.auth.credentials.user_id,
+        },
+      }
+    );
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
 
-    try {
-        await User.update(
-            {
-                first_name: payload.firstName,
-                last_name: payload.lastName,
-                address1: payload.address1,
-                address2: payload.address2,
-                postcode: payload.postcode,
-                phone: payload.phone,
-                organisation: payload.organisation,
-                organisation_number: payload.organisationNumber,
-                organisation_type: payload.organisationType,
-                organisation_activity: payload.organisationActivity,
-            },
-            {
-                where: {
-                    id: request.auth.credentials.user_id
-                }
-            });
-    }
-    catch (err: any) {
-        console.log(err.message);
-        return h.response("internal server error!").code(500);
-    }
-
-    return h.response().code(200);
+  return h.response().code(200);
 }
 
 type ChangePasswordRequest = Request & {
-    payload: {
-        password: string
-    }
+  payload: {
+    password: string;
+  };
 };
 
 /**
  * Allow logged in user to change their password
  */
-async function changePassword(request: ChangePasswordRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const { password } = request.payload;
+async function changePassword(
+  request: ChangePasswordRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  const { password } = request.payload;
 
-    let validation = new Validation();
-    await validation.validateChangePassword(request.payload);
+  let validation = new Validation();
+  await validation.validateChangePassword(request.payload);
 
-    if (validation.fail()) {
-        return h.response(validation.errors).code(400);
-    }
+  if (validation.fail()) {
+    return h.response(validation.errors).code(400);
+  }
 
-    try {
-        await User.update({ password: hashPassword(password) }, {
-            where: {
-                id: request.auth.credentials.user_id
-            }
-        });
-    }
-    catch (err: any) {
-        console.log(err.message);
-        return h.response("internal server error!").code(500);
-    }
+  try {
+    await User.update(
+      { password: hashPassword(password) },
+      {
+        where: {
+          id: request.auth.credentials.user_id,
+        },
+      }
+    );
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
 
-    return h.response().code(200);
+  return h.response().code(200);
 }
 
 type ResetPasswordRequest = Request & {
-    payload: {
-        username: string
-    }
+  payload: {
+    username: string;
+  };
 };
 
 /**
  * Allow user to request a password reset link when they forget their password
  */
-async function resetPassword(request: ResetPasswordRequest, h: ResponseToolkit, d: any): Promise<ResponseObject> {
-    const { username } = request.payload;
+async function resetPassword(
+  request: ResetPasswordRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  const { username } = request.payload;
 
-    try {
-        let user = await User.findOne({
-            where: {
-                username: username
-            }
-        });
+  try {
+    let user = await getUserByEmail(username);
 
-        if (!user) {
-            // To avoid username guesses by a hacker, just return 200 OK
-            return h.response().code(200);
-        }
-
-        // Generate a one-time token and store this in the database.
-        // Before this, remove any existing tokens for this user.
-        await PasswordResetToken.destroy({
-            where: { user_id: user.id }
-        });
-
-        const passwordResetToken = await generateRandomToken();
-
-        await PasswordResetToken.create({
-            user_id: user.id,
-            token: passwordResetToken,
-            expires: Date.now() + RESET_PASSWORD_EXPIRY_HOURS * 3600 * 1000 // UNIX timestamp in ms
-        });
-
-        // Use the token to build the reset link
-        const passwordResetLink = `https://${request.info.host}/auth?email=${encodeURIComponent(username)}&reset_token=${passwordResetToken}`;
-
-        // Send email
-        mailer.sendResetPasswordEmail(username, user.first_name, passwordResetLink, RESET_PASSWORD_EXPIRY_HOURS);
-
-    } catch (err: any) {
-        console.log(err.message);
-        return h.response("internal server error!").code(500);
+    if (!user) {
+      // To avoid username guesses by a hacker, just return 200 OK
+      return h.response().code(200);
     }
 
-    return h.response().code(200);
+    // Generate a one-time token and store this in the database.
+    // Before this, remove any existing tokens for this user.
+    await PasswordResetToken.destroy({
+      where: { user_id: user.id },
+    });
+
+    const passwordResetToken = await generateRandomToken();
+
+    await PasswordResetToken.create({
+      user_id: user.id,
+      token: passwordResetToken,
+      expires: Date.now() + RESET_PASSWORD_EXPIRY_HOURS * 3600 * 1000, // UNIX timestamp in ms
+    });
+
+    // Use the token to build the reset link
+    const passwordResetLink = `https://${
+      request.info.host
+    }/auth?email=${encodeURIComponent(
+      username
+    )}&reset_token=${passwordResetToken}`;
+
+    // Send email
+    mailer.sendResetPasswordEmail(
+      username,
+      user.first_name,
+      passwordResetLink,
+      RESET_PASSWORD_EXPIRY_HOURS
+    );
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
+
+  return h.response().code(200);
+}
+
+type UserFeedbackRequest = Request & {
+  payload: {
+    question1: string;
+    question2: string;
+    question3: string;
+    question4: string;
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
+async function userFeedback(
+  request: UserFeedbackRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  let validation = new Validation();
+  await validation.validateUserFeedback(request.payload);
+
+  if (validation.fail()) {
+    return h.response(validation.errors).code(400);
+  }
+
+  let payload: any = request.payload;
+
+  try {
+    let userFeedback = await createUserFeedback(
+      payload.question1,
+      payload.question2,
+      payload.question3,
+      payload.question4,
+      request.auth.credentials.user_id
+    );
+
+    return h.response(userFeedback).code(200);
+  } catch (err: any) {
+    console.log(err.message);
+    return h.response("internal server error!").code(500);
+  }
 }
 
 export const databaseRoutes: ServerRoute[] = [
-    /** Public APIs */
-    // Register a new account
-    { method: "POST", path: "/api/user/register", handler: registerUser, options: { auth: false } },
-    // Request a password reset for an email address
-    { method: "POST", path: "/api/user/password-reset", handler: resetPassword, options: { auth: false } },
-    // Login user and retrieve a token
-    { method: "POST", path: "/api/token", handler: loginUser, options: { auth: false } },
+  /** Public APIs */
+  // Register a new account
+  {
+    method: "POST",
+    path: "/api/user/register",
+    handler: registerUser,
+    options: { auth: false },
+  },
+  // Request a password reset for an email address
+  {
+    method: "POST",
+    path: "/api/user/password-reset",
+    handler: resetPassword,
+    options: { auth: false },
+  },
+  // Login user and retrieve a token
+  {
+    method: "POST",
+    path: "/api/token",
+    handler: loginUser,
+    options: { auth: false },
+  },
 
-    /** Authenticated users only */
-    // Return logged in user's details
-    { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
-    // Allow user to change their email address
-    { method: "POST", path: "/api/user/email", handler: changeEmail },
-    // Allow user to change their details
-    { method: "POST", path: "/api/user/details", handler: changeUserDetail },
-    // Allow logged in user to change their password
-    { method: "POST", path: "/api/user/password", handler: changePassword },
-
+  /** Authenticated users only */
+  // Return logged in user's details
+  { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
+  // Allow user to change their email address
+  { method: "POST", path: "/api/user/email", handler: changeEmail },
+  // Allow user to change their details
+  { method: "POST", path: "/api/user/details", handler: changeUserDetail },
+  // Allow logged in user to change their password
+  { method: "POST", path: "/api/user/password", handler: changePassword },
+  // Allow logged in user to submit feedback
+  { method: "POST", path: "/api/user/feedback", handler: userFeedback },
 ];
