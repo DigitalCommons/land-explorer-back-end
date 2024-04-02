@@ -10,7 +10,7 @@ module.exports = {
         question_impact: faker.lorem.paragraph(),
         question_who_benefits: faker.lorem.paragraph(),
         question_improvements: faker.lorem.paragraph(),
-        feedback_user_id: 1,
+        user_id: 1,
       },
     ]);
   },
