@@ -1,19 +1,24 @@
-const { Sequelize, DataTypes, Model } = require("sequelize");
+const { Sequelize, DataTypes } = require("sequelize");
 
 import dotenv from "dotenv";
 
 dotenv.config();
 
+const config = require("../../config/config")[
+  process.env.NODE_ENV || "production"
+];
+
 /**
  * CORE Database
  */
 export const sequelize = new Sequelize(
-  process.env.DATABASE_NAME,
-  process.env.DATABASE_USER,
-  process.env.DATABASE_PASSWORD ?? "",
+  config.database,
+  config.username,
+  config.password,
   {
-    host: process.env.DATABASE_HOST ?? "localhost",
-    dialect: "mysql",
+    host: config.host,
+    dialect: config.dialect,
+    logging: config.logging,
   }
 );
 
@@ -80,7 +85,7 @@ const UserMapModel = sequelize.define(
       type: DataTypes.BIGINT,
       references: { model: UserModel, key: "id" },
     },
-    access: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    access: { type: DataTypes.INTEGER, allowNull: false },
     viewed: { type: DataTypes.TEXT, allowNull: false, defaultValue: 0 },
     created_date: Sequelize.DATE,
   },
@@ -407,9 +412,11 @@ export enum DataGroupId {
 }
 
 /* The access values in the UserMap table */
+// 2 changed from Readwrite to Owner
 export enum UserMapAccess {
   Readonly = 1,
-  Readwrite = 2,
+  Owner = 2,
+  Readwrite = 3,
 }
 
 /* All the possible values of the iditem_types column in the ItemType table */
@@ -418,16 +425,3 @@ export enum ItemTypeId {
   Polygon = 1,
   Line = 2,
 }
-
-/**
- * Polygon Database
- */
-export const polygonDbSequelize = new Sequelize(
-  process.env.POLYGON_DATABASE_NAME,
-  process.env.POLYGON_DATABASE_USER,
-  process.env.POLYGON_DATABASE_PASSWORD ?? "",
-  {
-    host: process.env.POLYGON_DATABASE_HOST ?? "localhost",
-    dialect: "mysql",
-  }
-);

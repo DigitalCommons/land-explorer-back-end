@@ -12,6 +12,7 @@ import {
   migrateGuestUserMap,
   checkAndReturnUser,
   getUserById,
+  getUserByEmail,
   createUserFeedback,
 } from "../queries/query";
 import { User, PasswordResetToken } from "../queries/database";
@@ -47,7 +48,7 @@ async function registerUser(
   // create user on database
   let user = await createUser(request.payload);
 
-  //migrate user map from guest account
+  // migrate user map from guest account
   await migrateGuestUserMap(user);
 
   // sent register email
@@ -146,10 +147,20 @@ async function getAuthUserDetails(
   try {
     user = await getUserById(request.auth.credentials.user_id);
 
+    if (!user) {
+      return h.response("please re-authenticate").code(401);
+    }
+
+    const initials =
+      (user.first_name || "?")[0].toUpperCase() +
+      (user.last_name || "?")[0].toUpperCase();
+
     return h.response({
+      id: user.id ?? "",
       username: user.username,
       firstName: user.first_name,
       lastName: user.last_name,
+      initials,
       marketing: user.marketing ? 1 : 0,
       organisation: user.organisation ?? "",
       organisationNumber: user.organisation_number ?? "",
@@ -306,11 +317,7 @@ async function resetPassword(
   const { username } = request.payload;
 
   try {
-    let user = await User.findOne({
-      where: {
-        username: username,
-      },
-    });
+    let user = await getUserByEmail(username);
 
     if (!user) {
       // To avoid username guesses by a hacker, just return 200 OK
@@ -382,13 +389,13 @@ async function userFeedback(
   let payload: any = request.payload;
 
   try {
-    let userFeedback = await createUserFeedback({
-      question_use_case: payload.question1,
-      question_impact: payload.question2,
-      question_who_benefits: payload.question3,
-      question_improvements: payload.question4,
-      user_id: request.auth.credentials.user_id,
-    });
+    let userFeedback = await createUserFeedback(
+      payload.question1,
+      payload.question2,
+      payload.question3,
+      payload.question4,
+      request.auth.credentials.user_id
+    );
 
     return h.response(userFeedback).code(200);
   } catch (err: any) {

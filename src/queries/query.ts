@@ -1,3 +1,4 @@
+// TODO: separate the functions in this file into more appropriate filenames
 import {
   User,
   Map,
@@ -5,7 +6,6 @@ import {
   UserMapAccess,
   PendingUserMap,
   PasswordResetToken,
-  polygonDbSequelize,
   Marker,
   Polygon,
   Line,
@@ -18,27 +18,40 @@ import {
 import { getMapMarkers, getMapPolygonsAndLines } from "../queries/map";
 import { hashPassword } from "./helper";
 import bcrypt from "bcrypt";
-import { QueryTypes } from "sequelize";
 import axios from "axios";
 
-export const getUser = async (options = {}) => {
-  let result = await User.findOne(options);
-
-  return result;
+export const getUserById = async (id: number): Promise<typeof User | null> => {
+  return await User.findOne({ where: { id } });
 };
 
-export const getUserById = async (
-  id: number,
-  options: any = {}
-): Promise<typeof User | null> => {
-  return await User.findByPk(id, options);
+export const getUserInitials = async (id: number): Promise<string | null> => {
+  const user: any = await User.findOne({ where: { id } });
+  return user === null
+    ? null
+    : (user.first_name || "?")[0].toUpperCase() +
+        (user.last_name || "?")[0].toUpperCase();
 };
 
 /**
- * Check whether user with the given username exists
+ * Return the user if its email username exists, otherwise null.
+ *
+ * The search is case-insensitive, which we want for emails, since the default MySQL collation is
+ * case-insensitive.
+ */
+export const getUserByEmail = async (email: string) => {
+  return await User.findOne({
+    where: {
+      username: email,
+    },
+    raw: true,
+  });
+};
+
+/**
+ * Check whether user with the given username exists (case-insensitive)
  */
 export const usernameExist = async (username: string): Promise<Boolean> => {
-  return (await User.findOne({ where: { username: username } })) !== null;
+  return (await getUserByEmail(username)) !== null;
 };
 
 /**
@@ -83,9 +96,9 @@ export const createUser = async (data: any) => {
 };
 
 /**
- * Before a user is registered, other existing user may have shared a map to this user.
- * These map are stored in 'pending_user_map'. Now that a given user is registered,
- * we migrate the map to 'user_map'
+ * Before a user is registered, other existing users may have shared a map to this user. This
+ * sharing data is stored in 'pending_user_map'. Now that a given user is registered, we migrate the
+ * pending user maps to 'user_map'.
  */
 export const migrateGuestUserMap = async (user: typeof User) => {
   try {
@@ -97,9 +110,9 @@ export const migrateGuestUserMap = async (user: typeof User) => {
       })
     )
       // map to format ready to be inserted to user_map table
-      .map(function (pendingUserMap: any) {
+      .map((pendingUserMap: any) => {
         return {
-          access: UserMapAccess.Readonly,
+          access: pendingUserMap.access,
           viewed: 0,
           map_id: pendingUserMap.map_id,
           user_id: user.id,
@@ -129,7 +142,7 @@ export const checkAndReturnUser = async (
   password?: string,
   reset_token?: string
 ) => {
-  const user = await getUser({ where: { username: username }, raw: true });
+  const user = await getUserByEmail(username);
 
   if (reset_token) {
     // Logging in via the reset password flow
@@ -452,21 +465,27 @@ export const createPublicMapView = async (mapId: number): Promise<string> => {
   return `/api/public/map/${mapId}`;
 };
 
-export const createUserFeedback = async (data: any) => {
+export const createUserFeedback = async (
+  question_use_case: string,
+  question_impact: string,
+  question_who_benefits: string,
+  question_improvements: string,
+  user_id: number
+) => {
   try {
     // Create a new user feedback entry in the database
     const userFeedback = await UserFeedback.create({
-      question_use_case: data.question_use_case,
-      question_impact: data.question_impact,
-      question_who_benefits: data.question_who_benefits,
-      question_improvements: data.question_improvements,
-      user_id: data.user_id, // Assuming the user is authenticated
+      question_use_case,
+      question_impact,
+      question_who_benefits,
+      question_improvements,
+      user_id,
       submission_date: new Date(), // Set the current date as the submission date
     });
 
     return userFeedback;
   } catch (error: any) {
-    console.log(error.message);
+    console.error(error.message);
     throw new Error("Failed to create user feedback");
   }
 };

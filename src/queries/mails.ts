@@ -84,17 +84,18 @@ export const resetPasswordNotFound = async (recipient: string) => {
 export const shareMapRegistered = async (
   recipient: string,
   recipient_firstname: string,
-  sharer_fullname: string,
   sharer_firstname: string,
+  sharer_lastname: string,
   map_name: string,
   domain: string
 ) => {
   const loginLink = domain + authRoute;
+  const sharer_fullname = sharer_firstname + " " + sharer_lastname;   
 
   let body = "<!DOCTYPE html><html lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>'";
   body += "<p>Dear " + capitalizeFirstLetter(recipient_firstname) + ",</p>";
-  body += "<p>" + capitalizeFirstLetter(sharer_fullname) + " has invited you to join Land Explorer and has given you access to their map: " + map_name + "</p>";
-  body += "<p>You can register for an account by clicking <a href=\"" + loginLink + "\">here</a>.</p>";
+  body += "<p>" + capitalizeFirstLetter(sharer_fullname) + " has given you access to their map: " + map_name + "</p>";
+  body += "<p>You can login to Land Explorer by clicking <a href=\"" + loginLink + "\">here</a>.</p>";
   body += "<p>Once logged in, you can then view the map " + capitalizeFirstLetter(sharer_firstname) + " shared with you.</p>";
   body += "<p>Many thanks,<br/><br/>The Digital Commons Team</p>";
   body += "</body></html>";
@@ -118,12 +119,13 @@ export const shareMapRegistered = async (
 
 export const shareMapUnregistered = async (
   recipient: string,
-  sharer_fullname: string,
   sharer_firstname: string,
+  sharer_lastname: string,
   map_name: string,
   domain: string
 ) => {
   const loginLink = domain + authRoute;
+  const sharer_fullname = sharer_firstname + " " + sharer_lastname;
 
   let body = "<!DOCTYPE html><html lang=\"en\" xmlns=\"http://www.w3.org/1999/xhtml\"><head></head><body>'";
   body += "<p>Hi There,</p>";
