@@ -58,7 +58,7 @@ export const setupWebsockets = (server: HapiServer): void => {
           socket.join(`${mapId}`);
         }
 
-        // Tell the user who has the lock (or null if the map is unlocked)
+        // Tell the user about who has the lock (or null if the map is unlocked)
         const user = await getUserWithLockOrNull(mapId);
         socket.emit("mapLock", {
           mapId,

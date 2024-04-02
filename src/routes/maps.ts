@@ -669,7 +669,6 @@ async function deleteMap(
       return h.response("Map not found").code(404);
     }
 
-    // changed from UserMapAccess.Readwrite
     if (userMap.access !== UserMapAccess.Owner) {
       return h.response("Unauthorised!").code(403);
     }
@@ -903,16 +902,13 @@ async function setMapPublic(
     },
   });
 
-  // changed from UserMapAccess.Readwrite
   if (userMapView?.access === UserMapAccess.Owner) {
     const publicMapAddress = await createPublicMapView(mapId);
 
     return h.response(publicMapAddress);
   } else {
     return h
-      .response(
-        "You don't have write access to this map, so can't make it public."
-      )
+      .response("You don't own this map, so can't make it public.")
       .code(403);
   }
 }

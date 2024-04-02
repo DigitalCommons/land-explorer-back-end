@@ -305,7 +305,6 @@ export const createMap: CreateMapFunction = async (
   await UserMap.create({
     map_id: newMap.id,
     user_id: userId,
-    // 07/07/2021 - Changed from UserMapAccess.ReadWrite to UserMapAccess.Owner
     access: UserMapAccess.Owner,
   });
 
