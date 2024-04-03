@@ -462,7 +462,7 @@ export const createPublicMapView = async (mapId: number): Promise<string> => {
     });
   }
 
-  return `/api/public/map/${mapId}`;
+  return `/public/map/${mapId}`;
 };
 
 export const createUserFeedback = async (

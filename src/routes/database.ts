@@ -409,34 +409,34 @@ export const databaseRoutes: ServerRoute[] = [
   // Register a new account
   {
     method: "POST",
-    path: "/api/user/register",
+    path: "/user/register",
     handler: registerUser,
     options: { auth: false },
   },
   // Request a password reset for an email address
   {
     method: "POST",
-    path: "/api/user/password-reset",
+    path: "/user/password-reset",
     handler: resetPassword,
     options: { auth: false },
   },
   // Login user and retrieve a token
   {
     method: "POST",
-    path: "/api/token",
+    path: "/token",
     handler: loginUser,
     options: { auth: false },
   },
 
   /** Authenticated users only */
   // Return logged in user's details
-  { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
+  { method: "GET", path: "/user/details", handler: getAuthUserDetails },
   // Allow user to change their email address
-  { method: "POST", path: "/api/user/email", handler: changeEmail },
+  { method: "POST", path: "/user/email", handler: changeEmail },
   // Allow user to change their details
-  { method: "POST", path: "/api/user/details", handler: changeUserDetail },
+  { method: "POST", path: "/user/details", handler: changeUserDetail },
   // Allow logged in user to change their password
-  { method: "POST", path: "/api/user/password", handler: changePassword },
+  { method: "POST", path: "/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
-  { method: "POST", path: "/api/user/feedback", handler: userFeedback },
+  { method: "POST", path: "/user/feedback", handler: userFeedback },
 ];
