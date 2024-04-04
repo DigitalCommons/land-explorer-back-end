@@ -213,37 +213,37 @@ async function editDataGroupLine(
 
 export const dataGroupRoutes: ServerRoute[] = [
   // Get data groups that the user can access and their data
-  { method: "GET", path: "/user/datagroups", handler: getUserDataGroups },
+  { method: "GET", path: "/api/user/datagroups", handler: getUserDataGroups },
   // Save an object to a data group
   {
     method: "POST",
-    path: "/user/datagroup/save/marker",
+    path: "/api/user/datagroup/save/marker",
     handler: saveDataGroupMarker,
   },
   {
     method: "POST",
-    path: "/user/datagroup/save/polygon",
+    path: "/api/user/datagroup/save/polygon",
     handler: saveDataGroupPolygon,
   },
   {
     method: "POST",
-    path: "/user/datagroup/save/line",
+    path: "/api/user/datagroup/save/line",
     handler: saveDataGroupLine,
   },
   // Edit a datagroup object
   {
     method: "POST",
-    path: "/user/datagroup/edit/marker",
+    path: "/api/user/datagroup/edit/marker",
     handler: editDataGroupMarker,
   },
   {
     method: "POST",
-    path: "/user/datagroup/edit/polygon",
+    path: "/api/user/datagroup/edit/polygon",
     handler: editDataGroupPolygon,
   },
   {
     method: "POST",
-    path: "/user/datagroup/edit/line",
+    path: "/api/user/datagroup/edit/line",
     handler: editDataGroupLine,
   },
 ];

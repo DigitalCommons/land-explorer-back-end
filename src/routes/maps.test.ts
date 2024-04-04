@@ -9,11 +9,11 @@ const Model = require("../queries/database");
 
 const sandbox = createSandbox();
 
-describe("GET /user/maps", () => {
+describe("GET /api/user/maps", () => {
   let server: Server;
   const getUserMapsRequest = {
     method: "GET",
-    url: "/user/maps",
+    url: "/api/user/maps",
     auth: {
       strategy: "simple",
       credentials: {

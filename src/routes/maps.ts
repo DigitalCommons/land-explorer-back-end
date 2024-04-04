@@ -936,53 +936,53 @@ async function getPublicMap(
 
 export const mapRoutes: ServerRoute[] = [
   // Create or update a map
-  { method: "POST", path: "/user/map/save", handler: saveMap },
+  { method: "POST", path: "/api/user/map/save", handler: saveMap },
   // Save an object to a map
-  { method: "POST", path: "/user/map/save/marker", handler: saveMapMarker },
+  { method: "POST", path: "/api/user/map/save/marker", handler: saveMapMarker },
   {
     method: "POST",
-    path: "/user/map/save/polygon",
+    path: "/api/user/map/save/polygon",
     handler: saveMapPolygon,
   },
-  { method: "POST", path: "/user/map/save/line", handler: saveMapLine },
+  { method: "POST", path: "/api/user/map/save/line", handler: saveMapLine },
   // Save the zoom level of a map
-  { method: "POST", path: "/user/map/save/zoom", handler: saveMapZoom },
+  { method: "POST", path: "/api/user/map/save/zoom", handler: saveMapZoom },
   // Save the longitude and latitude of a map (i.e. when the frame is moved)
-  { method: "POST", path: "/user/map/save/lngLat", handler: saveMapLngLat },
+  { method: "POST", path: "/api/user/map/save/lngLat", handler: saveMapLngLat },
   // Edit an object
-  { method: "POST", path: "/user/map/edit/marker", handler: editMapMarker },
+  { method: "POST", path: "/api/user/map/edit/marker", handler: editMapMarker },
   {
     method: "POST",
-    path: "/user/map/edit/polygon",
+    path: "/api/user/map/edit/polygon",
     handler: editMapPolygon,
   },
-  { method: "POST", path: "/user/map/edit/line", handler: editMapLine },
+  { method: "POST", path: "/api/user/map/edit/line", handler: editMapLine },
   // Record that the user has viewed a map
-  { method: "POST", path: "/user/map/view", handler: setMapAsViewed },
+  { method: "POST", path: "/api/user/map/view", handler: setMapAsViewed },
   // Get the email addresses and their access level that a map is shared to
-  { method: "GET", path: "/user/map/share", handler: getMapSharedTo },
+  { method: "GET", path: "/api/user/map/share", handler: getMapSharedTo },
   // Share access of a map to a list of email addresses
-  { method: "POST", path: "/user/map/share/sync", handler: shareMap },
+  { method: "POST", path: "/api/user/map/share/sync", handler: shareMap },
   // Delete a map
-  { method: "POST", path: "/user/map/delete", handler: deleteMap },
+  { method: "POST", path: "/api/user/map/delete", handler: deleteMap },
   // Make a map accessible to the public
-  { method: "POST", path: "/user/map/share/public", handler: setMapPublic },
+  { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
   // Returns a map converted to shapefile format
   {
     method: "GET",
-    path: "/user/map/download/{mapId}",
+    path: "/api/user/map/download/{mapId}",
     handler: downloadMap,
   },
   // Returns a list of all maps that the user has access to
-  { method: "GET", path: "/user/maps", handler: getUserMaps },
+  { method: "GET", path: "/api/user/maps", handler: getUserMaps },
   // Get the geojson polygons of land ownership within a given bounding box area
-  { method: "GET", path: "/ownership", handler: getLandOwnershipPolygons },
+  { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygons },
   // search the public ownership information
-  { method: "GET", path: "/search", handler: searchOwnership },
+  { method: "GET", path: "/api/search", handler: searchOwnership },
   // Get a public map
   {
     method: "GET",
-    path: "/public/map/{mapId}",
+    path: "/api/public/map/{mapId}",
     handler: getPublicMap,
     options: { auth: false },
   },
