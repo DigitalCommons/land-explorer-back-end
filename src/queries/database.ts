@@ -123,6 +123,7 @@ const DataGroupModel = sequelize.define(
       primaryKey: true,
     },
     title: { type: DataTypes.STRING },
+    hex_colour: { type: DataTypes.STRING },
   },
   {
     tableName: "data_groups",
