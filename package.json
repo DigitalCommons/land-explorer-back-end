@@ -10,7 +10,7 @@
     "dev": "run-p dev:*",
     "test": "env-cmd -f .env.test ts-mocha",
     "build": "tsc",
-    "serve": "pm2 start lib/main.js"
+    "serve": "pm2 start lib/main.js --time"
   },
   "author": "Hansen Salim",
   "dependencies": {
