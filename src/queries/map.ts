@@ -356,6 +356,10 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     }
   }
 
+  await MapMembership.destroy({
+    where: { map_id: mapId },
+  });
+  
   if (markerIds.length) {
     console.log(
       `Removing ${markerIds.length} markers from DB for map ${mapId}`
@@ -381,9 +385,6 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     });
   }
 
-  await MapMembership.destroy({
-    where: { map_id: mapId },
-  });
 
   console.log(
     `Adding ${mapData.markers.markers.length} markers to DB for map ${mapId}`
