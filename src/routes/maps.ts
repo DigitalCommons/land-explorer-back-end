@@ -10,6 +10,7 @@ import { Validation } from "../validation";
 import {
   createPublicMapView,
   getGeoJsonFeaturesForMap,
+  getPendingPolygons,
   getPolygons,
   searchOwner,
 } from "../queries/query";
@@ -771,37 +772,61 @@ async function getUserMaps(
   }
 }
 
+type getLandOwnershipPolygonsRequest = Request & {
+  query: {
+    sw_lng: number;
+    sw_lat: number;
+    ne_lng: number;
+    ne_lat: number;
+    pending?: boolean;
+    acceptedOnly?: boolean;
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
 /**
  * Get the geojson polygons of land ownership within a given bounding box area
- *
- * @param request
- * @param h
- * @param d
- * @returns
  */
 async function getLandOwnershipPolygons(
   request: Request,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  let validation = new Validation();
-  await validation.validateLandOwnershipPolygonRequest(request.query);
-
-  if (validation.fail()) {
-    return h.response(validation.errors).code(400);
-  }
+  const { sw_lng, sw_lat, ne_lng, ne_lat, pending, acceptedOnly } =
+    request.query;
+  const { user_id } = request.auth.credentials;
 
   try {
-    const payload: any = request.query;
+    if (pending) {
+      // Only super users should be able to view pending polygons
+      const hasAccess = await User.findOne({
+        where: {
+          id: user_id,
+          is_super_user: true,
+        },
+      });
+      if (!hasAccess) {
+        return h.response("Unauthorised!").code(403);
+      }
 
-    const polygons = await getPolygons(
-      payload.sw_lng,
-      payload.sw_lat,
-      payload.ne_lng,
-      payload.ne_lat
-    );
+      const polygons = await getPendingPolygons(
+        sw_lng,
+        sw_lat,
+        ne_lng,
+        ne_lat,
+        acceptedOnly
+      );
 
-    return h.response(polygons).code(200);
+      return h.response(polygons).code(200);
+    } else {
+      const polygons = await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat);
+
+      return h.response(polygons).code(200);
+    }
   } catch (err: any) {
     console.log(err.message);
     return h.response("internal server error!").code(500);
