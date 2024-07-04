@@ -293,37 +293,6 @@ export class Validation {
     return this;
   }
 
-  /**
-   * Validate polygon
-   *
-   * @param data
-   * @returns
-   */
-  async validateLandOwnershipPolygonRequest(data: any) {
-    // sw_lng, sw_lat, ne_lng, ne_lat required
-
-    if (Joi.number().validate(data?.sw_lng, { presence: "required" }).error) {
-      this.addErrorMessage("sw_lng", "The sw_lng field is required.");
-    }
-    if (Joi.number().validate(data?.sw_lat, { presence: "required" }).error) {
-      this.addErrorMessage("sw_lat", "The sw_lat field is required.");
-    }
-    if (Joi.number().validate(data?.ne_lng, { presence: "required" }).error) {
-      this.addErrorMessage("ne_lng", "The ne_lng field is required.");
-    }
-    if (Joi.number().validate(data?.ne_lat, { presence: "required" }).error) {
-      this.addErrorMessage("ne_lat", "The ne_lat field is required.");
-    }
-
-    return this;
-  }
-
-  /**
-   *
-   * @param key
-   * @param message
-   * @returns
-   */
   addErrorMessage(key: string, message: string) {
     if (this.errors.hasOwnProperty(key)) {
       this.errors[key].push(message);

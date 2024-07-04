@@ -220,7 +220,35 @@ export const getPolygons = async (
     }
   );
 
-  return boundaryResponse.data[0];
+  return boundaryResponse.data;
+};
+
+/**
+ * Return the pending geojson polygons of land ownership within a given bounding box area. These are
+ * the new boundaries from the latest INSPIRE pipeline run that are waiting to be permanently saved.
+ */
+export const getPendingPolygons = async (
+  sw_lng: number,
+  sw_lat: number,
+  ne_lng: number,
+  ne_lat: number,
+  acceptedOnly: boolean = false
+) => {
+  const boundaryResponse = await axios.get(
+    `${process.env.BOUNDARY_SERVICE_URL}/pending/boundaries`,
+    {
+      params: {
+        sw_lat,
+        sw_lng,
+        ne_lat,
+        ne_lng,
+        acceptedOnly,
+        secret: process.env.BOUNDARY_SERVICE_SECRET,
+      },
+    }
+  );
+
+  return boundaryResponse.data;
 };
 
 export const searchOwner = async (proprietorName: string) => {
