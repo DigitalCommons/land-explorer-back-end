@@ -293,12 +293,6 @@ export class Validation {
     return this;
   }
 
-  /**s
-   *
-   * @param key
-   * @param message
-   * @returns
-   */
   addErrorMessage(key: string, message: string) {
     if (this.errors.hasOwnProperty(key)) {
       this.errors[key].push(message);
