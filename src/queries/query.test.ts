@@ -136,3 +136,201 @@ describe("Check and return user", () => {
         });
     });
 });
+
+describe("findAllDataGroupContentForUser", () => {
+  const testUserId = 123;
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  context(
+    "User is in 1 user group and there is 1 public user group, each associated with 1 data group",
+    () => {
+      const testMarker = {
+        idmarkers: 1,
+        name: "Test Marker",
+        description: "This is a datagroup marker",
+        data_group_id: 1,
+        location: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [53.6, 12.1],
+          },
+        },
+        uuid: "abc-001",
+      };
+
+      const testPolygon = {
+        idpolygons: 1,
+        name: "Test Polygon",
+        description: "This is a datagroup polygon",
+        data_group_id: 2,
+        vertices: {
+          type: "Feature",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [125.6, 10.1],
+                [125.7, 10.2],
+                [125.6, 10.1],
+              ],
+            ],
+          },
+        },
+        center: {
+          type: "Feature",
+          geometry: {
+            type: "Point",
+            coordinates: [125.63, 10.13],
+          },
+        },
+        length: 100,
+        area: 1000,
+        uuid: "fgh-002",
+      };
+
+      const testUserGroup1 = {
+        iduser_groups: 1,
+        name: "Test User Group 1 (Public)",
+      };
+
+      const testDataGroup1 = {
+        iddata_groups: 1,
+        title: "Test Data Group 1 (Public)",
+        hex_colour: "#FF0001",
+      };
+
+      const testUserGroup2 = {
+        iduser_groups: 2,
+        name: "Test User Group 2",
+      };
+
+      const testDataGroup2 = {
+        iddata_groups: 2,
+        title: "Test Data Group 2",
+        hex_colour: "#FF0002",
+      };
+
+      it("returns user groups and associated data groups with markers, polygons, and lines", async () => {
+        // Arrange
+
+        sandbox.replace(
+          Model.UserGroupMembership,
+          "findAll",
+          fake.resolves([
+            {
+              iduser_group_memberships: 1,
+              user_id: -1, // -1 means public
+              user_group_id: testUserGroup1.iduser_groups,
+            },
+            {
+              iduser_group_memberships: 2,
+              user_id: testUserId,
+              user_group_id: testUserGroup2.iduser_groups,
+            },
+          ])
+        );
+
+        sandbox.replace(
+          Model.UserGroup,
+          "findOne",
+          fake((options) => {
+            return options.where.iduser_groups === testUserGroup1.iduser_groups
+              ? testUserGroup1
+              : testUserGroup2;
+          })
+        );
+
+        sandbox.replace(
+          Model.DataGroupMembership,
+          "findAll",
+          fake((options) => {
+            return options.where.user_group_id === testUserGroup1.iduser_groups
+              ? [
+                  {
+                    iddata_group_memberships: 1,
+                    data_group_id: testDataGroup1.iddata_groups,
+                    user_group_id: testUserGroup1.iduser_groups,
+                  },
+                ]
+              : [
+                  {
+                    iddata_group_memberships: 2,
+                    data_group_id: testDataGroup2.iddata_groups,
+                    user_group_id: testUserGroup2.iduser_groups,
+                  },
+                ];
+          })
+        );
+
+        sandbox.replace(
+          Model.DataGroup,
+          "findOne",
+          fake((options) => {
+            return options.where.iddata_groups === testDataGroup1.iddata_groups
+              ? testDataGroup1
+              : testDataGroup2;
+          })
+        );
+
+        sandbox.replace(
+          Model.Marker,
+          "findAll",
+          fake((options) => {
+            return options.where.data_group_id === testDataGroup1.iddata_groups
+              ? [testMarker]
+              : [];
+          })
+        );
+        sandbox.replace(
+          Model.Polygon,
+          "findAll",
+          fake((options) => {
+            return options.where.data_group_id === testDataGroup2.iddata_groups
+              ? [testPolygon]
+              : [];
+          })
+        );
+        sandbox.replace(Model.Line, "findAll", fake.resolves([]));
+
+        // Act
+
+        const result = await query.findAllDataGroupContentForUser(testUserId);
+
+        // Assert
+
+        const expectedContent = [
+          {
+            name: testUserGroup1.name,
+            id: testUserGroup1.iduser_groups,
+            dataGroups: [
+              {
+                ...testDataGroup1,
+                markers: [testMarker],
+                polygons: [],
+                lines: [],
+              },
+            ],
+          },
+          {
+            name: testUserGroup2.name,
+            id: testUserGroup2.iduser_groups,
+            dataGroups: [
+              {
+                ...testDataGroup2,
+                markers: [],
+                polygons: [testPolygon],
+                lines: [],
+              },
+            ],
+          },
+        ];
+
+        expect(result).to.deep.equal(expectedContent);
+      });
+    }
+  );
+});
