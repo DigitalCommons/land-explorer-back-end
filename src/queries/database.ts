@@ -43,7 +43,7 @@ const UserModel = sequelize.define(
 
     username: { type: DataTypes.STRING, allowNull: false },
     password: { type: DataTypes.STRING, allowNull: false },
-    access: DataTypes.INTEGER, // 1 = member, 2 = admin
+    access: DataTypes.INTEGER,
     enabled: DataTypes.INTEGER,
     is_super_user: { type: DataTypes.BOOLEAN, allowNull: false },
 
@@ -275,6 +275,10 @@ const UserGroupMembershipModel = sequelize.define(
       references: { model: UserGroupModel, key: "iduser_groups" },
       allowNull: false,
     },
+    access: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+    },
   },
   {
     tableName: "user_group_memberships",
@@ -417,6 +421,12 @@ export enum DataGroupId {
 export enum UserMapAccess {
   Readonly = 1,
   Owner = 2,
+  Readwrite = 3,
+}
+
+/* The access values in the UserGroupMembership table */
+export enum UserGroupAccess {
+  Readonly = 1,
   Readwrite = 3,
 }
 

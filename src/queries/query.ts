@@ -280,10 +280,25 @@ export const findAllDataGroupContentForUser = async (userId: number) => {
       where: {
         iduser_groups: membership.user_group_id,
       },
+      raw: true,
     });
+    userGroup.access = membership.access;
+
     // Check that user group actually exists
     if (userGroup) {
-      userGroups.push(userGroup);
+      const existingUserGroup = userGroups.find(
+        (group) => group.iduser_groups === userGroup.iduser_groups
+      );
+
+      // If the user group is already in the list, use the highest access level
+      if (existingUserGroup) {
+        existingUserGroup.access = Math.max(
+          existingUserGroup.access,
+          userGroup.access
+        );
+      } else {
+        userGroups.push(userGroup);
+      }
     }
   }
 
@@ -332,6 +347,7 @@ export const findAllDataGroupContentForUser = async (userId: number) => {
     userGroupsAndData.push({
       name: group.name,
       id: group.iduser_groups,
+      access: group.access,
       dataGroups,
     });
   }
@@ -339,13 +355,14 @@ export const findAllDataGroupContentForUser = async (userId: number) => {
   return userGroupsAndData;
 };
 
-export const hasAccessToDataGroup = async (
+export const hasWriteAccessToDataGroup = async (
   userId: number,
   dataGroupId: number
 ): Promise<boolean> => {
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
       user_id: userId,
+      access: 3,
     },
   });
 

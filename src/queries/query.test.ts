@@ -145,7 +145,7 @@ describe("findAllDataGroupContentForUser", () => {
   });
 
   context(
-    "User is in 1 user group and there is 1 public user group, each associated with 1 data group",
+    "There is a user group (1) associated with 1 data group containing 1 marker, and a user group (2) associated with a data group containing 1 polygon",
     () => {
       const testMarker = {
         idmarkers: 1,
@@ -194,46 +194,27 @@ describe("findAllDataGroupContentForUser", () => {
 
       const testUserGroup1 = {
         iduser_groups: 1,
-        name: "Test User Group 1 (Public)",
+        name: "User Group (1)",
       };
 
       const testDataGroup1 = {
         iddata_groups: 1,
-        title: "Test Data Group 1 (Public)",
+        title: "Data Group (1)",
         hex_colour: "#FF0001",
       };
 
       const testUserGroup2 = {
         iduser_groups: 2,
-        name: "Test User Group 2",
+        name: "User Group (2)",
       };
 
       const testDataGroup2 = {
         iddata_groups: 2,
-        title: "Test Data Group 2",
+        title: "Data Group (2)",
         hex_colour: "#FF0002",
       };
 
-      it("returns user groups and associated data groups with markers, polygons, and lines", async () => {
-        // Arrange
-
-        sandbox.replace(
-          Model.UserGroupMembership,
-          "findAll",
-          fake.resolves([
-            {
-              iduser_group_memberships: 1,
-              user_id: -1, // -1 means public
-              user_group_id: testUserGroup1.iduser_groups,
-            },
-            {
-              iduser_group_memberships: 2,
-              user_id: testUserId,
-              user_group_id: testUserGroup2.iduser_groups,
-            },
-          ])
-        );
-
+      beforeEach(() => {
         sandbox.replace(
           Model.UserGroup,
           "findOne",
@@ -295,17 +276,35 @@ describe("findAllDataGroupContentForUser", () => {
           })
         );
         sandbox.replace(Model.Line, "findAll", fake.resolves([]));
+      });
 
-        // Act
+      it("Returns the datagroups for a usergroup with readwrite access and a public usergroup with readonly access", async () => {
+        sandbox.replace(
+          Model.UserGroupMembership,
+          "findAll",
+          fake.resolves([
+            {
+              iduser_group_memberships: 1,
+              user_id: -1, // -1 means public
+              user_group_id: testUserGroup1.iduser_groups,
+              access: 1, // readonly access
+            },
+            {
+              iduser_group_memberships: 2,
+              user_id: testUserId,
+              user_group_id: testUserGroup2.iduser_groups,
+              access: 3, // readwrite access
+            },
+          ])
+        );
 
         const result = await query.findAllDataGroupContentForUser(testUserId);
-
-        // Assert
 
         const expectedContent = [
           {
             name: testUserGroup1.name,
             id: testUserGroup1.iduser_groups,
+            access: 1,
             dataGroups: [
               {
                 ...testDataGroup1,
@@ -318,11 +317,53 @@ describe("findAllDataGroupContentForUser", () => {
           {
             name: testUserGroup2.name,
             id: testUserGroup2.iduser_groups,
+            access: 3,
             dataGroups: [
               {
                 ...testDataGroup2,
                 markers: [],
                 polygons: [testPolygon],
+                lines: [],
+              },
+            ],
+          },
+        ];
+
+        expect(result).to.deep.equal(expectedContent);
+      });
+
+      it("Returns the higher access level if a user has readwrite access to a public usergroup", async () => {
+        sandbox.replace(
+          Model.UserGroupMembership,
+          "findAll",
+          fake.resolves([
+            {
+              iduser_group_memberships: 1,
+              user_id: -1, // -1 means public
+              user_group_id: testUserGroup1.iduser_groups,
+              access: 1, // readonly access
+            },
+            {
+              iduser_group_memberships: 2,
+              user_id: testUserId,
+              user_group_id: testUserGroup1.iduser_groups,
+              access: 3, // readwrite access
+            },
+          ])
+        );
+
+        const result = await query.findAllDataGroupContentForUser(testUserId);
+
+        const expectedContent = [
+          {
+            name: testUserGroup1.name,
+            id: testUserGroup1.iduser_groups,
+            access: 3,
+            dataGroups: [
+              {
+                ...testDataGroup1,
+                markers: [testMarker],
+                polygons: [],
                 lines: [],
               },
             ],

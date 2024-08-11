@@ -8,7 +8,7 @@ import {
   updateLine,
 } from "../queries/object";
 import {
-  hasAccessToDataGroup,
+  hasWriteAccessToDataGroup,
   findAllDataGroupContentForUser,
 } from "../queries/query";
 import { v4 as uuidv4 } from "uuid";
@@ -58,7 +58,7 @@ async function saveDataGroupMarker(
 ): Promise<ResponseObject> {
   const { object, dataGroupId } = request.payload;
 
-  const hasAccess = await hasAccessToDataGroup(
+  const hasAccess = await hasWriteAccessToDataGroup(
     request.auth.credentials.user_id,
     dataGroupId
   );
@@ -84,7 +84,7 @@ async function saveDataGroupPolygon(
 ): Promise<ResponseObject> {
   const { object, dataGroupId } = request.payload;
 
-  const hasAccess = await hasAccessToDataGroup(
+  const hasAccess = await hasWriteAccessToDataGroup(
     request.auth.credentials.user_id,
     dataGroupId
   );
@@ -113,7 +113,7 @@ async function saveDataGroupLine(
 ): Promise<ResponseObject> {
   const { object, dataGroupId } = request.payload;
 
-  const hasAccess = await hasAccessToDataGroup(
+  const hasAccess = await hasWriteAccessToDataGroup(
     request.auth.credentials.user_id,
     dataGroupId
   );
@@ -160,7 +160,7 @@ async function editDataGroupMarker(
 ): Promise<ResponseObject> {
   const { uuid, name, description, dataGroupId } = request.payload;
 
-  const hasAccess = await hasAccessToDataGroup(
+  const hasAccess = await hasWriteAccessToDataGroup(
     request.auth.credentials.user_id,
     dataGroupId
   );
@@ -179,7 +179,7 @@ async function editDataGroupPolygon(
 ): Promise<ResponseObject> {
   const { uuid, name, description, dataGroupId } = request.payload;
 
-  const hasAccess = await hasAccessToDataGroup(
+  const hasAccess = await hasWriteAccessToDataGroup(
     request.auth.credentials.user_id,
     dataGroupId
   );
@@ -198,7 +198,7 @@ async function editDataGroupLine(
 ): Promise<ResponseObject> {
   const { uuid, name, description, dataGroupId } = request.payload;
 
-  const hasAccess = await hasAccessToDataGroup(
+  const hasAccess = await hasWriteAccessToDataGroup(
     request.auth.credentials.user_id,
     dataGroupId
   );
