@@ -14,6 +14,7 @@ import {
   UserGroup,
   UserGroupMembership,
   UserFeedback,
+  UserGroupAccess,
 } from "./database";
 import { getMapMarkers, getMapPolygonsAndLines } from "../queries/map";
 import { hashPassword } from "./helper";
@@ -362,7 +363,7 @@ export const hasWriteAccessToDataGroup = async (
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
       user_id: userId,
-      access: 3,
+      access: UserGroupAccess.Readwrite,
     },
   });
 
