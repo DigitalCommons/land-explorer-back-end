@@ -14,11 +14,13 @@ import {
   UserGroup,
   UserGroupMembership,
   UserFeedback,
+  UserGroupAccess,
 } from "./database";
 import { getMapMarkers, getMapPolygonsAndLines } from "../queries/map";
 import { hashPassword } from "./helper";
 import bcrypt from "bcrypt";
 import axios from "axios";
+import { Op } from "sequelize";
 
 export const getUserById = async (id: number): Promise<typeof User | null> => {
   return await User.findOne({ where: { id } });
@@ -268,55 +270,75 @@ export const searchOwner = async (proprietorName: string) => {
 export const findAllDataGroupContentForUser = async (userId: number) => {
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
-      user_id: userId,
+      user_id: { [Op.or]: [userId, -1] }, // Include public user groups
     },
   });
 
   const userGroups: any[] = [];
 
-  for (let membership of userGroupMemberships) {
-    userGroups.push(
-      await UserGroup.findOne({
-        where: {
-          iduser_groups: membership.user_group_id,
-        },
-      })
-    );
+  for (const membership of userGroupMemberships) {
+    const userGroup = await UserGroup.findOne({
+      where: {
+        iduser_groups: membership.user_group_id,
+      },
+      raw: true,
+    });
+    userGroup.access = membership.access;
+
+    // Check that user group actually exists
+    if (userGroup) {
+      const existingUserGroup = userGroups.find(
+        (group) => group.iduser_groups === userGroup.iduser_groups
+      );
+
+      // If the user group is already in the list, use the highest access level
+      if (existingUserGroup) {
+        existingUserGroup.access = Math.max(
+          existingUserGroup.access,
+          userGroup.access
+        );
+      } else {
+        userGroups.push(userGroup);
+      }
+    }
   }
 
   const userGroupsAndData: any[] = [];
 
-  for (let group of userGroups) {
+  for (const group of userGroups) {
     const dataGroupMemberships = await DataGroupMembership.findAll({
       where: {
         user_group_id: group.iduser_groups,
       },
     });
 
-    let dataGroups: any[] = [];
+    const dataGroups: any[] = [];
 
-    for (let membership of dataGroupMemberships) {
-      dataGroups = dataGroups.concat(
-        await DataGroup.findAll({
-          where: {
-            iddata_groups: membership.data_group_id,
-          },
-        })
-      );
+    for (const membership of dataGroupMemberships) {
+      const dataGroup = await DataGroup.findOne({
+        where: {
+          iddata_groups: membership.data_group_id,
+        },
+        raw: true,
+      });
+      // Check that data group actually exists
+      if (dataGroup) {
+        dataGroups.push(dataGroup);
+      }
     }
 
-    for (let dataGroup of dataGroups) {
-      dataGroup.dataValues.markers = await Marker.findAll({
+    for (const dataGroup of dataGroups) {
+      dataGroup.markers = await Marker.findAll({
         where: {
           data_group_id: dataGroup.iddata_groups,
         },
       });
-      dataGroup.dataValues.polygons = await Polygon.findAll({
+      dataGroup.polygons = await Polygon.findAll({
         where: {
           data_group_id: dataGroup.iddata_groups,
         },
       });
-      dataGroup.dataValues.lines = await Line.findAll({
+      dataGroup.lines = await Line.findAll({
         where: {
           data_group_id: dataGroup.iddata_groups,
         },
@@ -326,6 +348,7 @@ export const findAllDataGroupContentForUser = async (userId: number) => {
     userGroupsAndData.push({
       name: group.name,
       id: group.iduser_groups,
+      access: group.access,
       dataGroups,
     });
   }
@@ -333,13 +356,14 @@ export const findAllDataGroupContentForUser = async (userId: number) => {
   return userGroupsAndData;
 };
 
-export const hasAccessToDataGroup = async (
+export const hasWriteAccessToDataGroup = async (
   userId: number,
   dataGroupId: number
 ): Promise<boolean> => {
   const userGroupMemberships = await UserGroupMembership.findAll({
     where: {
       user_id: userId,
+      access: UserGroupAccess.Readwrite,
     },
   });
 
