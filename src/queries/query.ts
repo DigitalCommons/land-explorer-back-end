@@ -202,13 +202,22 @@ export const checkAndReturnUser = async (
 
 /**
  * Return the geojson polygons of land ownership within a given bounding box area
+ * 
+ * @param sw_lng longitude of south-west corner
+ * @param sw_lat latitude of south-west corner
+ * @param ne_lng longitude of north-east corner
+ * @param ne_lat latitude of north-east corner
+ * @param type type of ownership to return, one of "all" (default), "localAuthority", "churchOfEngland" or "pending"
+ * @param acceptedOnly only matters if type is "pending". If true, only return pending polys marked as accepted
  */
 export const getPolygons = async (
   sw_lng: number,
   sw_lat: number,
   ne_lng: number,
-  ne_lat: number
-) => {
+  ne_lat: number,
+  type?: string,
+  acceptedOnly?: boolean
+): Promise<any[]> => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/boundaries`,
     {
@@ -217,33 +226,7 @@ export const getPolygons = async (
         sw_lng,
         ne_lat,
         ne_lng,
-        secret: process.env.BOUNDARY_SERVICE_SECRET,
-      },
-    }
-  );
-
-  return boundaryResponse.data;
-};
-
-/**
- * Return the pending geojson polygons of land ownership within a given bounding box area. These are
- * the new boundaries from the latest INSPIRE pipeline run that are waiting to be permanently saved.
- */
-export const getPendingPolygons = async (
-  sw_lng: number,
-  sw_lat: number,
-  ne_lng: number,
-  ne_lat: number,
-  acceptedOnly: boolean = false
-) => {
-  const boundaryResponse = await axios.get(
-    `${process.env.BOUNDARY_SERVICE_URL}/pending/boundaries`,
-    {
-      params: {
-        sw_lat,
-        sw_lng,
-        ne_lat,
-        ne_lng,
+        type,
         acceptedOnly,
         secret: process.env.BOUNDARY_SERVICE_SECRET,
       },

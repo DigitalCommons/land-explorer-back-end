@@ -10,7 +10,6 @@ import { Validation } from "../validation";
 import {
   createPublicMapView,
   getGeoJsonFeaturesForMap,
-  getPendingPolygons,
   getPolygons,
   searchOwner,
 } from "../queries/query";
@@ -34,13 +33,7 @@ import {
   updatePolygon,
   updateLine,
 } from "../queries/object";
-import {
-  Map,
-  User,
-  UserMap,
-  PendingUserMap,
-  UserMapAccess,
-} from "../queries/database";
+import { Map, User, UserMap, UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 import { EventEmitter } from "events";
 import { tryLockMap } from "../websockets/locking";
@@ -772,13 +765,19 @@ async function getUserMaps(
   }
 }
 
-type getLandOwnershipPolygonsRequest = Request & {
+type GetLandOwnershipPolygonsRequest = Request & {
   query: {
     sw_lng: number;
     sw_lat: number;
     ne_lng: number;
     ne_lat: number;
-    pending?: boolean;
+    /**
+     * The type of ownership to return, one of "all", "localAuthority", "churchOfEngland" or "pending"
+     */
+    type?: string;
+    /**
+     * Only matters if type is "pending". If true, only return pending polys marked as accepted.
+     */
     acceptedOnly?: boolean;
   };
   auth: {
@@ -792,17 +791,24 @@ type getLandOwnershipPolygonsRequest = Request & {
  * Get the geojson polygons of land ownership within a given bounding box area
  */
 async function getLandOwnershipPolygons(
-  request: Request,
+  request: GetLandOwnershipPolygonsRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  const { sw_lng, sw_lat, ne_lng, ne_lat, pending, acceptedOnly } =
-    request.query;
+  const { sw_lng, sw_lat, ne_lng, ne_lat, type, acceptedOnly } = request.query;
   const { user_id } = request.auth.credentials;
+  let polygons;
 
-  try {
-    if (pending) {
-      // Only super users should be able to view pending polygons
+  switch (type) {
+    case "all":
+    case undefined:
+    case "localAuthority":
+    case "churchOfEngland":
+      polygons = await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat, type);
+      return h.response(polygons).code(200);
+    case "pending":
+      // These are the new boundaries from the latest INSPIRE pipeline run that are waiting to be
+      // permanently saved. Only super users should be able to view pending polygons.
       const hasAccess = await User.findOne({
         where: {
           id: user_id,
@@ -813,23 +819,17 @@ async function getLandOwnershipPolygons(
         return h.response("Unauthorised!").code(403);
       }
 
-      const polygons = await getPendingPolygons(
+      polygons = await getPolygons(
         sw_lng,
         sw_lat,
         ne_lng,
         ne_lat,
+        type,
         acceptedOnly
       );
-
       return h.response(polygons).code(200);
-    } else {
-      const polygons = await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat);
-
-      return h.response(polygons).code(200);
-    }
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
+    default:
+      return h.response("unknown ownership type").code(400);
   }
 }
 
