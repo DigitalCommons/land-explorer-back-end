@@ -6,6 +6,7 @@ import { UserMapAccess } from "../queries/database";
 
 // Dependencies to be stubbed
 const Model = require("../queries/database");
+const query = require("../queries/query");
 
 const sandbox = createSandbox();
 
@@ -172,4 +173,121 @@ describe("GET /api/user/maps", () => {
       });
     }
   );
+});
+
+describe("GET /api/ownership", () => {
+  let server: Server;
+
+  const getLandOwnershipPolygonsRequest = {
+    method: "GET",
+    url: "/api/ownership",
+    auth: {
+      strategy: "simple",
+      credentials: {
+        user_id: 123,
+      },
+    },
+  };
+
+  beforeEach(async () => {
+    server = await init();
+    sandbox.replace(query, "getPolygons", fake.resolves([]));
+    getLandOwnershipPolygonsRequest.url =
+      "/api/ownership?sw_lng=0.3&sw_lat=53.2&ne_lng=0.4&ne_lat=53.3";
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    sandbox.restore();
+  });
+
+  context("User is a super user", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        Model.User,
+        "findOne",
+        fake.resolves({
+          id: 1,
+          username: "user1@mail.coop",
+          is_super_user: 1,
+        })
+      );
+    });
+
+    it("getting all polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=all";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting undefined type (i.e. all) polygons returns status 200", async () => {
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting localAuthority polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=localAuthority";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting churchOfEngland polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=churchOfEngland";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting pending polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=pending";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting unknown type of polygons returns status 400", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=aharheh";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(400);
+    });
+  });
+
+  context(`User is not a super user`, () => {
+    beforeEach(() => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(null));
+    });
+
+    it("getting all polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=all";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting undefined type (i.e. all) polygons returns status 200", async () => {
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting localAuthority polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=localAuthority";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting churchOfEngland polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=churchOfEngland";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting pending polygons returns status 403", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=pending";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(403);
+    });
+
+    it("getting unknown type of polygons returns status 400", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=kdukukg";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(400);
+    });
+  });
 });
