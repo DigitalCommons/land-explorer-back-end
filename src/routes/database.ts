@@ -52,7 +52,6 @@ async function registerUser(
   await migrateGuestUserMap(user);
 
   // sent register email
-  console.log(request.payload);
   mailer.sendRegisterEmail(
     request.payload.username,
     request.payload.firstName,

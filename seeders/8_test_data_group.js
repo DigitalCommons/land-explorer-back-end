@@ -61,10 +61,13 @@ module.exports = {
         }])
 
 
-        return queryInterface.bulkInsert('user_group_memberships', [{
+        return queryInterface.bulkInsert("user_group_memberships", [
+          {
             user_group_id: testUserGroupId,
-            user_id: testUserId
-        }]);
+            user_id: testUserId,
+            access: 3,
+          },
+        ]);
     },
 
     down: (queryInterface, Sequelize) => {
