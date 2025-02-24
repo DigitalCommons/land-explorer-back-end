@@ -51,98 +51,108 @@ describe("GET /api/user/datagroups", () => {
     });
 
     context("User has one usergroup with one datagroup with one polygon", () => {
-        beforeEach(()=>{
-            const userGroupMemberships = [{user_group_id: 1, access: 1}];
-            sandbox.replace(Model.UserGroupMembership,"findAll",fake.resolves(userGroupMemberships));
-            
-            const userGroup = {iduser_groups: 1, name: "test user group" };
-            sandbox.replace(Model.UserGroup, "findOne",fake.resolves(userGroup));
-            
-            const dataGroupMemberships = [{user_group_id: 1}];
-            sandbox.replace(Model.DataGroupMembership,"findAll",fake.resolves(dataGroupMemberships));
-            
-            const dataGroup = {iddata_groups: 1, show_marker_in_polys: true, name: "test data group"};
-            sandbox.replace(Model.DataGroup,"findOne",fake.resolves(dataGroup));
-            
-            const polygons = [{
-                idpolygons: 1,
-                name: "test polygon",
-                description: "beautiful test polygon",
-                data_group_id: 1,
-                vertices: {"type":"Polygon","coordinates":[[[-1.143789225981891,52.60784581928385],[-1.149024679300993,52.60293952745337],[-1.1385086394440975,52.60293952745337],[-1.143789225981891,52.60784581928385]]]},
-                center: [-1.1438320245605098,52.604911886975856],
-                length: 2.0120302126744383,
-                area: 194143.14948973656,
-                uuid: "7e4491b9-cf35-4015-b041-205706694dba",
-              }
-            ]
-            sandbox.replace(Model.Polygon,"findAll", fake.resolves(polygons));
-        
-            sandbox.replace(Model.Marker,"findAll", fake.resolves([]));
-            sandbox.replace(Model.Line,"findAll", fake.resolves([]));
-        })
+        beforeEach(() => {
+          const userGroupMemberships = [{ user_group_id: 1, access: 3 }];
+          sandbox.replace(
+            Model.UserGroupMembership,
+            "findAll",
+            fake.resolves(userGroupMemberships)
+          );
+
+          const userGroup = { iduser_groups: 1, name: "test user group" };
+          sandbox.replace(Model.UserGroup, "findOne", fake.resolves(userGroup));
+
+          const dataGroupMemberships = [{ user_group_id: 1 }];
+          sandbox.replace(
+            Model.DataGroupMembership,
+            "findAll",
+            fake.resolves(dataGroupMemberships)
+          );
+
+          const dataGroup = {
+            iddata_groups: 1,
+            show_marker_in_polys: true,
+            name: "test data group",
+          };
+          sandbox.replace(Model.DataGroup, "findOne", fake.resolves(dataGroup));
+
+          const polygons = [
+            {
+              idpolygons: 1,
+              name: "test polygon",
+              description: "beautiful test polygon",
+              data_group_id: 1,
+              vertices: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [-1.143789225981891, 52.60784581928385],
+                    [-1.149024679300993, 52.60293952745337],
+                    [-1.1385086394440975, 52.60293952745337],
+                    [-1.143789225981891, 52.60784581928385],
+                  ],
+                ],
+              },
+              center: [-1.1438320245605098, 52.604911886975856],
+              length: 2.0120302126744383,
+              area: 194143.14948973656,
+              uuid: "7e4491b9-cf35-4015-b041-205706694dba",
+            },
+          ];
+          sandbox.replace(Model.Polygon, "findAll", fake.resolves(polygons));
+
+          sandbox.replace(Model.Marker, "findAll", fake.resolves([]));
+          sandbox.replace(Model.Line, "findAll", fake.resolves([]));
+        });
 
         it("returns status 200", async () => {
-            const res = await server.inject(getUserDataGroupsRequest);
-      
-            expect(res.statusCode).to.equal(200);
+          const res = await server.inject(getUserDataGroupsRequest);
+
+          expect(res.statusCode).to.equal(200);
         });
 
         it("1 datagroup is returned, containing the polygon", async () => {
-            const res = await server.inject(getUserDataGroupsRequest);
+          const res = await server.inject(getUserDataGroupsRequest);
 
-            expect(res.result).to.deep.equal([{
-                    "access": 1,
-                    "dataGroups": [
-                      {
-                        "iddata_groups": 1,
-                        "lines": [],
-                        "markers": [],
-                        "name": "test data group",
-                        "polygons": [
-                         {
-                            "area": 194143.14948973656,
-                            "center": [
-                              -1.1438320245605098,
-                              52.604911886975856
-                            ],
-                            "data_group_id": 1,
-                            "description": "beautiful test polygon",
-                            "idpolygons": 1,
-                            "length": 2.0120302126744383,
-                            "name": "test polygon",
-                            "uuid": "7e4491b9-cf35-4015-b041-205706694dba",
-                            "vertices": {
-                              "coordinates": [
-                                [
-                                  [
-                                    -1.143789225981891,
-                                    52.60784581928385
-                                  ],
-                                  [
-                                    -1.149024679300993,
-                                    52.60293952745337
-                                  ],
-                                  [
-                                    -1.1385086394440975,
-                                    52.60293952745337
-                                  ],
-                                  [
-                                    -1.143789225981891,
-                                    52.60784581928385
-                                  ]
-                                ]
-                              ],
-                              "type": "Polygon"
-                            }
-                          }
+          expect(res.result).to.deep.equal([
+            {
+              access: 3,
+              dataGroups: [
+                {
+                  iddata_groups: 1,
+                  lines: [],
+                  markers: [],
+                  name: "test data group",
+                  polygons: [
+                    {
+                      area: 194143.14948973656,
+                      center: [-1.1438320245605098, 52.604911886975856],
+                      data_group_id: 1,
+                      description: "beautiful test polygon",
+                      idpolygons: 1,
+                      length: 2.0120302126744383,
+                      name: "test polygon",
+                      uuid: "7e4491b9-cf35-4015-b041-205706694dba",
+                      vertices: {
+                        coordinates: [
+                          [
+                            [-1.143789225981891, 52.60784581928385],
+                            [-1.149024679300993, 52.60293952745337],
+                            [-1.1385086394440975, 52.60293952745337],
+                            [-1.143789225981891, 52.60784581928385],
+                          ],
                         ],
-                        "show_marker_in_polys": true
-                      }
-                    ],
-                    "id": 1,
-                    "name": "test user group"
-            }]);
-        })
+                        type: "Polygon",
+                      },
+                    },
+                  ],
+                  show_marker_in_polys: true,
+                },
+              ],
+              id: 1,
+              name: "test user group",
+            },
+          ]);
+        });
     })
 })
