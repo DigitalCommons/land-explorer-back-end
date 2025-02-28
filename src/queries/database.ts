@@ -124,6 +124,11 @@ const DataGroupModel = sequelize.define(
     },
     title: { type: DataTypes.STRING },
     hex_colour: { type: DataTypes.STRING },
+    show_marker_in_polys: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: 0,
+    },
   },
   {
     tableName: "data_groups",
