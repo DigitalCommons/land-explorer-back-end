@@ -79,50 +79,43 @@ async function loginUser(
 ): Promise<ResponseObject> {
   console.log("login user");
 
-  try {
-    const { username, password, reset_token } = request.payload;
-    const { success, user, errorMessage } = await checkAndReturnUser(
-      username,
-      password,
-      reset_token
+  const { username, password, reset_token } = request.payload;
+  const { success, user, errorMessage } = await checkAndReturnUser(
+    username,
+    password,
+    reset_token
+  );
+
+  if (success) {
+    const expiry_day: number = parseInt(process.env.TOKEN_EXPIRY_DAYS || "10");
+
+    const secretKey: string = process.env.TOKEN_KEY || "";
+
+    // Create token
+    const token = jwt.sign(
+      {
+        user_id: user.id,
+        username: user.username,
+        council_id: user.council_id,
+        is_super_user:
+          user.is_super_user && user.is_super_user[0] == "1" ? 1 : 0,
+        enabled: user.enabled && user.enabled[0] == "1" ? 1 : 0,
+        marketing: user.enabled && user.enabled[0] == "1" ? 1 : 0,
+      },
+      secretKey,
+      {
+        expiresIn: expiry_day + "d",
+      }
     );
 
-    if (success) {
-      const expiry_day: number = parseInt(
-        process.env.TOKEN_EXPIRY_DAYS || "10"
-      );
-
-      const secretKey: string = process.env.TOKEN_KEY || "";
-
-      // Create token
-      const token = jwt.sign(
-        {
-          user_id: user.id,
-          username: user.username,
-          council_id: user.council_id,
-          is_super_user:
-            user.is_super_user && user.is_super_user[0] == "1" ? 1 : 0,
-          enabled: user.enabled && user.enabled[0] == "1" ? 1 : 0,
-          marketing: user.enabled && user.enabled[0] == "1" ? 1 : 0,
-        },
-        secretKey,
-        {
-          expiresIn: expiry_day + "d",
-        }
-      );
-
-      return h.response({
-        access_token: token,
-        token_type: "bearer",
-        expires_in: expiry_day * 24 * 60 * 60,
-      });
-    }
-
-    return h.response({ message: errorMessage }).code(401);
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
+    return h.response({
+      access_token: token,
+      token_type: "bearer",
+      expires_in: expiry_day * 24 * 60 * 60,
+    });
   }
+
+  return h.response({ message: errorMessage }).code(401);
 }
 
 type UserDetailsRequest = Request & {
@@ -143,41 +136,35 @@ async function getAuthUserDetails(
 ): Promise<ResponseObject> {
   let user: typeof User;
 
-  try {
-    user = await getUserById(request.auth.credentials.user_id);
+  user = await getUserById(request.auth.credentials.user_id);
 
-    if (!user) {
-      return h.response("please re-authenticate").code(401);
-    }
-
-    const initials =
-      (user.first_name || "?")[0].toUpperCase() +
-      (user.last_name || "?")[0].toUpperCase();
-
-    return h.response({
-      id: user.id ?? "",
-      username: user.username,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      initials,
-      marketing: user.marketing ? 1 : 0,
-      organisation: user.organisation ?? "",
-      organisationNumber: user.organisation_number ?? "",
-      organisationType: user.organisation_type ?? "",
-      organisationActivity: user.organisation_activity ?? "",
-      address1: user.address1 ?? "",
-      address2: user.address2 ?? "",
-      city: user.city ?? "",
-      postcode: user.postcode ?? "",
-      phone: user.phone ?? "",
-      council_id: user.council_id ?? 0,
-      is_super_user: user.is_super_user ?? 0,
-    });
-  } catch (err: any) {
-    console.log(err.message);
-
-    return h.response("internal server error!").code(500);
+  if (!user) {
+    return h.response("please re-authenticate").code(401);
   }
+
+  const initials =
+    (user.first_name || "?")[0].toUpperCase() +
+    (user.last_name || "?")[0].toUpperCase();
+
+  return h.response({
+    id: user.id ?? "",
+    username: user.username,
+    firstName: user.first_name,
+    lastName: user.last_name,
+    initials,
+    marketing: user.marketing ? 1 : 0,
+    organisation: user.organisation ?? "",
+    organisationNumber: user.organisation_number ?? "",
+    organisationType: user.organisation_type ?? "",
+    organisationActivity: user.organisation_activity ?? "",
+    address1: user.address1 ?? "",
+    address2: user.address2 ?? "",
+    city: user.city ?? "",
+    postcode: user.postcode ?? "",
+    phone: user.phone ?? "",
+    council_id: user.council_id ?? 0,
+    is_super_user: user.is_super_user ?? 0,
+  });
 }
 
 /**
@@ -197,19 +184,14 @@ async function changeEmail(
 
   let payload: any = request.payload;
 
-  try {
-    await User.update(
-      { username: payload.username },
-      {
-        where: {
-          id: request.auth.credentials.user_id,
-        },
-      }
-    );
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
-  }
+  await User.update(
+    { username: payload.username },
+    {
+      where: {
+        id: request.auth.credentials.user_id,
+      },
+    }
+  );
 
   return h.response().code(200);
 }
@@ -231,30 +213,25 @@ async function changeUserDetail(
 
   let payload: any = request.payload;
 
-  try {
-    await User.update(
-      {
-        first_name: payload.firstName,
-        last_name: payload.lastName,
-        address1: payload.address1,
-        address2: payload.address2,
-        postcode: payload.postcode,
-        phone: payload.phone,
-        organisation: payload.organisation,
-        organisation_number: payload.organisationNumber,
-        organisation_type: payload.organisationType,
-        organisation_activity: payload.organisationActivity,
+  await User.update(
+    {
+      first_name: payload.firstName,
+      last_name: payload.lastName,
+      address1: payload.address1,
+      address2: payload.address2,
+      postcode: payload.postcode,
+      phone: payload.phone,
+      organisation: payload.organisation,
+      organisation_number: payload.organisationNumber,
+      organisation_type: payload.organisationType,
+      organisation_activity: payload.organisationActivity,
+    },
+    {
+      where: {
+        id: request.auth.credentials.user_id,
       },
-      {
-        where: {
-          id: request.auth.credentials.user_id,
-        },
-      }
-    );
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
-  }
+    }
+  );
 
   return h.response().code(200);
 }
@@ -282,19 +259,14 @@ async function changePassword(
     return h.response(validation.errors).code(400);
   }
 
-  try {
-    await User.update(
-      { password: hashPassword(password) },
-      {
-        where: {
-          id: request.auth.credentials.user_id,
-        },
-      }
-    );
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
-  }
+  await User.update(
+    { password: hashPassword(password) },
+    {
+      where: {
+        id: request.auth.credentials.user_id,
+      },
+    }
+  );
 
   return h.response().code(200);
 }
@@ -315,46 +287,41 @@ async function resetPassword(
 ): Promise<ResponseObject> {
   const { username } = request.payload;
 
-  try {
-    let user = await getUserByEmail(username);
+  let user = await getUserByEmail(username);
 
-    if (!user) {
-      // To avoid username guesses by a hacker, just return 200 OK
-      return h.response().code(200);
-    }
-
-    // Generate a one-time token and store this in the database.
-    // Before this, remove any existing tokens for this user.
-    await PasswordResetToken.destroy({
-      where: { user_id: user.id },
-    });
-
-    const passwordResetToken = await generateRandomToken();
-
-    await PasswordResetToken.create({
-      user_id: user.id,
-      token: passwordResetToken,
-      expires: Date.now() + RESET_PASSWORD_EXPIRY_HOURS * 3600 * 1000, // UNIX timestamp in ms
-    });
-
-    // Use the token to build the reset link
-    const passwordResetLink = `https://${
-      request.info.host
-    }/auth?email=${encodeURIComponent(
-      username
-    )}&reset_token=${passwordResetToken}`;
-
-    // Send email
-    mailer.sendResetPasswordEmail(
-      username,
-      user.first_name,
-      passwordResetLink,
-      RESET_PASSWORD_EXPIRY_HOURS
-    );
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
+  if (!user) {
+    // To avoid username guesses by a hacker, just return 200 OK
+    return h.response().code(200);
   }
+
+  // Generate a one-time token and store this in the database.
+  // Before this, remove any existing tokens for this user.
+  await PasswordResetToken.destroy({
+    where: { user_id: user.id },
+  });
+
+  const passwordResetToken = await generateRandomToken();
+
+  await PasswordResetToken.create({
+    user_id: user.id,
+    token: passwordResetToken,
+    expires: Date.now() + RESET_PASSWORD_EXPIRY_HOURS * 3600 * 1000, // UNIX timestamp in ms
+  });
+
+  // Use the token to build the reset link
+  const passwordResetLink = `https://${
+    request.info.host
+  }/auth?email=${encodeURIComponent(
+    username
+  )}&reset_token=${passwordResetToken}`;
+
+  // Send email
+  mailer.sendResetPasswordEmail(
+    username,
+    user.first_name,
+    passwordResetLink,
+    RESET_PASSWORD_EXPIRY_HOURS
+  );
 
   return h.response().code(200);
 }
@@ -387,20 +354,15 @@ async function userFeedback(
 
   let payload: any = request.payload;
 
-  try {
-    let userFeedback = await createUserFeedback(
-      payload.question1,
-      payload.question2,
-      payload.question3,
-      payload.question4,
-      request.auth.credentials.user_id
-    );
+  const userFeedback = await createUserFeedback(
+    payload.question1,
+    payload.question2,
+    payload.question3,
+    payload.question4,
+    request.auth.credentials.user_id
+  );
 
-    return h.response(userFeedback).code(200);
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
-  }
+  return h.response(userFeedback).code(200);
 }
 
 export const databaseRoutes: ServerRoute[] = [
