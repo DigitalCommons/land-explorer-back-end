@@ -6,6 +6,6 @@
   "mocha-snippets.quote-type": "double",
   "mocha-snippets.glob": "**/*.test.ts",
   "editor.formatOnSave": true,
-  "editor.formatOnSaveMode": "modifications",
+  "editor.formatOnSaveMode": "modificationsIfAvailable",
   "editor.defaultFormatter": "esbenp.prettier-vscode"
 }
