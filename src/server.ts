@@ -1,5 +1,9 @@
 "use strict";
+// Import this first!
+import "./instrument";
 
+// Now import other modules
+import * as Sentry from "@sentry/node";
 import Hapi from "@hapi/hapi";
 import { Request, Server } from "@hapi/hapi";
 import { databaseRoutes } from "./routes/database";
@@ -87,6 +91,8 @@ export const init = async function (): Promise<Server> {
   });
 
   setupWebsockets(server);
+
+  await Sentry.setupHapiErrorHandler(server);
 
   return server;
 };
