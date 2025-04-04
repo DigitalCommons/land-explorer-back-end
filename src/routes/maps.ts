@@ -77,53 +77,48 @@ async function saveMap(
     return h.response(validation.errors).code(400);
   }
 
-  try {
-    const { eid, name, data, isSnapshot } = request.payload;
-    const userId = request.auth.credentials.user_id;
+  const { eid, name, data, isSnapshot } = request.payload;
+  const userId = request.auth.credentials.user_id;
 
-    // eid provided means update map
-    const isUpdate = eid !== null;
+  // eid provided means update map
+  const isUpdate = eid !== null;
 
-    if (isUpdate) {
-      // check that the map exists and isn't a snapshot
-      const existsAndEditable = await Map.findOne({
-        where: {
-          id: eid,
-          is_snapshot: { [Op.or]: [false, null] },
-        },
-      });
+  if (isUpdate) {
+    // check that the map exists and isn't a snapshot
+    const existsAndEditable = await Map.findOne({
+      where: {
+        id: eid,
+        is_snapshot: { [Op.or]: [false, null] },
+      },
+    });
 
-      if (existsAndEditable === null) {
-        return h.response("Map not found").code(404);
-      }
-
-      // check that user has permission to update the map
-      const hasAccess = await UserMap.findOne({
-        where: {
-          map_id: eid,
-          access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-          user_id: userId,
-        },
-      });
-
-      if (hasAccess === null) {
-        return h.response("Unauthorised").code(403);
-      }
-
-      // Try to acquire lock for user
-      const success = await tryLockMap(eid, userId);
-      if (!success) {
-        return h.response("Map is locked").code(503);
-      }
-
-      await updateMap(eid, name, data);
-    } else {
-      const newMapId = await createMap(name, data, userId, isSnapshot);
-      await tryLockMap(newMapId, userId);
+    if (existsAndEditable === null) {
+      return h.response("Map not found").code(404);
     }
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
+
+    // check that user has permission to update the map
+    const hasAccess = await UserMap.findOne({
+      where: {
+        map_id: eid,
+        access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+        user_id: userId,
+      },
+    });
+
+    if (hasAccess === null) {
+      return h.response("Unauthorised").code(403);
+    }
+
+    // Try to acquire lock for user
+    const success = await tryLockMap(eid, userId);
+    if (!success) {
+      return h.response("Map is locked").code(503);
+    }
+
+    await updateMap(eid, name, data);
+  } else {
+    const newMapId = await createMap(name, data, userId, isSnapshot);
+    await tryLockMap(newMapId, userId);
   }
 
   return h.response().code(200);
@@ -440,24 +435,19 @@ async function setMapAsViewed(
     return h.response(validation.errors).code(400);
   }
 
-  try {
-    let payload: any = request.payload;
+  let payload: any = request.payload;
 
-    await UserMap.update(
-      {
-        viewed: 1,
+  await UserMap.update(
+    {
+      viewed: 1,
+    },
+    {
+      where: {
+        user_id: request.auth.credentials.user_id,
+        map_id: payload.eid,
       },
-      {
-        where: {
-          user_id: request.auth.credentials.user_id,
-          map_id: payload.eid,
-        },
-      }
-    );
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
-  }
+    }
+  );
 
   return h.response().code(200);
 }
@@ -483,33 +473,28 @@ async function getMapSharedTo(
 ): Promise<ResponseObject> {
   const { eid } = request.params;
 
-  try {
-    let userMap = await UserMap.findOne({
-      where: {
-        user_id: request.auth.credentials.user_id,
-        map_id: eid,
-      },
-      include: [{ model: Map }, { model: User }],
-    });
+  let userMap = await UserMap.findOne({
+    where: {
+      user_id: request.auth.credentials.user_id,
+      map_id: eid,
+    },
+    include: [{ model: Map }, { model: User }],
+  });
 
-    if (!userMap || userMap.Map.deleted) {
-      return h.response("Map not found").code(404);
-    }
-
-    if (userMap.access !== UserMapAccess.Owner) {
-      return h.response("Unauthorised!").code(403);
-    }
-
-    const userEmailsWithSharedMapAccess: {
-      email: string;
-      access: UserMapAccess;
-    }[] = await getUserEmailsWithSharedMapAccess(eid);
-
-    return h.response(userEmailsWithSharedMapAccess);
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
+  if (!userMap || userMap.Map.deleted) {
+    return h.response("Map not found").code(404);
   }
+
+  if (userMap.access !== UserMapAccess.Owner) {
+    return h.response("Unauthorised!").code(403);
+  }
+
+  const userEmailsWithSharedMapAccess: {
+    email: string;
+    access: UserMapAccess;
+  }[] = await getUserEmailsWithSharedMapAccess(eid);
+
+  return h.response(userEmailsWithSharedMapAccess);
 }
 
 type ShareMapRequest = Request & {
@@ -542,87 +527,82 @@ async function shareMap(
     return h.response(validation.errors).code(400);
   }
 
-  try {
-    const { eid, users } = request.payload;
+  const { eid, users } = request.payload;
 
-    // email address comparison should be case insensitive
-    const newUsersWithSharedMapAccess = users.map(({ email, access }) => ({
+  // email address comparison should be case insensitive
+  const newUsersWithSharedMapAccess = users.map(({ email, access }) => ({
+    email: email.toLowerCase(),
+    access,
+  }));
+
+  let userMap = await UserMap.findOne({
+    where: {
+      user_id: request.auth.credentials.user_id,
+      map_id: eid,
+    },
+    include: [{ model: Map }, { model: User }],
+  });
+
+  if (!userMap || userMap.Map.deleted) {
+    return h.response("Map not found").code(404);
+  }
+
+  if (userMap.access !== UserMapAccess.Owner) {
+    return h.response("Unauthorised!").code(403);
+  }
+
+  const oldUsersWithSharedMapAccess: {
+    email: string;
+    access: UserMapAccess;
+  }[] = (await getUserEmailsWithSharedMapAccess(eid)).map(
+    ({ email, access }) => ({
       email: email.toLowerCase(),
       access,
-    }));
+    })
+  );
 
-    let userMap = await UserMap.findOne({
-      where: {
-        user_id: request.auth.credentials.user_id,
-        map_id: eid,
-      },
-      include: [{ model: Map }, { model: User }],
-    });
-
-    if (!userMap || userMap.Map.deleted) {
-      return h.response("Map not found").code(404);
-    }
-
-    if (userMap.access !== UserMapAccess.Owner) {
-      return h.response("Unauthorised!").code(403);
-    }
-
-    const oldUsersWithSharedMapAccess: {
-      email: string;
-      access: UserMapAccess;
-    }[] = (await getUserEmailsWithSharedMapAccess(eid)).map(
-      ({ email, access }) => ({
-        email: email.toLowerCase(),
-        access,
-      })
+  // Get emails that need to be removed from the DB (access has been completely revoked)
+  const emailsToRemove = oldUsersWithSharedMapAccess
+    .map((oldUser) => oldUser.email)
+    .filter(
+      (oldEmail) =>
+        !newUsersWithSharedMapAccess
+          .map((newUser) => newUser.email)
+          .includes(oldEmail)
     );
 
-    // Get emails that need to be removed from the DB (access has been completely revoked)
-    const emailsToRemove = oldUsersWithSharedMapAccess
-      .map((oldUser) => oldUser.email)
-      .filter(
-        (oldEmail) =>
-          !newUsersWithSharedMapAccess
-            .map((newUser) => newUser.email)
-            .includes(oldEmail)
-      );
+  console.log("emails to remove", emailsToRemove);
+  await deleteMapAccessByEmails(eid, emailsToRemove);
 
-    console.log("emails to remove", emailsToRemove);
-    await deleteMapAccessByEmails(eid, emailsToRemove);
+  // Get new users or users that have changes to their access level
+  const usersToChangeAccess = [];
+  const newUsersToGrantAccess = [];
 
-    // Get new users or users that have changes to their access level
-    const usersToChangeAccess = [];
-    const newUsersToGrantAccess = [];
-
-    for (const newUser of newUsersWithSharedMapAccess) {
-      const oldUser = oldUsersWithSharedMapAccess.find(
-        (oldUser) => oldUser.email === newUser.email
-      );
-      if (oldUser) {
-        if (oldUser.access !== newUser.access) {
-          usersToChangeAccess.push(newUser);
-        }
-      } else {
-        newUsersToGrantAccess.push(newUser);
+  for (const newUser of newUsersWithSharedMapAccess) {
+    const oldUser = oldUsersWithSharedMapAccess.find(
+      (oldUser) => oldUser.email === newUser.email
+    );
+    if (oldUser) {
+      if (oldUser.access !== newUser.access) {
+        usersToChangeAccess.push(newUser);
       }
-
-      console.log("users to change access", usersToChangeAccess);
-      await grantMapAccessByEmails(eid, usersToChangeAccess, false);
-
-      console.log(
-        "new users to grant access (and send email notification)",
-        newUsersToGrantAccess
-      );
-      await grantMapAccessByEmails(
-        eid,
-        newUsersToGrantAccess,
-        true,
-        originDomain
-      );
+    } else {
+      newUsersToGrantAccess.push(newUser);
     }
-  } catch (err: any) {
-    console.log(err.message, err.stack);
-    return h.response("internal server error!").code(500);
+
+    console.log("users to change access", usersToChangeAccess);
+    await grantMapAccessByEmails(eid, usersToChangeAccess, false);
+
+    console.log(
+      "new users to grant access (and send email notification)",
+      newUsersToGrantAccess
+    );
+    await grantMapAccessByEmails(
+      eid,
+      newUsersToGrantAccess,
+      true,
+      originDomain
+    );
   }
 
   return h.response().code(200);
@@ -648,39 +628,34 @@ async function deleteMap(
     return h.response(validation.errors).code(400);
   }
 
-  try {
-    let payload: any = request.payload;
+  let payload: any = request.payload;
 
-    let userMap = await UserMap.findOne({
-      where: {
-        user_id: request.auth.credentials.user_id,
-        map_id: payload.eid,
-      },
-      include: [Map, User],
-    });
+  let userMap = await UserMap.findOne({
+    where: {
+      user_id: request.auth.credentials.user_id,
+      map_id: payload.eid,
+    },
+    include: [Map, User],
+  });
 
-    if (!userMap || userMap.Map.deleted) {
-      return h.response("Map not found").code(404);
-    }
-
-    if (userMap.access !== UserMapAccess.Owner) {
-      return h.response("Unauthorised!").code(403);
-    }
-
-    await Map.update(
-      {
-        deleted: 1,
-      },
-      {
-        where: {
-          id: payload.eid,
-        },
-      }
-    );
-  } catch (err: any) {
-    console.log(err.message);
-    return h.response("internal server error!").code(500);
+  if (!userMap || userMap.Map.deleted) {
+    return h.response("Map not found").code(404);
   }
+
+  if (userMap.access !== UserMapAccess.Owner) {
+    return h.response("Unauthorised!").code(403);
+  }
+
+  await Map.update(
+    {
+      deleted: 1,
+    },
+    {
+      where: {
+        id: payload.eid,
+      },
+    }
+  );
 
   return h.response().code(200);
 }
@@ -695,74 +670,69 @@ async function getUserMaps(
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
 
-  try {
-    const allMaps = await Map.findAll({
-      where: {
-        "$UserMaps.user_id$": userId,
-        deleted: 0,
+  const allMaps = await Map.findAll({
+    where: {
+      "$UserMaps.user_id$": userId,
+      deleted: 0,
+    },
+    include: [
+      {
+        model: UserMap,
+        as: "UserMaps",
       },
-      include: [
-        {
-          model: UserMap,
-          as: "UserMaps",
-        },
-      ],
-      order: [
-        ["id", "ASC"],
-        [UserMap, "access", "ASC"],
-      ],
-    });
+    ],
+    order: [
+      ["id", "ASC"],
+      [UserMap, "access", "ASC"],
+    ],
+  });
 
-    const allMapsData = [];
+  const allMapsData = [];
 
-    for (const map of allMaps) {
-      const mapData = await JSON.parse(map.data);
+  for (const map of allMaps) {
+    const mapData = await JSON.parse(map.data);
 
-      // get all drawings, including those in separate DB tables
-      mapData.markers.markers = await getMapMarkers(map.id);
-      mapData.drawings.polygons = await getMapPolygonsAndLines(map.id);
+    // get all drawings, including those in separate DB tables
+    mapData.markers.markers = await getMapMarkers(map.id);
+    mapData.drawings.polygons = await getMapPolygonsAndLines(map.id);
 
-      // landDataLayers field used to be called activeLayers
-      if (mapData.mapLayers.activeLayers) {
-        mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
-        delete mapData.mapLayers.activeLayers;
-      }
-      // fix that some old maps may not have dataLayers field
-      if (!mapData.mapLayers.myDataLayers) {
-        mapData.mapLayers.myDataLayers = [];
-      }
-
-      map.data = JSON.stringify(mapData);
-
-      const myUserMap = map.UserMaps[0];
-      let sharedWith: { email: string; access: UserMapAccess }[] = [];
-
-      // If we are the owner, get emails with whom we have shared this map
-      if (myUserMap.access === UserMapAccess.Owner) {
-        sharedWith = await getUserEmailsWithSharedMapAccess(map.id);
-      }
-
-      allMapsData.push({
-        map: {
-          eid: map.id,
-          name: map.name,
-          data: map.data,
-          createdDate: map.created_date,
-          lastModified: map.last_modified,
-          sharedWith: sharedWith,
-          isSnapshot: map.is_snapshot,
-        },
-        accessGrantedDate: myUserMap.created_date,
-        access: myUserMap.access,
-        viewed: myUserMap.viewed == 1,
-      });
+    // landDataLayers field used to be called activeLayers
+    if (mapData.mapLayers.activeLayers) {
+      mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
+      delete mapData.mapLayers.activeLayers;
+    }
+    // fix that some old maps may not have dataLayers field
+    if (!mapData.mapLayers.myDataLayers) {
+      mapData.mapLayers.myDataLayers = [];
     }
 
-    return h.response(allMapsData).code(200);
-  } catch (err: any) {
-    console.error("error getting user maps:", err.message);
-    return h.response("internal server error!").code(500);
+    map.data = JSON.stringify(mapData);
+
+    const myUserMap = map.UserMaps[0];
+    let sharedWith: { email: string; access: UserMapAccess }[] = [];
+
+    // If we are the owner, get emails with whom we have shared this map
+    if (myUserMap.access === UserMapAccess.Owner) {
+      sharedWith = await getUserEmailsWithSharedMapAccess(map.id);
+    }
+
+    allMapsData.push({
+      map: {
+        eid: map.id,
+        name: map.name,
+        data: map.data,
+        createdDate: map.created_date,
+        lastModified: map.last_modified,
+        sharedWith: sharedWith,
+        isSnapshot: map.is_snapshot,
+      },
+      accessGrantedDate: myUserMap.created_date,
+      access: myUserMap.access,
+      viewed: myUserMap.viewed == 1,
+    });
   }
+
+  return h.response(allMapsData).code(200);
 }
 
 type GetLandOwnershipPolygonsRequest = Request & {
