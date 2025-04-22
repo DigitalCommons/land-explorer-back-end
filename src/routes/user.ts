@@ -17,6 +17,7 @@ import {
 } from "../queries/query";
 import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
+import { LoggedInRequest } from "./request_types";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
@@ -118,19 +119,11 @@ async function loginUser(
   return h.response({ message: errorMessage }).code(401);
 }
 
-type UserDetailsRequest = Request & {
-  auth: {
-    credentials: {
-      user_id: number;
-    };
-  };
-};
-
 /**
  * Return the details of authenticated user
  */
 async function getAuthUserDetails(
-  request: UserDetailsRequest,
+  request: LoggedInRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
@@ -171,7 +164,7 @@ async function getAuthUserDetails(
  * Update the email of autheticated user
  */
 async function changeEmail(
-  request: Request,
+  request: LoggedInRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
@@ -200,7 +193,7 @@ async function changeEmail(
  * Change the user detail of the authenticated user
  */
 async function changeUserDetail(
-  request: Request,
+  request: LoggedInRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
@@ -236,7 +229,7 @@ async function changeUserDetail(
   return h.response().code(200);
 }
 
-type ChangePasswordRequest = Request & {
+type ChangePasswordRequest = LoggedInRequest & {
   payload: {
     password: string;
   };
@@ -326,17 +319,12 @@ async function resetPassword(
   return h.response().code(200);
 }
 
-type UserFeedbackRequest = Request & {
+type UserFeedbackRequest = LoggedInRequest & {
   payload: {
     question1: string;
     question2: string;
     question3: string;
     question4: string;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -365,7 +353,7 @@ async function userFeedback(
   return h.response(userFeedback).code(200);
 }
 
-export const databaseRoutes: ServerRoute[] = [
+export const userRoutes: ServerRoute[] = [
   /** Public APIs */
   // Register a new account
   {
