@@ -19,8 +19,10 @@ import {
 import { getMapMarkers, getMapPolygonsAndLines } from "../queries/map";
 import { hashPassword } from "./helper";
 import bcrypt from "bcrypt";
+import { createHash } from "node:crypto";
 import axios from "axios";
 import { Op } from "sequelize";
+import { EventAction, EventCategory, trackEvent } from "../instrument";
 
 export const getUserById = async (id: number): Promise<typeof User | null> => {
   return await User.findOne({ where: { id } });
@@ -201,8 +203,40 @@ export const checkAndReturnUser = async (
 };
 
 /**
+ * Convert a userId to a hashed value, using their username as a salt, to anonymize it for
+ * analytics. This must match with the front-end's implementation, so analytics can be correlated.
+ */
+const getUserHash = async (userId: number) => {
+  const user = await getUserById(userId);
+  if (!user) {
+    console.error(`User with ID ${userId} not found for hashing`);
+    return "USER_NOT_FOUND";
+  }
+
+  const saltedInput = `${user.username}${userId}`;
+
+  return createHash("sha256")
+    .update(saltedInput)
+    .digest("hex")
+    .substring(0, 10); // truncate to length of 10 chars
+};
+
+/**
+ * The wrapper function that should be called for most events in the app, where a user is logged in.
+ */
+export const trackUserEvent = async (
+  userId: number,
+  category: EventCategory,
+  action: EventAction,
+  data?: any
+) => {
+  const userHash = await getUserHash(userId);
+  trackEvent(userHash, category, action, data);
+};
+
+/**
  * Return the geojson polygons of land ownership within a given bounding box area
- * 
+ *
  * @param sw_lng longitude of south-west corner
  * @param sw_lat latitude of south-west corner
  * @param ne_lng longitude of north-east corner
@@ -236,6 +270,9 @@ export const getPolygons = async (
   return boundaryResponse.data;
 };
 
+/**
+ * Perform a backsearch, to find all properties owned by a given owner.
+ */
 export const searchOwner = async (proprietorName: string) => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/search`,
@@ -247,7 +284,7 @@ export const searchOwner = async (proprietorName: string) => {
     }
   );
 
-  return boundaryResponse.data;
+  return boundaryResponse.data ?? [];
 };
 
 export const findAllDataGroupContentForUser = async (userId: number) => {

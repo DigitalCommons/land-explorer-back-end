@@ -12,6 +12,7 @@ import {
   getGeoJsonFeaturesForMap,
   getPolygons,
   searchOwner,
+  trackUserEvent,
 } from "../queries/query";
 import {
   createMap,
@@ -37,6 +38,8 @@ import { Map, User, UserMap, UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 import { EventEmitter } from "events";
 import { tryLockMap } from "../websockets/locking";
+import { EventAction, EventCategory, trackEvent } from "../instrument";
+import { LoggedInRequest } from "./request_types";
 
 const eventEmitter = new EventEmitter();
 
@@ -51,17 +54,12 @@ eventEmitter.emit("message", "Hello world!");
  * When "eid" field is provided as part of payload, it means map update.
  * If "eid" is null, create a new map.
  */
-type SaveMapRequest = Request & {
+type SaveMapRequest = LoggedInRequest & {
   payload: {
     eid: number | null;
     name: string;
     data: any;
     isSnapshot: boolean;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -124,7 +122,7 @@ async function saveMap(
   return h.response().code(200);
 }
 
-type SaveMapObjectRequest = Request & {
+type SaveMapObjectRequest = LoggedInRequest & {
   payload: {
     object: {
       name: string;
@@ -135,11 +133,6 @@ type SaveMapObjectRequest = Request & {
       area: number;
     };
     eid: number;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -255,7 +248,7 @@ async function saveMapLine(
   return h.response();
 }
 
-type SaveMapZoomRequest = Request & {
+type SaveMapZoomRequest = LoggedInRequest & {
   payload: {
     eid: number;
     zoom: number[];
@@ -286,7 +279,7 @@ async function saveMapZoom(
   return h.response();
 }
 
-type SaveMapLngLatRequest = Request & {
+type SaveMapLngLatRequest = LoggedInRequest & {
   payload: {
     eid: number;
     lngLat: number[];
@@ -317,17 +310,12 @@ async function saveMapLngLat(
   return h.response();
 }
 
-type EditRequest = Request & {
+type EditRequest = LoggedInRequest & {
   payload: {
     eid: number;
     uuid: string;
     name: string;
     description: string;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -452,14 +440,9 @@ async function setMapAsViewed(
   return h.response().code(200);
 }
 
-type GetMapSharedToRequest = Request & {
+type GetMapSharedToRequest = LoggedInRequest & {
   params: {
     eid: number;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -497,15 +480,10 @@ async function getMapSharedTo(
   return h.response(userEmailsWithSharedMapAccess);
 }
 
-type ShareMapRequest = Request & {
+type ShareMapRequest = LoggedInRequest & {
   payload: {
     eid: number;
     users: { email: string; access: UserMapAccess }[];
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -735,7 +713,7 @@ async function getUserMaps(
   return h.response(allMapsData).code(200);
 }
 
-type GetLandOwnershipPolygonsRequest = Request & {
+type GetLandOwnershipPolygonsRequest = LoggedInRequest & {
   query: {
     sw_lng: number;
     sw_lat: number;
@@ -749,11 +727,6 @@ type GetLandOwnershipPolygonsRequest = Request & {
      * Only matters if type is "pending". If true, only return pending polys marked as accepted.
      */
     acceptedOnly?: boolean;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
@@ -803,25 +776,34 @@ async function getLandOwnershipPolygons(
   }
 }
 
+/**
+ * Perform a backsearch, to find all properties owned by a given owner.
+ */
 async function searchOwnership(
-  request: Request,
+  request: LoggedInRequest,
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const { proprietorName } = request.query;
+  const { user_id } = request.auth.credentials;
 
   const polygonsAndOwnerships = await searchOwner(proprietorName);
+
+  trackUserEvent(
+    user_id,
+    EventCategory.LAND_OWNERSHIP,
+    EventAction.BACKSEARCH,
+    {
+      proprietorName,
+      resultCount: polygonsAndOwnerships.length,
+    }
+  );
 
   return h.response(polygonsAndOwnerships).code(200);
 }
 
-type PublicMapRequest = Request & {
+type PublicMapRequest = LoggedInRequest & {
   payload: {
     mapId: number;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
   };
 };
 
