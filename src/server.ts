@@ -6,10 +6,9 @@ import "./instrument";
 import * as Sentry from "@sentry/node";
 import Hapi from "@hapi/hapi";
 import { Request, Server } from "@hapi/hapi";
-import { databaseRoutes } from "./routes/database";
-import { emailRoutes } from "./routes/emails";
-import { mapRoutes } from "./routes/maps";
-import { dataGroupRoutes } from "./routes/datagroups";
+import { userRoutes } from "./routes/user";
+import { mapRoutes } from "./routes/map";
+import { dataGroupRoutes } from "./routes/datagroup";
 import { setupWebsockets } from "./websockets/server";
 
 const AuthBearer = require("hapi-auth-bearer-token");
@@ -72,10 +71,9 @@ export const init = async function (): Promise<Server> {
     },
   });
 
-  server.route(databaseRoutes);
+  server.route(userRoutes);
   server.route(mapRoutes);
   server.route(dataGroupRoutes);
-  server.route(emailRoutes);
 
   // Log requests and response codes
   server.events.on("response", (request: any) => {
