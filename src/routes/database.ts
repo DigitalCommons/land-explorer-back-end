@@ -14,6 +14,7 @@ import {
   getUserById,
   getUserByEmail,
   createUserFeedback,
+  getAskForFeedback,
 } from "../queries/query";
 import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
@@ -362,7 +363,55 @@ async function userFeedback(
     request.auth.credentials.user_id
   );
 
+  await User.update(
+    { ask_for_feedback: false },
+    {
+      where: {
+        id: request.auth.credentials.user_id,
+      },
+    }
+  );
+
   return h.response(userFeedback).code(200);
+}
+
+/**
+ * Update the user table feedback flag
+ * This is used to determine if the user should be shown a feedback popup
+ */
+
+type AskForFeedbackRequest = Request & {
+  payload: {
+    askForFeedback: boolean;
+  };
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
+async function updateAskForFeedback(
+  request: AskForFeedbackRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  let payload: any = request.payload;
+
+  if (typeof payload.askForFeedback !== "boolean") {
+    return h.response({ message: "Invalid askForFeedback value" }).code(400);
+  }
+
+  await User.update(
+    { ask_for_feedback: payload.askForFeedback },
+    {
+      where: {
+        id: request.auth.credentials.user_id,
+      },
+    }
+  );
+
+  return h.response().code(200);
 }
 
 export const databaseRoutes: ServerRoute[] = [
@@ -392,10 +441,22 @@ export const databaseRoutes: ServerRoute[] = [
   /** Authenticated users only */
   // Return logged in user's details
   { method: "GET", path: "/api/user/details", handler: getAuthUserDetails },
+  // Return whether the user should be asked for feedback
+  {
+    method: "GET",
+    path: "/api/user/feedback",
+    handler: getAskForFeedback,
+  },
   // Allow user to change their email address
   { method: "POST", path: "/api/user/email", handler: changeEmail },
   // Allow user to change their details
   { method: "POST", path: "/api/user/details", handler: changeUserDetail },
+  // Allow user to update their ask for feedback flag
+  {
+    method: "POST",
+    path: "/api/user/feedback",
+    handler: updateAskForFeedback,
+  },
   // Allow logged in user to change their password
   { method: "POST", path: "/api/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
