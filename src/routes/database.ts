@@ -414,6 +414,30 @@ async function updateAskForFeedback(
   return h.response().code(200);
 }
 
+/** 
+ * Check the user feedback flag
+ * This is used to determine if the user should be asked for feedback
+ */
+
+type GetAskForFeedbackRequest = Request & {
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+};
+
+async function getUserAskForFeedback(
+  request: GetAskForFeedbackRequest,
+  h: ResponseToolkit,
+  d: any
+): Promise<ResponseObject> {
+  const userId = request.auth.credentials.user_id;
+  const askForFeedback = await getAskForFeedback(userId);
+
+  return h.response({ askForFeedback }).code(200);
+}
+
 export const databaseRoutes: ServerRoute[] = [
   /** Public APIs */
   // Register a new account
@@ -444,8 +468,8 @@ export const databaseRoutes: ServerRoute[] = [
   // Return whether the user should be asked for feedback
   {
     method: "GET",
-    path: "/api/user/feedback",
-    handler: getAskForFeedback,
+    path: "/api/user/ask-for-feedback",
+    handler: getUserAskForFeedback,
   },
   // Allow user to change their email address
   { method: "POST", path: "/api/user/email", handler: changeEmail },
@@ -454,7 +478,7 @@ export const databaseRoutes: ServerRoute[] = [
   // Allow user to update their ask for feedback flag
   {
     method: "POST",
-    path: "/api/user/feedback",
+    path: "/api/user/ask-for-feedback",
     handler: updateAskForFeedback,
   },
   // Allow logged in user to change their password
