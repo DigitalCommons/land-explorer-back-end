@@ -524,3 +524,13 @@ export const createUserFeedback = async (
     throw new Error("Failed to create user feedback");
   }
 };
+
+export const getAskForFeedback = async (userId: number): Promise<boolean> => {
+  const user = await getUserById(userId);
+
+  if (!user) {
+    return false;
+  }
+
+  return user.ask_for_feedback === true;
+};
