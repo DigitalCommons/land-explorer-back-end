@@ -201,14 +201,16 @@ export const checkAndReturnUser = async (
 };
 
 /**
- * Return the geojson polygons of land ownership within a given bounding box area
- * 
+ * Return the land ownership geojson polygons within a given bounding box area
+ *
  * @param sw_lng longitude of south-west corner
  * @param sw_lat latitude of south-west corner
  * @param ne_lng longitude of north-east corner
  * @param ne_lat latitude of north-east corner
- * @param type type of ownership to return, one of "all" (default), "localAuthority", "churchOfEngland" or "pending"
- * @param acceptedOnly only matters if type is "pending". If true, only return pending polys marked as accepted
+ * @param type type of ownership to return, one of "all" (default), "localAuthority",
+ * "churchOfEngland", "pending" or "unregistered".
+ * @param acceptedOnly only matters if type is "pending". If true, only return pending polys marked
+ * as accepted
  */
 export const getPolygons = async (
   sw_lng: number,

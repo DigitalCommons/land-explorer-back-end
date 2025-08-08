@@ -742,7 +742,9 @@ type GetLandOwnershipPolygonsRequest = Request & {
     ne_lng: number;
     ne_lat: number;
     /**
-     * The type of ownership to return, one of "all", "localAuthority", "churchOfEngland" or "pending"
+     * The type of ownership to return, one of "all", "localAuthority", "churchOfEngland",
+     * "pending", or "unregistered". The latter is regions of land that have no registered
+     * ownership.
      */
     type?: string;
     /**
@@ -776,6 +778,15 @@ async function getLandOwnershipPolygons(
     case "churchOfEngland":
       polygons = await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat, type);
       return h.response(polygons).code(200);
+    case "unregistered":
+      polygons = (await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat, type)).map(
+        (polygon) => ({
+          ...polygon,
+          // Add tenure field which is used by front-end
+          tenure: "unregistered",
+        })
+      );
+      return h.response(polygons).code(200);
     case "pending":
       // These are the new boundaries from the latest INSPIRE pipeline run that are waiting to be
       // permanently saved. Only super users should be able to view pending polygons.
@@ -797,6 +808,10 @@ async function getLandOwnershipPolygons(
         type,
         acceptedOnly
       );
+      // Add "-pending" to the end of each poly_id to avoid id conflicts with normal polygons
+      polygons.forEach((poly) => {
+        poly.poly_id = `${poly.poly_id}-pending`;
+      });
       return h.response(polygons).code(200);
     default:
       return h.response("unknown ownership type").code(400);
