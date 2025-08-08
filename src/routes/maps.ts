@@ -784,6 +784,8 @@ async function getLandOwnershipPolygons(
           ...polygon,
           // Add tenure field which is used by front-end
           tenure: "unregistered",
+          // Add U prefix to ID to avoid conflicts with actual poly_ids
+          poly_id: `U${polygon.poly_id}`,
         })
       );
       return h.response(polygons).code(200);
