@@ -12,6 +12,7 @@ import {
   getGeoJsonFeaturesForMap,
   getPolygons,
   searchOwner,
+  getPolygonsByTitleNumbers,
 } from "../queries/query";
 import {
   createMap,
@@ -706,6 +707,39 @@ async function getUserMaps(
       mapData.mapLayers.myDataLayers = [];
     }
 
+    // Look for saved title numbers and fetch their polygons
+    const savedTitleNumbers =
+      mapData.landOwnership?.highlightedTitleNumbers || [];
+
+    if (Array.isArray(savedTitleNumbers) && savedTitleNumbers.length > 0) {
+      try {
+        // Dedupe to avoid redundant PBS calls / params
+        const uniqueTitleNumbers = Array.from(new Set(savedTitleNumbers));
+
+        // Ask the PBS for polygons + ownership rows matching these title numbers
+        const rows: any[] = await getPolygonsByTitleNumbers(uniqueTitleNumbers);
+
+        // Shape into the structure the frontend already uses: a map keyed by poly_id
+        const highlightedProperties = rows.reduce((acc: any, row: any) => {
+          if (row && row.poly_id) acc[row.poly_id] = row;
+          return acc;
+        }, {});
+
+        // Ensure landOwnership container exists and merge, so we don't clobber anything else
+        mapData.landOwnership = mapData.landOwnership || {};
+        mapData.landOwnership.highlightedProperties = {
+          ...(mapData.landOwnership.highlightedProperties || {}),
+          ...highlightedProperties,
+        };
+      } catch (e: any) {
+        console.warn(
+          `Failed to hydrate title numbers for map ${map.id}:`,
+          e?.message || e
+        );
+      }
+    }
+
+
     map.data = JSON.stringify(mapData);
 
     const myUserMap = map.UserMaps[0];
@@ -734,7 +768,7 @@ async function getUserMaps(
 
   return h.response(allMapsData).code(200);
 }
-
+/// end getUserMaps
 type GetLandOwnershipPolygonsRequest = Request & {
   query: {
     sw_lng: number;

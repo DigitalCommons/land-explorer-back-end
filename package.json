@@ -9,6 +9,8 @@
     "dev:serve": "cross-env NODE_ENV=development nodemon -e js -w lib src/main.ts",
     "dev": "run-p dev:*",
     "test": "env-cmd -f .env.test ts-mocha",
+    "test:maps": "npm test -- -g \"GET /api/user/maps\"",
+    "test:pbs:int": "cross-env RUN_PBS_INTEGRATION=1 env-cmd -f .env.test ts-mocha \"src/**/*.test.ts\" -g \"PBS integration\"",
     "build": "tsc",
     "serve": "pm2 start lib/main.js --time"
   },

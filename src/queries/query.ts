@@ -238,6 +238,31 @@ export const getPolygons = async (
   return boundaryResponse.data;
 };
 
+/**
+ * Fetch polygons (with ownership rows joined) for the given title numbers.
+ * @param titleNumbers array of Land Registry title numbers
+ * @returns array of rows from PBS (ownership + polygon columns)
+ */
+export const getPolygonsByTitleNumbers = async (
+  titleNumbers: string[]
+): Promise<any[]> => {
+  // Deduplicate to avoid sending repeats
+  const uniqueTitleNumbers = Array.from(new Set(titleNumbers));
+
+  const response = await axios.post(
+    `${process.env.BOUNDARY_SERVICE_URL}/polygons/title-numbers`,
+    {
+      title_numbers: uniqueTitleNumbers,
+      secret: process.env.BOUNDARY_SERVICE_SECRET,
+    },
+    {
+      headers: { "Content-Type": "application/json" },
+    }
+  );
+
+  return response.data;
+};
+
 export const searchOwner = async (proprietorName: string) => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/search`,
