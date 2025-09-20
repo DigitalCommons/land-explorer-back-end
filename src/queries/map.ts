@@ -9,12 +9,15 @@ import {
   Line,
   MapMembership,
   ItemTypeId,
+  DataGroup,
 } from "./database";
 import { createMarker, createPolygon, createLine } from "./object";
 import { Op } from "sequelize";
+import { createHash } from "node:crypto";
 import { v4 as uuidv4 } from "uuid";
-import { getUserByEmail } from "./query";
+import { getUserByEmail, hashUserId, trackUserEvent } from "./query";
 import * as mailer from "./mails";
+import { Event, EventName } from "../instrument";
 
 const getMap = async (mapId: number) =>
   await Map.findOne({
@@ -22,6 +25,42 @@ const getMap = async (mapId: number) =>
       id: mapId,
     },
   });
+
+/**
+ * Convert a mapId to a hashed value, using the map creation date as a salt and then adding the
+ * secret pepper, to anonymize it for analytics.
+ */
+const hashMapId = async (mapId: number) => {
+  const map = await getMap(mapId);
+  if (!map) {
+    console.error(`Map with ID ${mapId} not found for hashing`);
+    return "MAP_NOT_FOUND";
+  }
+
+  const saltAndPepperedInput = `${mapId}${map.created_date}${process.env.ANALYTICS_PEPPER}`;
+
+  return createHash("sha256")
+    .update(saltAndPepperedInput)
+    .digest("hex")
+    .substring(0, 16); // truncate to length of 16 chars
+};
+
+/**
+ * A wrapper function that should be called for analytic events in the app, that are associated with
+ * a user's saved map.
+ */
+export const trackUserMapEvent = async (
+  userId: number,
+  mapId: number,
+  event: EventName,
+  data?: any
+) => {
+  const mapIdHash = await hashMapId(mapId);
+  trackUserEvent(userId, event, {
+    ...data,
+    map_id: mapIdHash,
+  });
+};
 
 export const getMapMarkers = async (mapId: number) => {
   const mapMemberships = await MapMembership.findAll({
@@ -321,7 +360,13 @@ export const createMap: CreateMapFunction = async (
 
     await copyDataGroupObjects(newMap.id, dataGroupIds);
   }
+
   console.log(`Created map ${newMap.id} with name ${name}`);
+
+  trackUserMapEvent(userId, newMap.id, Event.MAP.FIRST_SAVE, {
+    // TODO: when we save properties, include this as properties_count
+    drawings_count: markers.length + polygonsAndLines.length,
+  });
   return newMap.id;
 };
 
@@ -359,7 +404,7 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
   await MapMembership.destroy({
     where: { map_id: mapId },
   });
-  
+
   if (markerIds.length) {
     console.log(
       `Removing ${markerIds.length} markers from DB for map ${mapId}`
@@ -384,7 +429,6 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
       where: { idlinestrings: lineIds },
     });
   }
-
 
   console.log(
     `Adding ${mapData.markers.markers.length} markers to DB for map ${mapId}`
@@ -543,39 +587,79 @@ export const deleteMapAccessByEmails = async (
 };
 
 /**
- * Takes an array of email addresses and grants their access to a given map id.
+ * Takes an array of email addresses and grants their access to a given map id, and revokes access
+ * from users that aren't in the array.
  *
  * If the email address corresponds to a user, grant their access via user_map, otherwise via
  * pending_user_map.
  *
- * @param sendEmailNotification whether to send an email to the emails that are granted access
- * @param domain if sendEmailNotification is true, this website domain must to be included
+ * @param domain this website domain must to be included in order to send email notifications to the
+ *               emails that are granted access
  */
 export const grantMapAccessByEmails = async (
   mapId: number,
   users: { email: string; access: UserMapAccess }[],
-  sendEmailNotification: boolean,
   domain: string = ""
 ) => {
-  let ownerFirstName: string;
-  let ownerLastName: string;
-  let mapName: string;
+  // email address comparison should be case insensitive
+  const normalisedUsers = users.map(({ email, access }) => ({
+    email: email.trim().toLowerCase(),
+    access,
+  }));
 
-  if (sendEmailNotification && domain) {
-    const ownerUserMap = await UserMap.findOne({
-      where: {
-        map_id: mapId,
-        access: UserMapAccess.Owner,
-      },
-      include: [{ model: Map }, { model: User }],
-    });
-    ownerFirstName = ownerUserMap.User.get("first_name");
-    ownerLastName = ownerUserMap.User.get("last_name");
-    mapName = ownerUserMap.Map.get("name");
+  const oldUsersWithSharedMapAccess: {
+    email: string;
+    access: UserMapAccess;
+  }[] = (await getUserEmailsWithSharedMapAccess(mapId)).map(
+    ({ email, access }) => ({
+      email: email.toLowerCase(),
+      access,
+    })
+  );
+
+  // Get emails that need to be removed from the DB (access has been completely revoked)
+  const emailsToRemove = oldUsersWithSharedMapAccess
+    .map((oldUser) => oldUser.email)
+    .filter(
+      (oldEmail) =>
+        !normalisedUsers.map((newUser) => newUser.email).includes(oldEmail)
+    );
+
+  await deleteMapAccessByEmails(mapId, emailsToRemove);
+
+  // Get new users or users that have changes to their access level
+  const usersToChangeAccess = [];
+  const newUsersToGrantAccess = [];
+
+  for (const user of normalisedUsers) {
+    const oldUser = oldUsersWithSharedMapAccess.find(
+      (oldUser) => oldUser.email === user.email
+    );
+    if (oldUser) {
+      if (oldUser.access !== user.access) {
+        usersToChangeAccess.push(user);
+      }
+    } else {
+      newUsersToGrantAccess.push(user);
+    }
   }
 
-  for (const { email, access } of users) {
-    const user = await getUserByEmail(email);
+  const ownerUserMap = await UserMap.findOne({
+    where: {
+      map_id: mapId,
+      access: UserMapAccess.Owner,
+    },
+    include: [{ model: Map }, { model: User }],
+  });
+  const ownerUserId = ownerUserMap.User.get("id");
+  const ownerFirstName = ownerUserMap.User.get("first_name");
+  const ownerLastName = ownerUserMap.User.get("last_name");
+  const mapName = ownerUserMap.Map.get("name");
+
+  const sharedWithAnalyticsData: string[] = [];
+
+  for (const userToChangeAccess of usersToChangeAccess) {
+    const user = await getUserByEmail(userToChangeAccess.email);
 
     if (user) {
       // Remove any previous access, to avoid conflicting duplicates
@@ -589,42 +673,200 @@ export const grantMapAccessByEmails = async (
       await UserMap.create({
         map_id: mapId,
         user_id: user.id,
-        access,
+        access: userToChangeAccess.access,
       });
-
-      if (sendEmailNotification && domain) {
-        mailer.shareMapRegistered(
-          user.username,
-          user.first_name,
-          ownerFirstName!!,
-          ownerLastName!!,
-          mapName!!,
-          domain
-        );
-      }
+      sharedWithAnalyticsData.push(await hashUserId(user.id));
     } else {
       // Remove any previous entries, to avoid conflicting duplicates
       await PendingUserMap.destroy({
         where: {
           map_id: mapId,
-          email_address: email,
+          email_address: userToChangeAccess.email,
         },
       });
       await PendingUserMap.create({
         map_id: mapId,
-        email_address: email,
-        access,
+        email_address: userToChangeAccess.email,
+        access: userToChangeAccess.access,
       });
+      sharedWithAnalyticsData.push("PENDING_USER");
+    }
+  }
 
-      if (sendEmailNotification && domain) {
-        mailer.shareMapUnregistered(
-          email,
-          ownerFirstName!!,
-          ownerLastName!!,
-          mapName!!,
+  for (const userToGrantAccess of newUsersToGrantAccess) {
+    const user = await getUserByEmail(userToGrantAccess.email);
+
+    if (user) {
+      await UserMap.create({
+        map_id: mapId,
+        user_id: user.id,
+        access: userToGrantAccess.access,
+      });
+      if (domain) {
+        mailer.shareMapRegistered(
+          user.username,
+          user.first_name,
+          ownerFirstName,
+          ownerLastName,
+          mapName,
           domain
         );
       }
+      sharedWithAnalyticsData.push(await hashUserId(user.id));
+    } else {
+      await PendingUserMap.create({
+        map_id: mapId,
+        email_address: userToGrantAccess.email,
+        access: userToGrantAccess.access,
+      });
+      if (domain) {
+        mailer.shareMapUnregistered(
+          userToGrantAccess.email,
+          ownerFirstName,
+          ownerLastName,
+          mapName,
+          domain
+        );
+      }
+      sharedWithAnalyticsData.push("PENDING_USER");
     }
   }
+
+  trackUserMapEvent(ownerUserId, mapId, Event.MAP.SHARE, {
+    sharedWith: sharedWithAnalyticsData,
+  });
+};
+
+/**
+ * Make a specified map available to the public.
+ * @returns URI for the public map view
+ */
+export const createPublicMapView = async (mapId: number): Promise<string> => {
+  const publicUserId = -1;
+
+  const publicViewExists = await UserMap.findOne({
+    where: {
+      map_id: mapId,
+      user_id: publicUserId,
+    },
+  });
+
+  if (!publicViewExists) {
+    await UserMap.create({
+      map_id: mapId,
+      user_id: publicUserId,
+      access: UserMapAccess.Readonly,
+      viewed: 0,
+    });
+  }
+
+  return `/api/public/map/${mapId}`;
+};
+
+/**
+ * Get a GeoJSON feature collection containing all the markers, polys and lines in a map, including
+ * those in active data groups.
+ */
+export const getGeoJsonFeaturesForMap = async (mapId: number) => {
+  const map = await Map.findOne({
+    where: {
+      id: mapId,
+    },
+  });
+  const mapData = JSON.parse(map.data);
+
+  // Get markers, polygons and lines that are saved to the map
+  const markers = await getMapMarkers(mapId);
+  const markerFeatures = markers.map((marker: any) => ({
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: marker.coordinates,
+    },
+    properties: {
+      name: marker.name,
+      description: marker.description,
+      group: "My Drawings",
+    },
+  }));
+
+  const polygonsAndLines = await getMapPolygonsAndLines(mapId);
+  const polygonAndLineFeatures = polygonsAndLines.map((polygon: any) => ({
+    ...polygon.data,
+    properties: {
+      name: polygon.name,
+      description: polygon.description,
+      group: "My Drawings",
+    },
+  }));
+
+  // Get features from datagroup layers which are active
+  const dataGroupFeatures: any[] = [];
+  for (const dataGroupId of mapData.mapLayers.myDataLayers) {
+    const dataGroup = await DataGroup.findOne({
+      where: {
+        // In old maps, myDataLayers used to be array of objects, each with an iddata_groups
+        // field. In newer maps, myDataLayers is just an array of data group IDs.
+        iddata_groups: dataGroupId.iddata_groups || dataGroupId,
+      },
+    });
+    const dataGroupMarkers = await Marker.findAll({
+      where: {
+        data_group_id: dataGroupId.iddata_groups || dataGroupId,
+      },
+    });
+    const dataGroupPolygons = await Polygon.findAll({
+      where: {
+        data_group_id: dataGroupId.iddata_groups || dataGroupId,
+      },
+    });
+    const dataGroupLines = await Line.findAll({
+      where: {
+        data_group_id: dataGroupId.iddata_groups || dataGroupId,
+      },
+    });
+
+    dataGroupMarkers.forEach((marker: any) => {
+      dataGroupFeatures.push({
+        type: "Feature",
+        geometry: marker.location,
+        properties: {
+          name: marker.name,
+          description: marker.description,
+          group: dataGroup.title,
+        },
+      });
+    });
+    dataGroupPolygons.forEach((polygon: any) => {
+      dataGroupFeatures.push({
+        type: "Feature",
+        geometry: polygon.vertices,
+        properties: {
+          name: polygon.name,
+          description: polygon.description,
+          group: dataGroup.title,
+        },
+      });
+    });
+    dataGroupLines.forEach((line: any) => {
+      dataGroupFeatures.push({
+        type: "Feature",
+        geometry: line.vertices,
+        properties: {
+          name: line.name,
+          description: line.description,
+          group: dataGroup.title,
+        },
+      });
+    });
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: [
+      ...markerFeatures,
+      ...polygonAndLineFeatures,
+      ...dataGroupFeatures,
+    ],
+  };
 };

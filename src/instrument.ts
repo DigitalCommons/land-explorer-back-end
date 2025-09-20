@@ -20,32 +20,44 @@ if (process.env.MIXPANEL_TOKEN) {
   console.warn("Mixpanel token not found. Analytics will not be sent.");
 }
 
-export enum EventCategory {
-  DATA_GROUP = "DataGroup",
-  LAND_OWNERSHIP = "LandOwnership",
-  MAP = "Map",
-  USER = "User",
-}
+/** The list of events that can be tracked in the form of "<Category>_<Action>" */
+export const Event = {
+  LAND_OWNERSHIP: {
+    ENABLE: "LandOwnership_Enable",
+    SAVE_PROPERTY: "LandOwnership_SaveProperty",
+    BACKSEARCH: "LandOwnership_Backsearch",
+  },
+  MAP: {
+    FIRST_SAVE: "Map_FirstSave",
+    OPEN: "Map_Open",
+    EXPORT_SHAPEFILE: "Map_Export_Shapefile",
+    EXPORT_GEOJSON: "Map_Export_GeoJSON",
+    SHARE: "Map_Share",
+    SHARED_OPEN: "Map_SharedOpen",
+    GEOJSON_OPEN: "Map_GeoJsonOpen",
+  },
+  USER: {
+    REGISTER: "User_Register",
+    FEEDBACK: "User_Feedback",
+  },
+} as const;
 
-export enum EventAction {
-  // LandOwnership
-  BACKSEARCH = "Backsearch",
-  // Map
-  SAVE = "Save",
-}
+// Recursively extract the union of values of the leaves of an object into a type
+type LeafValues<T> =
+  T extends object
+    ? LeafValues<T[keyof T]>
+    : T;
 
-export const trackEvent = (
-  userHash: string,
-  category: EventCategory,
-  action: EventAction,
-  data?: any
-) => {
-  const event = `${category}_${action}`;
+export type EventName = LeafValues<typeof Event>;
+
+/**
+ * You probably want to use trackUserEvent instead of this, for events where a user is logged in.
+ */
+export const trackRawEvent = (event: EventName, data?: any) => {
   console.log(`[ANALYTICS] ${event}`, data);
 
   mixpanel?.track(event, {
     ...data,
-    distinct_id: userHash,
     ip: "0", // disable geolocation tracking since this doesn't make sense for server-side
   });
 };

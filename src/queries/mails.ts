@@ -6,13 +6,18 @@ const authRoute = "/auth";
 let sender = "landexplorer@digitalcommons.coop";
 let senderName = "Land Explorer";
 
-export const sendRegisterEmail = async (recipient: string, name: string, domain: string) => {
+export const sendSuccessfullyRegisteredEmail = async (
+  recipient: string,
+  name: string,
+  domain: string
+) => {
   const loginLink = domain + authRoute;
 
   let body = `Dear ${name},`;
   body += "<br /><br />Thank you for registering with Land Explorer.";
-  body += "<br />You can <a href=\"" + loginLink + "\">login here</a>.";
-  body += "<br />We're excited to see how you use this tool, to find information on the land around you!";
+  body += '<br />You can <a href="' + loginLink + '">login here</a>.';
+  body +=
+    "<br />We're excited to see how you use this tool, to find information on the land around you!";
   body += "<br /><br />Many thanks,";
   body += "<br />The Digital Commons Team";
 
@@ -20,7 +25,7 @@ export const sendRegisterEmail = async (recipient: string, name: string, domain:
     to: recipient,
     from: {
       name: senderName,
-      email: sender
+      email: sender,
     },
     subject: name + ", you have registered on Land Explorer!",
     html: body,
@@ -29,7 +34,7 @@ export const sendRegisterEmail = async (recipient: string, name: string, domain:
   sgMail.send(msg).catch((error: Error) => {
     console.error(error);
   });
-}
+};
 
 export const sendResetPasswordEmail = async (recipientEmail: string, firstName: string, resetLink: string, expiryHours: number) => {
   const body = `Dear ${capitalizeFirstLetter(firstName)},` +

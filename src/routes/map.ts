@@ -7,13 +7,7 @@ import {
 import { Op } from "sequelize";
 import { v4 as uuidv4 } from "uuid";
 import { Validation } from "../validation";
-import {
-  createPublicMapView,
-  getGeoJsonFeaturesForMap,
-  getPolygons,
-  searchOwner,
-  trackUserEvent,
-} from "../queries/query";
+import { getPolygons, searchOwner, trackUserEvent } from "../queries/query";
 import {
   createMap,
   updateMap,
@@ -23,8 +17,10 @@ import {
   createMapMembership,
   getMapPolygonsAndLines,
   getUserEmailsWithSharedMapAccess,
-  deleteMapAccessByEmails,
   grantMapAccessByEmails,
+  trackUserMapEvent,
+  createPublicMapView,
+  getGeoJsonFeaturesForMap,
 } from "../queries/map";
 import {
   createMarker,
@@ -38,7 +34,7 @@ import { Map, User, UserMap, UserMapAccess } from "../queries/database";
 import { ItemType } from "../enums";
 import { EventEmitter } from "events";
 import { tryLockMap } from "../websockets/locking";
-import { EventAction, EventCategory, trackEvent } from "../instrument";
+import { Event } from "../instrument";
 import { LoggedInRequest } from "./request_types";
 
 const eventEmitter = new EventEmitter();
@@ -507,12 +503,6 @@ async function shareMap(
 
   const { eid, users } = request.payload;
 
-  // email address comparison should be case insensitive
-  const newUsersWithSharedMapAccess = users.map(({ email, access }) => ({
-    email: email.toLowerCase(),
-    access,
-  }));
-
   let userMap = await UserMap.findOne({
     where: {
       user_id: request.auth.credentials.user_id,
@@ -529,59 +519,7 @@ async function shareMap(
     return h.response("Unauthorised!").code(403);
   }
 
-  const oldUsersWithSharedMapAccess: {
-    email: string;
-    access: UserMapAccess;
-  }[] = (await getUserEmailsWithSharedMapAccess(eid)).map(
-    ({ email, access }) => ({
-      email: email.toLowerCase(),
-      access,
-    })
-  );
-
-  // Get emails that need to be removed from the DB (access has been completely revoked)
-  const emailsToRemove = oldUsersWithSharedMapAccess
-    .map((oldUser) => oldUser.email)
-    .filter(
-      (oldEmail) =>
-        !newUsersWithSharedMapAccess
-          .map((newUser) => newUser.email)
-          .includes(oldEmail)
-    );
-
-  console.log("emails to remove", emailsToRemove);
-  await deleteMapAccessByEmails(eid, emailsToRemove);
-
-  // Get new users or users that have changes to their access level
-  const usersToChangeAccess = [];
-  const newUsersToGrantAccess = [];
-
-  for (const newUser of newUsersWithSharedMapAccess) {
-    const oldUser = oldUsersWithSharedMapAccess.find(
-      (oldUser) => oldUser.email === newUser.email
-    );
-    if (oldUser) {
-      if (oldUser.access !== newUser.access) {
-        usersToChangeAccess.push(newUser);
-      }
-    } else {
-      newUsersToGrantAccess.push(newUser);
-    }
-
-    console.log("users to change access", usersToChangeAccess);
-    await grantMapAccessByEmails(eid, usersToChangeAccess, false);
-
-    console.log(
-      "new users to grant access (and send email notification)",
-      newUsersToGrantAccess
-    );
-    await grantMapAccessByEmails(
-      eid,
-      newUsersToGrantAccess,
-      true,
-      originDomain
-    );
-  }
+  await grantMapAccessByEmails(eid, users, originDomain);
 
   return h.response().code(200);
 }
@@ -805,15 +743,10 @@ async function searchOwnership(
 
   const polygonsAndOwnerships = await searchOwner(proprietorName);
 
-  trackUserEvent(
-    user_id,
-    EventCategory.LAND_OWNERSHIP,
-    EventAction.BACKSEARCH,
-    {
-      proprietorName,
-      resultCount: polygonsAndOwnerships.length,
-    }
-  );
+  trackUserEvent(user_id, Event.LAND_OWNERSHIP.BACKSEARCH, {
+    proprietor_name: proprietorName,
+    properties_count: polygonsAndOwnerships.length,
+  });
 
   return h.response(polygonsAndOwnerships).code(200);
 }
@@ -828,7 +761,7 @@ type FileResponseToolkit = ResponseToolkit & {
   file: Function;
 };
 
-async function downloadMap(
+async function downloadShapefile(
   request: PublicMapRequest,
   h: FileResponseToolkit
 ): Promise<ResponseObject> {
@@ -879,10 +812,12 @@ async function downloadMap(
 
   setTimeout(deleteFile, 5000);
 
+  trackUserMapEvent(user_id, mapId, Event.MAP.EXPORT_SHAPEFILE);
+
   return response;
 }
 
-async function setMapPublic(
+async function createMapGeoJSONLink(
   request: PublicMapRequest,
   h: ResponseToolkit
 ): Promise<ResponseObject> {
@@ -898,6 +833,8 @@ async function setMapPublic(
 
   if (userMapView?.access === UserMapAccess.Owner) {
     const publicMapAddress = await createPublicMapView(mapId);
+
+    trackUserMapEvent(user_id, mapId, Event.MAP.EXPORT_GEOJSON);
 
     return h.response(publicMapAddress);
   } else {
@@ -922,6 +859,7 @@ async function getPublicMap(
 
   if (publicMapView) {
     const geoJsonData = await getGeoJsonFeaturesForMap(mapId);
+    trackUserMapEvent(-1, mapId, Event.MAP.GEOJSON_OPEN);
     return h.response(geoJsonData);
   } else {
     return h.response("No public map at this address.").code(404);
@@ -959,13 +897,24 @@ export const mapRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/map/share/sync", handler: shareMap },
   // Delete a map
   { method: "POST", path: "/api/user/map/delete", handler: deleteMap },
-  // Make a map accessible to the public
-  { method: "POST", path: "/api/user/map/share/public", handler: setMapPublic },
+  // Make a map GeoJSON accessible to the public via a link
+  {
+    method: "POST",
+    path: "/api/user/map/share/public",
+    handler: createMapGeoJSONLink,
+  },
+  // Get a public map GeoJSON
+  {
+    method: "GET",
+    path: "/api/public/map/{mapId}",
+    handler: getPublicMap,
+    options: { auth: false },
+  },
   // Returns a map converted to shapefile format
   {
     method: "GET",
     path: "/api/user/map/download/{mapId}",
-    handler: downloadMap,
+    handler: downloadShapefile,
   },
   // Returns a list of all maps that the user has access to
   { method: "GET", path: "/api/user/maps", handler: getUserMaps },
@@ -973,11 +922,4 @@ export const mapRoutes: ServerRoute[] = [
   { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygons },
   // search the public ownership information
   { method: "GET", path: "/api/search", handler: searchOwnership },
-  // Get a public map
-  {
-    method: "GET",
-    path: "/api/public/map/{mapId}",
-    handler: getPublicMap,
-    options: { auth: false },
-  },
 ];
