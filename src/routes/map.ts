@@ -64,58 +64,63 @@ async function saveMap(
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  let validation = new Validation();
-  await validation.validateSaveMap(request.payload);
+  try {
+    let validation = new Validation();
+    await validation.validateSaveMap(request.payload);
 
-  if (validation.fail()) {
-    return h.response(validation.errors).code(400);
+    if (validation.fail()) {
+      return h.response(validation.errors).code(400);
+    }
+
+    const { eid, name, data, isSnapshot } = request.payload;
+    const userId = request.auth.credentials.user_id;
+
+    // eid provided means update map
+    const isUpdate = eid !== null;
+
+    if (isUpdate) {
+      // check that the map exists and isn't a snapshot
+      const existsAndEditable = await Map.findOne({
+        where: {
+          id: eid,
+          is_snapshot: { [Op.or]: [false, null] },
+        },
+      });
+
+      if (existsAndEditable === null) {
+        return h.response("Map not found").code(404);
+      }
+
+      // check that user has permission to update the map
+      const hasAccess = await UserMap.findOne({
+        where: {
+          map_id: eid,
+          access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+          user_id: userId,
+        },
+      });
+
+      if (hasAccess === null) {
+        return h.response("Unauthorised").code(403);
+      }
+
+      // Try to acquire lock for user
+      const success = await tryLockMap(eid, userId);
+      if (!success) {
+        return h.response("Map is locked").code(503);
+      }
+
+      await updateMap(eid, name, data);
+    } else {
+      const newMapId = await createMap(name, data, userId, isSnapshot);
+      await tryLockMap(newMapId, userId);
+    }
+
+    return h.response().code(200);
+  } catch (error) {
+    console.error("Error in saveMap:", error);
+    return h.response("Internal server error").code(500);
   }
-
-  const { eid, name, data, isSnapshot } = request.payload;
-  const userId = request.auth.credentials.user_id;
-
-  // eid provided means update map
-  const isUpdate = eid !== null;
-
-  if (isUpdate) {
-    // check that the map exists and isn't a snapshot
-    const existsAndEditable = await Map.findOne({
-      where: {
-        id: eid,
-        is_snapshot: { [Op.or]: [false, null] },
-      },
-    });
-
-    if (existsAndEditable === null) {
-      return h.response("Map not found").code(404);
-    }
-
-    // check that user has permission to update the map
-    const hasAccess = await UserMap.findOne({
-      where: {
-        map_id: eid,
-        access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-        user_id: userId,
-      },
-    });
-
-    if (hasAccess === null) {
-      return h.response("Unauthorised").code(403);
-    }
-
-    // Try to acquire lock for user
-    const success = await tryLockMap(eid, userId);
-    if (!success) {
-      return h.response("Map is locked").code(503);
-    }
-
-    await updateMap(eid, name, data);
-  } else {
-    const newMapId = await createMap(name, data, userId, isSnapshot);
-    await tryLockMap(newMapId, userId);
-  }
-
-  return h.response().code(200);
 }
 
 type SaveMapObjectRequest = LoggedInRequest & {
@@ -137,35 +142,40 @@ async function saveMapMarker(
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  const { object, eid } = request.payload;
+  try {
+    const { object, eid } = request.payload;
 
-  // check that user has permission to update this map
-  const hasAccess = await UserMap.findOne({
-    where: {
-      map_id: eid,
-      access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
-      user_id: request.auth.credentials.user_id,
-    },
-  });
-  if (hasAccess === null) {
-    return h.response("Unauthorised").code(403);
+    // check that user has permission to update this map
+    const hasAccess = await UserMap.findOne({
+      where: {
+        map_id: eid,
+        access: { [Op.or]: [UserMapAccess.Readwrite, UserMapAccess.Owner] },
+        user_id: request.auth.credentials.user_id,
+      },
+    });
+    if (hasAccess === null) {
+      return h.response("Unauthorised").code(403);
+    }
+
+    // Try to acquire lock for user
+    const success = await tryLockMap(eid, request.auth.credentials.user_id);
+    if (!success) {
+      return h.response("Map is locked").code(503);
+    }
+
+    const newMarker = await createMarker(
+      object.name,
+      object.description,
+      object.center,
+      uuidv4()
+    );
+    await createMapMembership(eid, ItemType.Marker, newMarker.idmarkers);
+
+    return h.response();
+  } catch (error) {
+    console.error("Error in saveMapMarker:", error);
+    return h.response("Internal server error").code(500);
   }
-
-  // Try to acquire lock for user
-  const success = await tryLockMap(eid, request.auth.credentials.user_id);
-  if (!success) {
-    return h.response("Map is locked").code(503);
-  }
-
-  const newMarker = await createMarker(
-    object.name,
-    object.description,
-    object.center,
-    uuidv4()
-  );
-  await createMapMembership(eid, ItemType.Marker, newMarker.idmarkers);
-
-  return h.response();
 }
 
 async function saveMapPolygon(

@@ -90,6 +90,13 @@ export const init = async function (): Promise<Server> {
 
   setupWebsockets(server);
 
+  // Add global error handler for unhandled errors
+  server.events.on("request", (request, event, tags) => {
+    if (tags.error) {
+      console.error("Request error:", event.error);
+    }
+  });
+
   await Sentry.setupHapiErrorHandler(server);
 
   return server;
