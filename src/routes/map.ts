@@ -610,7 +610,8 @@ async function getUserMaps(
 
     // get all drawings, including those in separate DB tables
     mapData.markers.markers = await getMapMarkers(map.id);
-    mapData.drawings.polygons = await getMapPolygonsAndLines(map.id);
+    delete mapData.drawings.polygons; // this was the old field name for polygon/line drawings
+    mapData.drawings.drawings = await getMapPolygonsAndLines(map.id);
 
     // landDataLayers field used to be called activeLayers
     if (mapData.mapLayers.activeLayers) {

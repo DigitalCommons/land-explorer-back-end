@@ -90,7 +90,7 @@ export const getMapMarkers = async (mapId: number) => {
   // Add markers that are still stored in data JSON (if any)
   const map = await getMap(mapId);
   const mapData = JSON.parse(map.data);
-  markers.push(...mapData.markers.markers);
+  markers.push(...(mapData.markers.markers ?? []));
 
   console.log(`Got ${markers.length} markers for map ${mapId}`);
   return markers;
@@ -169,7 +169,7 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
   // Add drawings that are still stored in data JSON (if any)
   const map = await getMap(mapId);
   const mapData = JSON.parse(map.data);
-  polygonsAndLines.push(...mapData.drawings.polygons);
+  polygonsAndLines.push(...(mapData.drawings.polygons ?? []));
 
   const numPolygons = polygonsAndLines.filter(
     (p) => p.type === "Polygon"
@@ -324,7 +324,7 @@ export const createMap: CreateMapFunction = async (
   const mapData = await JSON.parse(data);
 
   // Saving drawings to DB separately so can remove from JSON
-  const markers = mapData.markers.markers;
+  const markers = mapData.markers.markers ?? [];
   const polygonsAndLines = mapData.drawings.polygons;
   mapData.markers.markers = [];
   mapData.drawings.polygons = [];
@@ -382,6 +382,8 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
 
   // Remove existing objects in DB and re-add them.
   // TODO: Reduce number of DB operations by only adding and removing objects that have changed
+  // In order to do this, we need to:
+  // - get all the markers, polygons and lines
 
   const mapMemberships = await MapMembership.findAll({
     where: { map_id: mapId },
@@ -430,18 +432,22 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
     });
   }
 
-  console.log(
-    `Adding ${mapData.markers.markers.length} markers to DB for map ${mapId}`
-  );
-  await saveMarkers(mapId, mapData.markers.markers, true);
-  console.log(
-    `Adding ${mapData.drawings.polygons.length} polygons/lines to DB for map ${mapId}`
-  );
-  await savePolygonsAndLines(mapId, mapData.drawings.polygons, true);
+  const markers = mapData.markers.markers ?? [];
+  console.log(`Adding ${markers.length} markers to DB for map ${mapId}`);
+  await saveMarkers(mapId, markers, true);
 
-  // Remove drawings from data since they are now in the DB
-  mapData.markers.markers = [];
-  mapData.drawings.polygons = [];
+  const polygonsAndLines =
+    mapData.drawings.drawings ?? mapData.drawings.polygons ?? [];
+  console.log(
+    `Adding ${polygonsAndLines.length} polygons/lines to DB for map ${mapId}`
+  );
+  await savePolygonsAndLines(mapId, polygonsAndLines, true);
+
+  // Remove markers, polygons and lines from data (for any old maps from before they were stored
+  // separately in the DB) since they are now stored separately in the DB
+  delete mapData.markers.markers;
+  delete mapData.drawings.polygons;
+  delete mapData.drawings.drawings;
 
   await Map.update(
     {
