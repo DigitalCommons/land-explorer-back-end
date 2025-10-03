@@ -26,6 +26,7 @@ module.exports = {
         access int(11) DEFAULT NULL,
         enabled bit(1) DEFAULT NULL,
         is_super_user tinyint(4) NOT NULL DEFAULT '0',
+        
         last_login datetime DEFAULT NULL,
         login_failure_count int(11) DEFAULT NULL,
         
