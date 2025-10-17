@@ -249,7 +249,7 @@ export const trackUserEvent = async (userId: number, event: EventName, data?: an
   trackRawEvent(event, {
     ...data,
     distinct_id: userHash,
-    userGroups: userGroupNames,
+    user_groups: userGroupNames,
   });
 };
 

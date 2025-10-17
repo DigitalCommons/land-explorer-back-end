@@ -14,13 +14,14 @@ import {
   updateMapZoom,
   updateMapLngLat,
   getMapMarkers,
-  createMapMembership,
+  bulkCreateMapMemberships,
   getMapPolygonsAndLines,
   getUserEmailsWithSharedMapAccess,
   grantMapAccessByEmails,
   trackUserMapEvent,
   createPublicMapView,
   getGeoJsonFeaturesForMap,
+  SaveMapData,
 } from "../queries/map";
 import {
   createMarker,
@@ -45,33 +46,26 @@ eventEmitter.on("error", (error) => {
 
 eventEmitter.emit("message", "Hello world!");
 
+type SaveMapRequest = LoggedInRequest & {
+  payload: {
+    eid: number | null;
+    name: string;
+    data: SaveMapData;
+    isSnapshot: boolean;
+  };
+};
+
 /**
  * Endpoint for user to update or create new map.
  * When "eid" field is provided as part of payload, it means map update.
  * If "eid" is null, create a new map.
  */
-type SaveMapRequest = LoggedInRequest & {
-  payload: {
-    eid: number | null;
-    name: string;
-    data: any;
-    isSnapshot: boolean;
-  };
-};
-
 async function saveMap(
   request: SaveMapRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
   try {
-    let validation = new Validation();
-    await validation.validateSaveMap(request.payload);
-
-    if (validation.fail()) {
-      return h.response(validation.errors).code(400);
-    }
-
     const { eid, name, data, isSnapshot } = request.payload;
     const userId = request.auth.credentials.user_id;
 
@@ -110,7 +104,7 @@ async function saveMap(
         return h.response("Map is locked").code(503);
       }
 
-      await updateMap(eid, name, data);
+      await updateMap(userId, eid, name, data);
     } else {
       const newMapId = await createMap(name, data, userId, isSnapshot);
       await tryLockMap(newMapId, userId);
@@ -169,7 +163,7 @@ async function saveMapMarker(
       object.center,
       uuidv4()
     );
-    await createMapMembership(eid, ItemType.Marker, newMarker.idmarkers);
+    await bulkCreateMapMemberships(eid, ItemType.Marker, newMarker.idmarkers);
 
     return h.response();
   } catch (error) {
@@ -212,7 +206,7 @@ async function saveMapPolygon(
     object.area,
     uuidv4()
   );
-  await createMapMembership(eid, ItemType.Polygon, newPolygon.idpolygons);
+  await bulkCreateMapMemberships(eid, ItemType.Polygon, newPolygon.idpolygons);
 
   return h.response();
 }
@@ -249,7 +243,7 @@ async function saveMapLine(
     object.length,
     uuidv4()
   );
-  await createMapMembership(eid, ItemType.Line, newLine.idlinestrings);
+  await bulkCreateMapMemberships(eid, ItemType.Line, newLine.idlinestrings);
 
   return h.response();
 }
@@ -594,72 +588,77 @@ async function getUserMaps(
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  const userId = request.auth.credentials.user_id;
+  try {
+    const userId = request.auth.credentials.user_id;
 
-  const allMaps = await Map.findAll({
-    where: {
-      "$UserMaps.user_id$": userId,
-      deleted: 0,
-    },
-    include: [
-      {
-        model: UserMap,
-        as: "UserMaps",
+    const allMaps = await Map.findAll({
+      where: {
+        "$UserMaps.user_id$": userId,
+        deleted: 0,
       },
-    ],
-    order: [
-      ["id", "ASC"],
-      [UserMap, "access", "ASC"],
-    ],
-  });
-
-  const allMapsData = [];
-
-  for (const map of allMaps) {
-    const mapData = await JSON.parse(map.data);
-
-    // get all drawings, including those in separate DB tables
-    mapData.markers.markers = await getMapMarkers(map.id);
-    delete mapData.drawings.polygons; // this was the old field name for polygon/line drawings
-    mapData.drawings.drawings = await getMapPolygonsAndLines(map.id);
-
-    // landDataLayers field used to be called activeLayers
-    if (mapData.mapLayers.activeLayers) {
-      mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
-      delete mapData.mapLayers.activeLayers;
-    }
-    // fix that some old maps may not have dataLayers field
-    if (!mapData.mapLayers.myDataLayers) {
-      mapData.mapLayers.myDataLayers = [];
-    }
-
-    map.data = JSON.stringify(mapData);
-
-    const myUserMap = map.UserMaps[0];
-    let sharedWith: { email: string; access: UserMapAccess }[] = [];
-
-    // If we are the owner, get emails with whom we have shared this map
-    if (myUserMap.access === UserMapAccess.Owner) {
-      sharedWith = await getUserEmailsWithSharedMapAccess(map.id);
-    }
-
-    allMapsData.push({
-      map: {
-        eid: map.id,
-        name: map.name,
-        data: map.data,
-        createdDate: map.created_date,
-        lastModified: map.last_modified,
-        sharedWith: sharedWith,
-        isSnapshot: map.is_snapshot,
-      },
-      accessGrantedDate: myUserMap.created_date,
-      access: myUserMap.access,
-      viewed: myUserMap.viewed == 1,
+      include: [
+        {
+          model: UserMap,
+          as: "UserMaps",
+        },
+      ],
+      order: [
+        ["id", "ASC"],
+        [UserMap, "access", "ASC"],
+      ],
     });
-  }
 
-  return h.response(allMapsData).code(200);
+    const allMapsData = [];
+
+    for (const map of allMaps) {
+      const mapData = await JSON.parse(map.data);
+
+      // get all drawings, including those in separate DB tables
+      mapData.markers.markers = await getMapMarkers(map.id);
+      delete mapData.drawings.polygons; // this was the old field name for polygon/line drawings
+      mapData.drawings.drawings = await getMapPolygonsAndLines(map.id);
+
+      // landDataLayers field used to be called activeLayers
+      if (mapData.mapLayers.activeLayers) {
+        mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
+        delete mapData.mapLayers.activeLayers;
+      }
+      // fix that some old maps may not have dataLayers field
+      if (!mapData.mapLayers.myDataLayers) {
+        mapData.mapLayers.myDataLayers = [];
+      }
+
+      map.data = JSON.stringify(mapData);
+
+      const myUserMap = map.UserMaps[0];
+      let sharedWith: { email: string; access: UserMapAccess }[] = [];
+
+      // If we are the owner, get emails with whom we have shared this map
+      if (myUserMap.access === UserMapAccess.Owner) {
+        sharedWith = await getUserEmailsWithSharedMapAccess(map.id);
+      }
+
+      allMapsData.push({
+        map: {
+          eid: map.id,
+          name: map.name,
+          data: map.data,
+          createdDate: map.created_date,
+          lastModified: map.last_modified,
+          sharedWith: sharedWith,
+          isSnapshot: map.is_snapshot,
+        },
+        accessGrantedDate: myUserMap.created_date,
+        access: myUserMap.access,
+        viewed: myUserMap.viewed == 1,
+      });
+    }
+
+    return h.response(allMapsData).code(200);
+  } catch (error) {
+    console.error("Error in getUserMaps:", error);
+    return h.response("Internal server error").code(500);
+  }
 }
 
 type GetLandOwnershipPolygonsRequest = LoggedInRequest & {

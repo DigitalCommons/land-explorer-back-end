@@ -155,7 +155,7 @@ const MarkerModel = sequelize.define(
       allowNull: false,
     },
     location: { type: DataTypes.GEOMETRY("POINT"), allowNull: false },
-    uuid: { type: DataTypes.STRING, allowNull: false },
+    uuid: { type: DataTypes.STRING, allowNull: false, unique: true },
   },
   {
     tableName: "markers",
@@ -184,7 +184,7 @@ const PolygonModel = sequelize.define(
     center: { type: DataTypes.GEOMETRY("POINT"), allowNull: false },
     length: { type: DataTypes.DOUBLE, allowNull: false },
     area: { type: DataTypes.DOUBLE, allowNull: false },
-    uuid: { type: DataTypes.STRING, allowNull: false },
+    uuid: { type: DataTypes.STRING, allowNull: false, unique: true },
   },
   {
     tableName: "polygons",
@@ -211,7 +211,7 @@ const LineModel = sequelize.define(
     },
     vertices: { type: DataTypes.GEOMETRY("LINESTRING"), allowNull: false },
     length: { type: DataTypes.DOUBLE, allowNull: false },
-    uuid: { type: DataTypes.STRING, allowNull: false },
+    uuid: { type: DataTypes.STRING, allowNull: false, unique: true },
   },
   {
     tableName: "linestrings",

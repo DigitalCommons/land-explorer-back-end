@@ -237,24 +237,6 @@ export class Validation {
   }
 
   /**
-   * @param data
-   * @returns
-   */
-  async validateSaveMap(data: any) {
-    //name: required
-    if (Joi.string().validate(data?.name, { presence: "required" }).error) {
-      this.addErrorMessage("name", "The name field is required.");
-    }
-
-    //data: required
-    if (Joi.string().validate(data?.data, { presence: "required" }).error) {
-      this.addErrorMessage("data", "The data field is required.");
-    }
-
-    return this;
-  }
-
-  /**
    * Validate eid is provided
    *
    * @param data

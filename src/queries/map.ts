@@ -10,14 +10,16 @@ import {
   MapMembership,
   ItemTypeId,
   DataGroup,
+  DataGroupId,
 } from "./database";
-import { createMarker, createPolygon, createLine } from "./object";
 import { Op } from "sequelize";
 import { createHash } from "node:crypto";
 import { v4 as uuidv4 } from "uuid";
 import { getUserByEmail, hashUserId, trackUserEvent } from "./query";
 import * as mailer from "./mails";
 import { Event, EventName } from "../instrument";
+import * as Sentry from "@sentry/node";
+import { atomizeChangeset, diff } from "json-diff-ts";
 
 const getMap = async (mapId: number) =>
   await Map.findOne({
@@ -78,6 +80,27 @@ export const getMapMarkers = async (mapId: number) => {
         idmarkers: mapMembership.item_id,
       },
     });
+
+    if (!marker) {
+      console.error(
+        `Marker with ID ${mapMembership.item_id} not found for map ${mapId} despite membership`
+      );
+      // something has gone wrong, so delete the redundant map membership and log to Glitchtip so we
+      // can track instances of this
+      await MapMembership.destroy({
+        where: {
+          map_id: mapId,
+          item_type_id: ItemTypeId.Marker,
+          item_id: mapMembership.item_id,
+        },
+      });
+      Sentry.captureMessage(
+        `Marker with ID ${mapMembership.item_id} not found for map ${mapId} despite membership`,
+        "error"
+      );
+      continue;
+    }
+
     // Form JSON that is used by front end
     markers.push({
       uuid: marker.uuid,
@@ -92,7 +115,6 @@ export const getMapMarkers = async (mapId: number) => {
   const mapData = JSON.parse(map.data);
   markers.push(...(mapData.markers.markers ?? []));
 
-  console.log(`Got ${markers.length} markers for map ${mapId}`);
   return markers;
 };
 
@@ -119,6 +141,27 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
         idpolygons: mapMembership.item_id,
       },
     });
+
+    if (!polygon) {
+      console.error(
+        `Polygon with ID ${mapMembership.item_id} not found for map ${mapId} despite membership`
+      );
+      // something has gone wrong, so delete the redundant map membership and log to Glitchtip so we
+      // can track instances of this
+      await MapMembership.destroy({
+        where: {
+          map_id: mapId,
+          item_type_id: ItemTypeId.Polygon,
+          item_id: mapMembership.item_id,
+        },
+      });
+      Sentry.captureMessage(
+        `Polygon with ID ${mapMembership.item_id} not found for map ${mapId} despite membership`,
+        "error"
+      );
+      continue;
+    }
+
     polygonsAndLines.push({
       name: polygon.name,
       description: polygon.description,
@@ -147,6 +190,27 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
         idlinestrings: mapMembership.item_id,
       },
     });
+
+    if (!line) {
+      console.error(
+        `Line with ID ${mapMembership.item_id} not found for map ${mapId} despite membership`
+      );
+      // something has gone wrong, so delete the redundant map membership and log to Glitchtip so we
+      // can track instances of this
+      await MapMembership.destroy({
+        where: {
+          map_id: mapId,
+          item_type_id: ItemTypeId.Line,
+          item_id: mapMembership.item_id,
+        },
+      });
+      Sentry.captureMessage(
+        `Line with ID ${mapMembership.item_id} not found for map ${mapId} despite membership`,
+        "error"
+      );
+      continue;
+    }
+
     polygonsAndLines.push({
       name: line.name,
       description: line.description,
@@ -169,174 +233,337 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
   // Add drawings that are still stored in data JSON (if any)
   const map = await getMap(mapId);
   const mapData = JSON.parse(map.data);
-  polygonsAndLines.push(...(mapData.drawings.polygons ?? []));
+  polygonsAndLines.push(...(mapData.drawings.polygons ?? [])); // drawings.polygons is the old field name
 
   const numPolygons = polygonsAndLines.filter(
     (p) => p.type === "Polygon"
   ).length;
-  const numLines = polygonsAndLines.length - numPolygons;
-  console.log(
-    `Got ${numPolygons} polygons and ${numLines} lines for map ${mapId}`
-  );
 
   return polygonsAndLines;
 };
 
-export const createMapMembership = async (
+/**
+ * Create a single or multiple map memberships for a particular map and item type. Don't create
+ * duplicates if the membership already exists.
+ */
+export const bulkCreateMapMemberships = async (
   mapId: number,
   itemTypeId: number,
-  itemId: number
+  itemId: number | number[]
 ) => {
-  await MapMembership.create({
-    map_id: mapId,
-    item_type_id: itemTypeId,
-    item_id: itemId,
-  });
-};
-
-/* Save array of markers to DB for a given map. */
-const saveMarkers = async (
-  mapId: number,
-  markers: Array<any>,
-  update: boolean
-) => {
-  for (const m of markers) {
-    const uuid = update && m.uuid ? m.uuid : uuidv4();
-    const newMarker = await createMarker(
-      m.name,
-      m.description,
-      m.coordinates,
-      uuid
+  const itemIds = Array.isArray(itemId) ? itemId : [itemId];
+  if (itemIds.length > 0) {
+    await MapMembership.bulkCreate(
+      itemIds.map((item_id) => ({
+        map_id: mapId,
+        item_type_id: itemTypeId,
+        item_id,
+      })),
+      {
+        fields: ["map_id", "item_type_id", "item_id"],
+        ignoreDuplicates: true,
+      }
     );
-    await createMapMembership(mapId, ItemTypeId.Marker, newMarker.idmarkers);
   }
 };
 
-/* Save array of polygons and lines to DB for a given map. */
-const savePolygonsAndLines = async (
+/**
+ * Create each marker where a UUID doesn't already exist. If the UUID already exists, update the
+ * existing record with the new values. Also, if deleteMissing is true, delete any existing markers
+ * that are not in the new data.
+ */
+export const bulkCreateUpdateAndDeleteMarkers = async (
   mapId: number,
-  polygonsAndLines: Array<any>,
-  update: boolean
+  markers: any[],
+  deleteMissing: boolean
 ) => {
-  for (const p of polygonsAndLines) {
-    const uuid = update && p.data.id ? p.data.id : uuidv4();
+  const parsedMarkers = markers.map((marker) => ({
+    name: marker.name,
+    description: marker.description,
+    location: {
+      type: "Point",
+      coordinates: marker.coordinates,
+    },
+    uuid: marker.uuid,
+    data_group_id: DataGroupId.None,
+  }));
+  const markerUuids = parsedMarkers.map((marker) => marker.uuid);
 
-    if (p.type === "Polygon") {
-      const newPolygon = await createPolygon(
-        p.name,
-        p.description,
-        p.data.geometry.coordinates,
-        p.center,
-        p.length,
-        p.area,
-        uuid
-      );
-      await createMapMembership(
-        mapId,
-        ItemTypeId.Polygon,
-        newPolygon.idpolygons
-      );
-    } else {
-      const newLine = await createLine(
-        p.name,
-        p.description,
-        p.data.geometry.coordinates,
-        p.length,
-        uuid
-      );
-      await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
-    }
-  }
-};
+  // First check which markers need to be deleted from the DB
+  let markerUuidsToRemove = [];
 
-/* Copy all data group objects to a specified map. */
-const copyDataGroupObjects = async (mapId: number, dataGroupIds: any) => {
-  for (const id of dataGroupIds) {
-    const dataGroupMarkers = await Marker.findAll({
+  if (deleteMissing) {
+    const mapMemberships = await MapMembership.findAll({
+      where: { map_id: mapId, item_type_id: ItemTypeId.Marker },
+    });
+    const existingMarkerUuids: string[] = await Marker.findAll({
       where: {
-        data_group_id: id,
+        idmarkers: mapMemberships.map((item: any) => item.item_id),
+      },
+    }).then((markers: any[]) => markers.map((marker) => marker.uuid));
+    markerUuidsToRemove = existingMarkerUuids.filter(
+      (uuid) => !markerUuids.includes(uuid)
+    );
+    await Marker.destroy({
+      where: {
+        uuid: markerUuidsToRemove,
       },
     });
-    await saveMarkers(
-      mapId,
-      dataGroupMarkers.map((marker: any) => ({
+  }
+
+  // Now create/update markers
+  await Marker.bulkCreate(parsedMarkers, {
+    fields: ["name", "description", "location", "uuid", "data_group_id"],
+    updateOnDuplicate: ["name", "description", "location", "data_group_id"],
+  });
+  const updatedMarkerIds = (
+    await Marker.findAll({
+      where: { uuid: markerUuids },
+    })
+  ).map((marker: any) => marker.idmarkers);
+
+  await bulkCreateMapMemberships(mapId, ItemTypeId.Marker, updatedMarkerIds);
+
+  console.log(
+    `Created/updated ${updatedMarkerIds.length} and removed ${markerUuidsToRemove.length} markers`
+  );
+};
+
+/**
+ * Create each polygon/line where a UUID doesn't already exist. If the UUID already exists, update
+ * the existing record with the new values. And, if deleteMissing is true, delete any existing
+ * polygons/lines that are not in the new data.
+ *
+ * TODO: we could maybe neaten this function up and commonalise repetition of code which is similar
+ * for markers, polygons and lines
+ */
+const bulkCreateUpdateAndDeletePolygonsAndLines = async (
+  mapId: number,
+  polygonsAndLines: any[],
+  deleteMissing: boolean
+) => {
+  const parsedPolygons = polygonsAndLines
+    .filter((item) => item.data.geometry.type === "Polygon")
+    .map((item) => ({
+      name: item.name,
+      description: item.description,
+      vertices: item.data.geometry,
+      center: {
+        type: "Point",
+        coordinates: item.center,
+      },
+      length: item.length,
+      area: item.area,
+      uuid: item.uuid,
+      data_group_id: DataGroupId.None,
+    }));
+  const polygonUuids = parsedPolygons.map((polygon) => polygon.uuid);
+
+  const parsedLines = polygonsAndLines
+    .filter((item) => item.data.geometry.type === "LineString")
+    .map((item) => ({
+      name: item.name,
+      description: item.description,
+      vertices: item.data.geometry,
+      length: item.length,
+      uuid: item.uuid,
+      data_group_id: DataGroupId.None,
+    }));
+  const lineUuids = parsedLines.map((line) => line.uuid);
+
+  // First check which polygons and lines need to be deleted from the DB
+  let polygonUuidsToRemove = [];
+  let lineUuidsToRemove = [];
+
+  if (deleteMissing) {
+    const polygonMapMemberships = await MapMembership.findAll({
+      where: { map_id: mapId, item_type_id: ItemTypeId.Polygon },
+    });
+    const existingPolygonUuids: string[] = await Polygon.findAll({
+      where: {
+        idpolygons: polygonMapMemberships.map((item: any) => item.item_id),
+      },
+    }).then((polygons: any[]) => polygons.map((polygon) => polygon.uuid));
+    polygonUuidsToRemove = existingPolygonUuids.filter(
+      (uuid) => !polygonUuids.includes(uuid)
+    );
+    await Polygon.destroy({
+      where: {
+        uuid: polygonUuidsToRemove,
+      },
+    });
+
+    const lineMapMemberships = await MapMembership.findAll({
+      where: { map_id: mapId, item_type_id: ItemTypeId.Line },
+    });
+    const existingLineUuids: string[] = await Line.findAll({
+      where: {
+        idlinestrings: lineMapMemberships.map((item: any) => item.item_id),
+      },
+    }).then((lines: any[]) => lines.map((line) => line.uuid));
+    lineUuidsToRemove = existingLineUuids.filter(
+      (uuid) => !lineUuids.includes(uuid)
+    );
+    await Line.destroy({
+      where: {
+        uuid: lineUuidsToRemove,
+      },
+    });
+  }
+
+  // Now create or update polygons and lines
+  await Polygon.bulkCreate(parsedPolygons, {
+    fields: [
+      "name",
+      "description",
+      "vertices",
+      "center",
+      "length",
+      "area",
+      "uuid",
+      "data_group_id",
+    ],
+    updateOnDuplicate: [
+      "name",
+      "description",
+      "vertices",
+      "center",
+      "length",
+      "area",
+      "data_group_id",
+    ],
+  });
+  const updatedPolygonIds = (
+    await Polygon.findAll({
+      where: { uuid: polygonUuids },
+    })
+  ).map((polygon: any) => polygon.idpolygons);
+
+  await bulkCreateMapMemberships(mapId, ItemTypeId.Polygon, updatedPolygonIds);
+
+  await Line.bulkCreate(parsedLines, {
+    fields: [
+      "name",
+      "description",
+      "vertices",
+      "length",
+      "uuid",
+      "data_group_id",
+    ],
+    updateOnDuplicate: [
+      "name",
+      "description",
+      "vertices",
+      "length",
+      "data_group_id",
+    ],
+  });
+  const updatedLineIds = (
+    await Line.findAll({
+      where: { uuid: lineUuids },
+    })
+  ).map((line: any) => line.idlinestrings);
+
+  await bulkCreateMapMemberships(mapId, ItemTypeId.Line, updatedLineIds);
+
+  console.log(
+    `Created/updated ${updatedPolygonIds.length} polygons ${updatedLineIds.length} lines and removed ${polygonUuidsToRemove.length} polygons ${lineUuidsToRemove.length} lines`
+  );
+};
+
+/* Copy all data group objects to a specified new map. */
+const copyDataGroupObjectsToNewMap = async (
+  mapId: number,
+  dataGroupIds: any
+) => {
+  console.log(
+    `Copying data group objects from ${dataGroupIds} to new map`,
+    mapId
+  );
+
+  const markers: any[] = [];
+  const polygonsAndLines: any[] = [];
+
+  for (const id of dataGroupIds) {
+    markers.push(
+      ...(
+        await Marker.findAll({
+          where: {
+            data_group_id: id,
+          },
+        })
+      ).map((marker: any) => ({
         name: marker.name,
         description: marker.description,
         coordinates: marker.location.coordinates,
-      })),
-      false
+        uuid: uuidv4(),
+      }))
     );
 
-    const dataGroupPolygons = await Polygon.findAll({
-      where: {
-        data_group_id: id,
-      },
-    });
-    for (const polygon of dataGroupPolygons) {
-      const newPolygon = await createPolygon(
-        polygon.name,
-        polygon.description,
-        polygon.vertices.coordinates,
-        polygon.center.coordinates,
-        polygon.length,
-        polygon.area,
-        uuidv4()
-      );
-      await createMapMembership(
-        mapId,
-        ItemTypeId.Polygon,
-        newPolygon.idpolygons
-      );
-    }
+    polygonsAndLines.push(
+      ...(
+        await Polygon.findAll({
+          where: {
+            data_group_id: id,
+          },
+        })
+      ).map((polygon: any) => ({
+        name: polygon.name,
+        description: polygon.description,
+        data: { geometry: polygon.vertices },
+        center: polygon.center.coordinates,
+        length: polygon.length,
+        area: polygon.area,
+        uuid: uuidv4(),
+      }))
+    );
 
-    const dataGroupLines = await Line.findAll({
-      where: {
-        data_group_id: id,
-      },
-    });
-    for (const line of dataGroupLines) {
-      const newLine = await createLine(
-        line.name,
-        line.description,
-        line.vertices.coordinates,
-        line.length,
-        uuidv4()
-      );
-      await createMapMembership(mapId, ItemTypeId.Line, newLine.idlinestrings);
-    }
+    polygonsAndLines.push(
+      ...(
+        await Line.findAll({
+          where: {
+            data_group_id: id,
+          },
+        })
+      ).map((line: any) => ({
+        name: line.name,
+        description: line.description,
+        data: { geometry: line.vertices },
+        length: line.length,
+        uuid: uuidv4(),
+      }))
+    );
   }
+
+  await bulkCreateUpdateAndDeleteMarkers(mapId, markers, false);
+  await bulkCreateUpdateAndDeletePolygonsAndLines(
+    mapId,
+    polygonsAndLines,
+    false
+  );
 };
 
-type CreateMapFunction = (
+/** Returns ID of the created map */
+export const createMap = async (
   name: string,
-  data: any,
+  data: SaveMapData,
   userId: number,
   isSnapshot: boolean
-) => Promise<number>;
-
-/** Returns ID of the created map */
-export const createMap: CreateMapFunction = async (
-  name,
-  data,
-  userId,
-  isSnapshot
-) => {
-  const mapData = await JSON.parse(data);
-
+): Promise<number> => {
   // Saving drawings to DB separately so can remove from JSON
-  const markers = mapData.markers.markers ?? [];
-  const polygonsAndLines = mapData.drawings.polygons;
-  mapData.markers.markers = [];
-  mapData.drawings.polygons = [];
+  const markers = data.markers.markers ?? [];
+  const polygonsAndLines =
+    data.drawings.drawings ?? data.drawings.polygons ?? [];
+  delete data.markers.markers;
+  delete data.drawings.polygons;
+  delete data.drawings.drawings;
 
-  const myDataLayers = JSON.parse(
-    JSON.stringify(mapData.mapLayers.myDataLayers)
-  );
-  if (isSnapshot) mapData.mapLayers.myDataLayers = [];
+  const myDataLayers = data.mapLayers.myDataLayers;
+  if (isSnapshot) data.mapLayers.myDataLayers = [];
 
   const newMap = await Map.create({
     name: name,
-    data: JSON.stringify(mapData),
+    data: JSON.stringify(data),
     deleted: 0,
     is_snapshot: isSnapshot,
   });
@@ -347,19 +574,26 @@ export const createMap: CreateMapFunction = async (
     access: UserMapAccess.Owner,
   });
 
-  await saveMarkers(newMap.id, markers, false);
-
-  await savePolygonsAndLines(newMap.id, polygonsAndLines, false);
-
   if (isSnapshot) {
     // In old maps, dataLayers used to be array of objects, each with an iddata_groups
     // field. In newer maps, myDataLayers is just an array of data group IDs.
     const dataGroupIds = myDataLayers.map((item: any) =>
       typeof item === "number" ? item : item.iddata_groups
     );
+    await copyDataGroupObjectsToNewMap(newMap.id, dataGroupIds);
 
-    await copyDataGroupObjects(newMap.id, dataGroupIds);
+    // Also, give the markers, polygons and lines new UUIDs so that new ones are created in the DB,
+    // rather than just updating the old ones
+    markers.forEach((marker) => (marker.uuid = uuidv4()));
+    polygonsAndLines.forEach((item) => (item.uuid = uuidv4()));
   }
+
+  await bulkCreateUpdateAndDeleteMarkers(newMap.id, markers, false);
+  await bulkCreateUpdateAndDeletePolygonsAndLines(
+    newMap.id,
+    polygonsAndLines,
+    false
+  );
 
   console.log(`Created map ${newMap.id} with name ${name}`);
 
@@ -370,89 +604,72 @@ export const createMap: CreateMapFunction = async (
   return newMap.id;
 };
 
-type MapUpdateFunction = (
-  eid: number,
-  name: string,
-  data: any
-) => Promise<void>;
+export type SaveMapData = {
+  map: {
+    zoom: [number];
+    lngLat: [-1.5, 53];
+    searchMarker: [number, number];
+    currentLocation: [number, number];
+  };
+  drawings: {
+    drawings?: any[];
+    polygons?: any[]; // the old field name in old maps
+    activeDrawing: string;
+    polygonsDrawn: number;
+    linesDrawn: number;
+  };
+  markers: {
+    markers?: any[];
+    currentMarker: string;
+    markersDrawn: number;
+  };
+  mapLayers: {
+    landDataLayers: string[];
+    myDataLayers: string[];
+    ownershipDisplay: string;
+  };
+  version: string;
+};
 
-export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
-  console.log(`Updating map ${mapId}`);
-  const mapData = await JSON.parse(data);
+/**
+ * Update a map with new data.
+ *
+ * For each of the markers, polygons and lines in the new data, we assume that new or updated items
+ * have a new UUID. Therefore, if an item exists in the DB with the same UUID, we don't update it,
+ * otherwise we add it to the DB. And we delete any items with UUIDs that are not in the new data.
+ */
+export const updateMap = async (userId: number, mapId: number, name: string, data: SaveMapData) => {
+  console.log(`User ${userId} updating map ${mapId}`);
 
-  // Remove existing objects in DB and re-add them.
-  // TODO: Reduce number of DB operations by only adding and removing objects that have changed
-  // In order to do this, we need to:
-  // - get all the markers, polygons and lines
-
-  const mapMemberships = await MapMembership.findAll({
-    where: { map_id: mapId },
-  });
-
-  const markerIds = [];
-  const polygonIds = [];
-  const lineIds = [];
-  for (const item of mapMemberships) {
-    switch (item.item_type_id) {
-      case ItemTypeId.Marker:
-        markerIds.push(item.item_id);
-      case ItemTypeId.Polygon:
-        polygonIds.push(item.item_id);
-      case ItemTypeId.Line:
-        lineIds.push(item.item_id);
-    }
+  if (data.markers.markers) {
+    await bulkCreateUpdateAndDeleteMarkers(mapId, data.markers.markers, true);
   }
 
-  await MapMembership.destroy({
-    where: { map_id: mapId },
-  });
-
-  if (markerIds.length) {
-    console.log(
-      `Removing ${markerIds.length} markers from DB for map ${mapId}`
+  if (data.drawings.drawings) {
+    await bulkCreateUpdateAndDeletePolygonsAndLines(
+      mapId,
+      data.drawings.drawings,
+      true
     );
-    await Marker.destroy({
-      where: { idmarkers: markerIds },
-    });
   }
-
-  if (polygonIds.length) {
-    console.log(
-      `Removing ${polygonIds.length} polygons from DB for map ${mapId}`
-    );
-    await Polygon.destroy({
-      where: { idpolygons: polygonIds },
-    });
-  }
-
-  if (lineIds.length) {
-    console.log(`Removing ${lineIds.length} lines from DB for map ${mapId}`);
-    await Line.destroy({
-      where: { idlinestrings: lineIds },
-    });
-  }
-
-  const markers = mapData.markers.markers ?? [];
-  console.log(`Adding ${markers.length} markers to DB for map ${mapId}`);
-  await saveMarkers(mapId, markers, true);
-
-  const polygonsAndLines =
-    mapData.drawings.drawings ?? mapData.drawings.polygons ?? [];
-  console.log(
-    `Adding ${polygonsAndLines.length} polygons/lines to DB for map ${mapId}`
-  );
-  await savePolygonsAndLines(mapId, polygonsAndLines, true);
 
   // Remove markers, polygons and lines from data (for any old maps from before they were stored
   // separately in the DB) since they are now stored separately in the DB
-  delete mapData.markers.markers;
-  delete mapData.drawings.polygons;
-  delete mapData.drawings.drawings;
+  delete data.markers.markers;
+  delete data.drawings.polygons;
+  delete data.drawings.drawings;
 
+  // Get the current map data so we can check for what has changed
+  const existingMap = await getMap(mapId);
+  const existingMapData = JSON.parse(existingMap.data);
+
+  compareMapDataChangesAndSendAnalytics(userId, mapId, existingMapData, data);
+
+  // Save the new map data in the DB
   await Map.update(
     {
       name: name,
-      data: JSON.stringify(mapData),
+      data: JSON.stringify(data),
     },
     {
       where: {
@@ -462,9 +679,37 @@ export const updateMap: MapUpdateFunction = async (mapId, name, data) => {
   );
 };
 
-type MapUpdateZoomFunction = (eid: number, zoom: number[]) => Promise<void>;
+const compareMapDataChangesAndSendAnalytics = (
+  userId: number,
+  mapId: number,
+  oldData: SaveMapData,
+  newData: SaveMapData
+) => {
+  // Changes that we want to track in the map data are:
+  //  - setting mapLayers.ownershipDisplay to a non-null value
+  // (this is the only one for now but we may choose to track more later)
 
-export const updateMapZoom: MapUpdateZoomFunction = async (mapId, zoom) => {
+  const changes = atomizeChangeset(
+    diff(oldData, newData, {
+      keysToSkip: ["map", "drawings", "markers", "version"],
+    })
+  );
+
+  const ownershipDisplayChange = changes.find(
+    (change) =>
+      change.type === "ADD" &&
+      change.value !== null &&
+      change.path.startsWith("$.mapLayers.ownershipDisplay")
+  );
+
+  if (ownershipDisplayChange) {
+    trackUserMapEvent(userId, mapId, Event.LAND_OWNERSHIP.ENABLE, {
+      layer_id: ownershipDisplayChange.value,
+    });
+  }
+};
+
+export const updateMapZoom = async (mapId: number, zoom: number[]) => {
   const existingMap = await getMap(mapId);
   const mapData = await JSON.parse(existingMap.data);
 
