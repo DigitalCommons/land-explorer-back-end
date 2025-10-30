@@ -235,10 +235,6 @@ export const getMapPolygonsAndLines = async (mapId: number) => {
   const mapData = JSON.parse(map.data);
   polygonsAndLines.push(...(mapData.drawings.polygons ?? [])); // drawings.polygons is the old field name
 
-  const numPolygons = polygonsAndLines.filter(
-    (p) => p.type === "Polygon"
-  ).length;
-
   return polygonsAndLines;
 };
 

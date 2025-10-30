@@ -697,6 +697,20 @@ async function getMapData(
       mapData.mapLayers.myDataLayers = [];
     }
 
+    const drawnCount =
+      mapData.markers.markers.length + mapData.drawings.drawings.length;
+
+    if (userMap.access === UserMapAccess.Owner) {
+      trackUserMapEvent(userId, eid, Event.MAP.OPEN, {
+        drawn_count: drawnCount,
+      });
+    } else {
+      trackUserMapEvent(userId, eid, Event.MAP.SHARED_OPEN, {
+        drawn_count: drawnCount,
+        access: UserMapAccess[userMap.access],
+      });
+    }
+
     return h.response(mapData).code(200);
   } catch (error) {
     console.error("Error in getMapData:", error);
