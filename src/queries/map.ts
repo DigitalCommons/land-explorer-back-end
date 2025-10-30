@@ -679,16 +679,19 @@ export const updateMap = async (userId: number, mapId: number, name: string, dat
   );
 };
 
+/**
+ * 
+ * Changes that we want to track in the map data are:
+ * 
+ * - setting mapLayers.ownershipDisplay to a non-null value
+ *   (this is the only one for now but we may choose to track more later)
+ */
 const compareMapDataChangesAndSendAnalytics = (
   userId: number,
   mapId: number,
   oldData: SaveMapData,
   newData: SaveMapData
 ) => {
-  // Changes that we want to track in the map data are:
-  //  - setting mapLayers.ownershipDisplay to a non-null value
-  // (this is the only one for now but we may choose to track more later)
-
   const changes = atomizeChangeset(
     diff(oldData, newData, {
       keysToSkip: ["map", "drawings", "markers", "version"],

@@ -581,7 +581,10 @@ async function deleteMap(
 }
 
 /**
- * Get all maps shared to user, in order of creation (oldest first).
+ * Get all maps owned by or shared to user, in order of creation (oldest first).
+ *
+ * Returns lightweight list of metadata without full map data, in order of map creation date, oldest
+ * to newest.
  */
 async function getUserMaps(
   request: Request,
@@ -611,25 +614,6 @@ async function getUserMaps(
     const allMapsData = [];
 
     for (const map of allMaps) {
-      const mapData = await JSON.parse(map.data);
-
-      // get all drawings, including those in separate DB tables
-      mapData.markers.markers = await getMapMarkers(map.id);
-      delete mapData.drawings.polygons; // this was the old field name for polygon/line drawings
-      mapData.drawings.drawings = await getMapPolygonsAndLines(map.id);
-
-      // landDataLayers field used to be called activeLayers
-      if (mapData.mapLayers.activeLayers) {
-        mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
-        delete mapData.mapLayers.activeLayers;
-      }
-      // fix that some old maps may not have dataLayers field
-      if (!mapData.mapLayers.myDataLayers) {
-        mapData.mapLayers.myDataLayers = [];
-      }
-
-      map.data = JSON.stringify(mapData);
-
       const myUserMap = map.UserMaps[0];
       let sharedWith: { email: string; access: UserMapAccess }[] = [];
 
@@ -639,15 +623,12 @@ async function getUserMaps(
       }
 
       allMapsData.push({
-        map: {
-          eid: map.id,
-          name: map.name,
-          data: map.data,
-          createdDate: map.created_date,
-          lastModified: map.last_modified,
-          sharedWith: sharedWith,
-          isSnapshot: map.is_snapshot,
-        },
+        eid: map.id,
+        name: map.name,
+        createdDate: map.created_date,
+        lastModified: map.last_modified,
+        sharedWith: sharedWith,
+        isSnapshot: map.is_snapshot,
         accessGrantedDate: myUserMap.created_date,
         access: myUserMap.access,
         viewed: myUserMap.viewed == 1,
@@ -657,6 +638,68 @@ async function getUserMaps(
     return h.response(allMapsData).code(200);
   } catch (error) {
     console.error("Error in getUserMaps:", error);
+    return h.response("Internal server error").code(500);
+  }
+}
+
+type GetMapDataRequest = LoggedInRequest & {
+  params: {
+    eid: number;
+  };
+};
+
+/**
+ * Get full map data for a specific map by eid.
+ * User must have access to the map.
+ */
+async function getMapData(
+  request: GetMapDataRequest,
+  h: ResponseToolkit
+): Promise<ResponseObject> {
+  try {
+    const { eid } = request.params;
+    const userId = request.auth.credentials.user_id;
+
+    const userMap = await UserMap.findOne({
+      where: {
+        user_id: userId,
+        map_id: eid,
+      },
+      include: [
+        {
+          model: Map,
+          where: {
+            deleted: 0,
+          },
+        },
+      ],
+    });
+
+    if (!userMap || !userMap.Map) {
+      return h.response("Map not found").code(404);
+    }
+
+    const map = userMap.Map;
+    const mapData = await JSON.parse(map.data);
+
+    // get all drawings, including those in separate DB tables
+    mapData.markers.markers = await getMapMarkers(map.id);
+    mapData.drawings.drawings = await getMapPolygonsAndLines(map.id);
+    delete mapData.drawings.polygons; // this was the old field name for polygon/line drawings
+
+    // landDataLayers field used to be called activeLayers
+    if (mapData.mapLayers.activeLayers) {
+      mapData.mapLayers.landDataLayers = mapData.mapLayers.activeLayers;
+      delete mapData.mapLayers.activeLayers;
+    }
+    // fix that some old maps may not have dataLayers field
+    if (!mapData.mapLayers.myDataLayers) {
+      mapData.mapLayers.myDataLayers = [];
+    }
+
+    return h.response(mapData).code(200);
+  } catch (error) {
+    console.error("Error in getMapData:", error);
     return h.response("Internal server error").code(500);
   }
 }
@@ -928,6 +971,8 @@ export const mapRoutes: ServerRoute[] = [
   },
   // Returns a list of all maps that the user has access to
   { method: "GET", path: "/api/user/maps", handler: getUserMaps },
+  // Get full data for a specific map by eid
+  { method: "GET", path: "/api/user/map/{eid}", handler: getMapData },
   // Get the geojson polygons of land ownership within a given bounding box area
   { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygons },
   // search the public ownership information
