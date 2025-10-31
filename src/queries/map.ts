@@ -757,7 +757,7 @@ export const updateMapLngLat: MapUpdateLngLatFunction = async (
 
 /**
  * Get the email addresses that have been granted access to a map by the owner, and their associated
- * access levels (read-only or read-write). We don't include the owner's email.
+ * access levels (read-only or read-write). We don't include the owner's email or the public user.
  */
 export const getUserEmailsWithSharedMapAccess = async (
   mapId: number
@@ -769,6 +769,9 @@ export const getUserEmailsWithSharedMapAccess = async (
     await UserMap.findAll({
       where: {
         map_id: mapId,
+        user_id: {
+          [Op.ne]: -1, // exclude public user
+        },
         access: {
           [Op.ne]: UserMapAccess.Owner,
         },
@@ -846,6 +849,8 @@ export const deleteMapAccessByEmails = async (
  *
  * If the email address corresponds to a user, grant their access via user_map, otherwise via
  * pending_user_map.
+ * 
+ * Send an analytic if the map is shared with any new users.
  *
  * @param domain this website domain must to be included in order to send email notifications to the
  *               emails that are granted access
@@ -929,7 +934,6 @@ export const grantMapAccessByEmails = async (
         user_id: user.id,
         access: userToChangeAccess.access,
       });
-      sharedWithAnalyticsData.push(await hashUserId(user.id));
     } else {
       // Remove any previous entries, to avoid conflicting duplicates
       await PendingUserMap.destroy({
@@ -943,7 +947,6 @@ export const grantMapAccessByEmails = async (
         email_address: userToChangeAccess.email,
         access: userToChangeAccess.access,
       });
-      sharedWithAnalyticsData.push("PENDING_USER");
     }
   }
 
@@ -986,9 +989,11 @@ export const grantMapAccessByEmails = async (
     }
   }
 
-  trackUserMapEvent(ownerUserId, mapId, Event.MAP.SHARE, {
-    sharedWith: sharedWithAnalyticsData,
-  });
+  if (sharedWithAnalyticsData.length > 0) {
+    trackUserMapEvent(ownerUserId, mapId, Event.MAP.SHARE, {
+      sharedWith: sharedWithAnalyticsData,
+    });
+  }
 };
 
 /**

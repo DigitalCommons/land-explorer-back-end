@@ -209,6 +209,8 @@ export const checkAndReturnUser = async (
  * pepper, to anonymize it for analytics.
  */
 export const hashUserId = async (userId: number) => {
+  if (userId === -1) return "USER_NOT_FOUND";
+
   const user = await getUserById(userId);
   if (!user) {
     console.error(`User with ID ${userId} not found for hashing`);
