@@ -87,7 +87,7 @@ const UserMapModel = sequelize.define(
       references: { model: UserModel, key: "id" },
     },
     access: { type: DataTypes.INTEGER, allowNull: false },
-    viewed: { type: DataTypes.TEXT, allowNull: false, defaultValue: 0 },
+    viewed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: 0 },
     created_date: Sequelize.DATE,
   },
   {

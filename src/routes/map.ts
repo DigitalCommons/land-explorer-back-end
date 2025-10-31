@@ -408,38 +408,6 @@ async function editMapLine(
   return h.response();
 }
 
-/**
- * Set a map as viewed.
- * TODO: remove this API since we get same info from websocket connections anyway?
- */
-async function setMapAsViewed(
-  request: Request,
-  h: ResponseToolkit
-): Promise<ResponseObject> {
-  let validation = new Validation();
-  await validation.validateEid(request.payload);
-
-  if (validation.fail()) {
-    return h.response(validation.errors).code(400);
-  }
-
-  let payload: any = request.payload;
-
-  await UserMap.update(
-    {
-      viewed: 1,
-    },
-    {
-      where: {
-        user_id: request.auth.credentials.user_id,
-        map_id: payload.eid,
-      },
-    }
-  );
-
-  return h.response().code(200);
-}
-
 type GetMapSharedToRequest = LoggedInRequest & {
   params: {
     eid: number;
@@ -700,16 +668,34 @@ async function getMapData(
     const drawnCount =
       mapData.markers.markers.length + mapData.drawings.drawings.length;
 
+    // Send any relevant analytics
     if (userMap.access === UserMapAccess.Owner) {
-      trackUserMapEvent(userId, eid, Event.MAP.OPEN, {
-        drawn_count: drawnCount,
-      });
+      // If the owner hasn't viewed the map before, this is due to the map just being saved for
+      // the first time and immediately opened. So don't record a Map_Open event.
+      if (userMap.viewed) {
+        trackUserMapEvent(userId, eid, Event.MAP.OPEN, {
+          drawn_count: drawnCount,
+        });
+      }
     } else {
       trackUserMapEvent(userId, eid, Event.MAP.SHARED_OPEN, {
         drawn_count: drawnCount,
         access: UserMapAccess[userMap.access],
       });
     }
+
+    // Set map as viewed
+    await UserMap.update(
+      {
+        viewed: 1,
+      },
+      {
+        where: {
+          user_id: userId,
+          map_id: eid,
+        },
+      }
+    );
 
     return h.response(mapData).code(200);
   } catch (error) {
@@ -956,8 +942,6 @@ export const mapRoutes: ServerRoute[] = [
     handler: editMapPolygon,
   },
   { method: "POST", path: "/api/user/map/edit/line", handler: editMapLine },
-  // Record that the user has viewed a map
-  { method: "POST", path: "/api/user/map/view", handler: setMapAsViewed },
   // Get the email addresses and their access level that a map is shared to
   { method: "GET", path: "/api/user/map/share", handler: getMapSharedTo },
   // Share access of a map to a list of email addresses
