@@ -14,7 +14,7 @@ Sentry.init({
 let mixpanel: Mixpanel.Mixpanel;
 if (process.env.MIXPANEL_TOKEN) {
   mixpanel = Mixpanel.init(process.env.MIXPANEL_TOKEN, {
-    debug: process.env.NODE_ENV === "development",
+    // debug: process.env.NODE_ENV === "development",
   });
 } else {
   console.warn("Mixpanel token not found. Analytics will not be sent.");

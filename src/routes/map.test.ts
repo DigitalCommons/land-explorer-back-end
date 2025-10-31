@@ -10,7 +10,7 @@ const query = require("../queries/query");
 
 const sandbox = createSandbox();
 
-describe("GET /api/user/maps", () => {
+describe("GET /api/user/maps & GET/api/user/map/:eid", () => {
   let server: Server;
   const getUserMapsRequest = {
     method: "GET",
@@ -22,9 +22,20 @@ describe("GET /api/user/maps", () => {
       },
     },
   };
+  const getMapDataRequest = (eid: number) => ({
+    method: "GET",
+    url: `/api/user/map/${eid}`,
+    auth: {
+      strategy: "simple",
+      credentials: {
+        user_id: 123,
+      },
+    },
+  });
 
   beforeEach(async () => {
     server = await init();
+    sandbox.replace(query, "trackUserEvent", fake.resolves(null));
   });
 
   afterEach(async () => {
@@ -35,9 +46,10 @@ describe("GET /api/user/maps", () => {
   context("User has no maps", () => {
     beforeEach(() => {
       sandbox.replace(Model.Map, "findAll", fake.resolves([]));
+      sandbox.replace(Model.UserMap, "findOne", fake.resolves(null));
     });
 
-    it("returns status 200", async () => {
+    it("getUserMaps returns status 200", async () => {
       const res = await server.inject(getUserMapsRequest);
 
       expect(res.statusCode).to.equal(200);
@@ -48,6 +60,12 @@ describe("GET /api/user/maps", () => {
 
       expect(res.result).to.be.an("array").that.is.empty;
     });
+
+    it("getMapData returns status 404", async () => {
+      const res = await server.inject(getMapDataRequest(1));
+
+      expect(res.statusCode).to.equal(404);
+    });
   });
 
   context(
@@ -55,7 +73,23 @@ describe("GET /api/user/maps", () => {
     () => {
       const testMapId = 1;
       const testMapName = "test map";
-      const testMapData = `{"map":{"zoom":[8],"lngLat":[-2.4,54.1],"gettingLocation":false,"currentLocation":null,"movingMethod":"flyTo","name":"test map"},"drawings":{"polygons":[],"activePolygon":null,"polygonCount":0,"lineCount":0,"loadingDrawings":false},"markers":{"markers":[]},"mapLayers":{"landDataLayers":[],"myDataLayers":[]},"version":"1.1","name":"test map"}`;
+      const testMapData = {
+        map: {
+          zoom: [8],
+          lngLat: [-2.4, 54.1],
+          gettingLocation: false,
+          currentLocation: null,
+          movingMethod: "flyTo",
+        },
+        drawings: {
+          drawings: [],
+          polygonCount: 0,
+          lineCount: 0,
+        },
+        markers: { markers: [] },
+        mapLayers: { landDataLayers: [], myDataLayers: [] },
+        version: "1.1",
+      };
       const testMapCreatedData = "2023-01-19 03:14:07";
       const testMapLastModified = "2023-01-22 06:24:11";
 
@@ -63,25 +97,37 @@ describe("GET /api/user/maps", () => {
         const testMap = {
           id: testMapId,
           name: testMapName,
-          data: testMapData,
+          data: JSON.stringify(testMapData),
           deleted: 0,
           is_snapshot: false,
           created_date: testMapCreatedData,
           last_modified: testMapLastModified,
-          UserMaps: [
-            {
-              id: 1,
-              viewed: 1,
-              map_id: testMapId,
-              user_id: 1,
-              access: 2,
-              created_date: testMapCreatedData,
-            },
-          ],
         };
-        // fake Map.findAll and Map.findOne return the same single Map
-        sandbox.replace(Model.Map, "findAll", fake.resolves([testMap]));
-        sandbox.replace(Model.Map, "findOne", fake.resolves(testMap));
+        const testUserMap = {
+          id: 1,
+          viewed: 1,
+          map_id: testMapId,
+          user_id: 123,
+          access: 2,
+          created_date: testMapCreatedData,
+        };
+        // fake Map.findAll, Map.findOne and UserMap.findOne return the same single Map / UserMap
+        sandbox.replace(
+          Model.Map,
+          "findAll",
+          fake.resolves([{ ...testMap, UserMaps: [testUserMap] }])
+        );
+        sandbox.replace(
+          Model.Map,
+          "findOne",
+          fake.resolves({ ...testMap, UserMaps: [testUserMap] })
+        );
+        sandbox.replace(
+          Model.UserMap,
+          "findOne",
+          fake.resolves({ ...testUserMap, Map: testMap })
+        );
+        sandbox.replace(Model.UserMap, "update", fake.resolves(null));
 
         // fake MapMembership.findAll to return empty array
         sandbox.replace(Model.MapMembership, "findAll", fake.resolves([]));
@@ -131,45 +177,54 @@ describe("GET /api/user/maps", () => {
         );
       });
 
-      it("returns status 200", async () => {
+      it("getUserMaps returns status 200", async () => {
         const res = await server.inject(getUserMapsRequest);
 
         expect(res.statusCode).to.equal(200);
       });
 
-      it("1 map is returned, containing data about users that it is shared with", async () => {
+      it("getMapData returns status 200", async () => {
+        const res = await server.inject(getMapDataRequest(testMapId));
+
+        expect(res.statusCode).to.equal(200);
+      });
+
+      it("getUserMaps returns an array of 1 map, including metadata about users that it is shared with", async () => {
         const res = await server.inject(getUserMapsRequest);
 
         // Use deep equal to match values within the array rather than strict object equality
         expect(res.result).to.deep.equal([
           {
-            map: {
-              eid: testMapId,
-              name: testMapName,
-              data: testMapData,
-              createdDate: testMapCreatedData,
-              lastModified: testMapLastModified,
-              sharedWith: [
-                {
-                  email: "user2@mail.coop",
-                  access: UserMapAccess.Readwrite,
-                },
-                {
-                  email: "user3@mail.coop",
-                  access: UserMapAccess.Readwrite,
-                },
-                {
-                  email: "pendingUser@mail.coop",
-                  access: UserMapAccess.Readonly,
-                },
-              ],
-              isSnapshot: false,
-            },
+            eid: testMapId,
+            name: testMapName,
+            createdDate: testMapCreatedData,
+            lastModified: testMapLastModified,
+            sharedWith: [
+              {
+                email: "user2@mail.coop",
+                access: UserMapAccess.Readwrite,
+              },
+              {
+                email: "user3@mail.coop",
+                access: UserMapAccess.Readwrite,
+              },
+              {
+                email: "pendingUser@mail.coop",
+                access: UserMapAccess.Readonly,
+              },
+            ],
+            isSnapshot: false,
             accessGrantedDate: testMapCreatedData,
             access: 2,
             viewed: true,
           },
         ]);
+      });
+
+      it("getMapData returns the full map data", async () => {
+        const res = await server.inject(getMapDataRequest(testMapId));
+
+        expect(res.result).to.deep.equal(testMapData);
       });
     }
   );

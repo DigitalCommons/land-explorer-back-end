@@ -603,7 +603,7 @@ export const createMap = async (
 export type SaveMapData = {
   map: {
     zoom: [number];
-    lngLat: [-1.5, 53];
+    lngLat: [number, number];
     searchMarker: [number, number];
     currentLocation: [number, number];
   };
@@ -622,7 +622,7 @@ export type SaveMapData = {
   mapLayers: {
     landDataLayers: string[];
     myDataLayers: string[];
-    ownershipDisplay: string;
+    ownershipDisplay: string | null;
   };
   version: string;
 };
@@ -634,7 +634,12 @@ export type SaveMapData = {
  * have a new UUID. Therefore, if an item exists in the DB with the same UUID, we don't update it,
  * otherwise we add it to the DB. And we delete any items with UUIDs that are not in the new data.
  */
-export const updateMap = async (userId: number, mapId: number, name: string, data: SaveMapData) => {
+export const updateMap = async (
+  userId: number,
+  mapId: number,
+  name: string,
+  data: SaveMapData
+) => {
   console.log(`User ${userId} updating map ${mapId}`);
 
   if (data.markers.markers) {
@@ -676,13 +681,12 @@ export const updateMap = async (userId: number, mapId: number, name: string, dat
 };
 
 /**
- * 
  * Changes that we want to track in the map data are:
- * 
+ *
  * - setting mapLayers.ownershipDisplay to a non-null value
  *   (this is the only one for now but we may choose to track more later)
  */
-const compareMapDataChangesAndSendAnalytics = (
+export const compareMapDataChangesAndSendAnalytics = async (
   userId: number,
   mapId: number,
   oldData: SaveMapData,
@@ -696,13 +700,13 @@ const compareMapDataChangesAndSendAnalytics = (
 
   const ownershipDisplayChange = changes.find(
     (change) =>
-      change.type === "ADD" &&
+      (change.type === "ADD" || change.type === "UPDATE") &&
       change.value !== null &&
       change.path.startsWith("$.mapLayers.ownershipDisplay")
   );
 
   if (ownershipDisplayChange) {
-    trackUserMapEvent(userId, mapId, Event.LAND_OWNERSHIP.ENABLE, {
+    await trackUserMapEvent(userId, mapId, Event.LAND_OWNERSHIP.ENABLE, {
       layer_id: ownershipDisplayChange.value,
     });
   }
