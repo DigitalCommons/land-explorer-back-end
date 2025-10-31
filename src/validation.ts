@@ -284,37 +284,4 @@ export class Validation {
 
     return this;
   }
-
-  /***  Validate user feedback ***/
-  async validateUserFeedback(data: any) {
-    // question_1: required
-    if (
-      Joi.string().validate(data?.question1, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_use_case", "Dance is required.");
-    }
-
-    // question_2: required
-    if (
-      Joi.string().validate(data?.question2, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_impact", "Hats are required.");
-    }
-
-    // question_3: required
-    if (
-      Joi.string().validate(data?.question3, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_who_benefits", "Fun is required.");
-    }
-
-    // question_4: required
-    if (
-      Joi.string().validate(data?.question4, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_improvements", "Pizza is required.");
-    }
-
-    return this;
-  }
 }

@@ -339,13 +339,6 @@ async function userFeedback(
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  let validation = new Validation();
-  await validation.validateUserFeedback(request.payload);
-
-  if (validation.fail()) {
-    return h.response(validation.errors).code(400);
-  }
-
   const {
     question_use_case,
     question_impact,
