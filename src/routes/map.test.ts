@@ -246,7 +246,7 @@ describe("GET /api/ownership", () => {
 
   beforeEach(async () => {
     server = await init();
-    sandbox.replace(query, "getPolygons", fake.resolves([]));
+    sandbox.replace(query, "getLandOwnershipTitlesInBbox", fake.resolves([]));
     getLandOwnershipPolygonsRequest.url =
       "/api/ownership?sw_lng=0.3&sw_lat=53.2&ne_lng=0.4&ne_lat=53.3";
   });

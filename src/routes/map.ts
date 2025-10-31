@@ -7,7 +7,11 @@ import {
 import { Op } from "sequelize";
 import { v4 as uuidv4 } from "uuid";
 import { Validation } from "../validation";
-import { getPolygons, searchOwner, trackUserEvent } from "../queries/query";
+import {
+  getLandOwnershipTitlesInBbox,
+  searchOwner,
+  trackUserEvent,
+} from "../queries/query";
 import {
   createMap,
   updateMap,
@@ -724,35 +728,52 @@ type GetLandOwnershipPolygonsRequest = LoggedInRequest & {
 };
 
 /**
- * Get the geojson polygons of land ownership within a given bounding box area
+ * Get the land ownership titles within a given bounding box area, each title being made up of an
+ * array of geojson polygons.
  */
-async function getLandOwnershipPolygons(
+async function getLandOwnershipTitles(
   request: GetLandOwnershipPolygonsRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
   const { sw_lng, sw_lat, ne_lng, ne_lat, type, acceptedOnly } = request.query;
   const { user_id } = request.auth.credentials;
-  let polygons;
+  let titles;
 
   switch (type) {
     case "all":
     case undefined:
     case "localAuthority":
     case "churchOfEngland":
-      polygons = await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat, type);
-      return h.response(polygons).code(200);
-    case "unregistered":
-      polygons = (await getPolygons(sw_lng, sw_lat, ne_lng, ne_lat, type)).map(
-        (polygon) => ({
-          ...polygon,
-          // Add tenure field which is used by front-end
-          tenure: "unregistered",
-          // Add U prefix to ID to avoid conflicts with actual poly_ids
-          poly_id: `U${polygon.poly_id}`,
-        })
+      titles = await getLandOwnershipTitlesInBbox(
+        sw_lng,
+        sw_lat,
+        ne_lng,
+        ne_lat,
+        type
       );
-      return h.response(polygons).code(200);
+      return h.response(titles).code(200);
+    case "unregistered":
+      titles = Object.fromEntries(
+        Object.entries(
+          await getLandOwnershipTitlesInBbox(
+            sw_lng,
+            sw_lat,
+            ne_lng,
+            ne_lat,
+            type
+          )
+        ).map(([title_no, props]) => [
+          title_no.replace("unknown_", "U-"), // Use U- prefix to avoid conflicts with actual title_nos
+          {
+            ...props,
+            title_no: title_no.replace("unknown_", "U-"),
+            // Add tenure field which is used by front-end
+            tenure: "unregistered",
+          },
+        ])
+      );
+      return h.response(titles).code(200);
     case "pending":
       // These are the new boundaries from the latest INSPIRE pipeline run that are waiting to be
       // permanently saved. Only super users should be able to view pending polygons.
@@ -766,19 +787,32 @@ async function getLandOwnershipPolygons(
         return h.response("Unauthorised!").code(403);
       }
 
-      polygons = await getPolygons(
-        sw_lng,
-        sw_lat,
-        ne_lng,
-        ne_lat,
-        type,
-        acceptedOnly
+      titles = Object.fromEntries(
+        Object.entries(
+          await getLandOwnershipTitlesInBbox(
+            sw_lng,
+            sw_lat,
+            ne_lng,
+            ne_lat,
+            type,
+            acceptedOnly
+          )
+        ).map(([title_no, props]) => [
+          // Use "pending_" prefix in title_nos and also add to poly_ids to avoid conflicts with
+          // normal polygons
+          title_no.replace("unknown_", "pending_"),
+          {
+            ...props,
+            title_no: title_no.replace("unknown_", "pending_"),
+            polygons: props.polygons.map((poly) => ({
+              ...poly,
+              poly_id: `pending_${poly.poly_id}`,
+            })),
+          },
+        ])
       );
-      // Add "-pending" to the end of each poly_id to avoid id conflicts with normal polygons
-      polygons.forEach((poly) => {
-        poly.poly_id = `${poly.poly_id}-pending`;
-      });
-      return h.response(polygons).code(200);
+
+      return h.response(titles).code(200);
     default:
       return h.response("unknown ownership type").code(400);
   }
@@ -794,14 +828,14 @@ async function searchOwnership(
   const { proprietorName } = request.query;
   const { user_id } = request.auth.credentials;
 
-  const polygonsAndOwnerships = await searchOwner(proprietorName);
+  const titles = await searchOwner(proprietorName);
 
   trackUserEvent(user_id, Event.LAND_OWNERSHIP.BACKSEARCH, {
     proprietor_name: proprietorName,
-    properties_count: polygonsAndOwnerships.length,
+    properties_count: titles.length,
   });
 
-  return h.response(polygonsAndOwnerships).code(200);
+  return h.response(titles).code(200);
 }
 
 type PublicMapRequest = LoggedInRequest & {
@@ -954,6 +988,14 @@ export const mapRoutes: ServerRoute[] = [
     path: "/api/user/map/share/public",
     handler: createMapGeoJSONLink,
   },
+  // Returns a list of all maps that the user has access to
+  { method: "GET", path: "/api/user/maps", handler: getUserMaps },
+  // Get full data for a specific map by eid
+  { method: "GET", path: "/api/user/map/{eid}", handler: getMapData },
+  // Get the geojson polygons of land ownership within a given bounding box area
+  { method: "GET", path: "/api/ownership", handler: getLandOwnershipTitles },
+  // search the public ownership information
+  { method: "GET", path: "/api/search", handler: searchOwnership },
   // Get a public map GeoJSON
   {
     method: "GET",
@@ -967,12 +1009,4 @@ export const mapRoutes: ServerRoute[] = [
     path: "/api/user/map/download/{mapId}",
     handler: downloadShapefile,
   },
-  // Returns a list of all maps that the user has access to
-  { method: "GET", path: "/api/user/maps", handler: getUserMaps },
-  // Get full data for a specific map by eid
-  { method: "GET", path: "/api/user/map/{eid}", handler: getMapData },
-  // Get the geojson polygons of land ownership within a given bounding box area
-  { method: "GET", path: "/api/ownership", handler: getLandOwnershipPolygons },
-  // search the public ownership information
-  { method: "GET", path: "/api/search", handler: searchOwnership },
 ];

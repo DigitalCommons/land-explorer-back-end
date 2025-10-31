@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { assert, createSandbox, fake, SinonSpy } from "sinon"
+import { assert, createSandbox, fake, SinonSpy } from "sinon";
 
 // Dependencies to be stubbed
 const bcrypt = require("bcrypt");
@@ -493,5 +493,203 @@ describe("trackUserEvent", () => {
       const [, data] = instrument.trackRawEvent.firstCall.args;
       expect(data.distinct_id).to.equal("USER_NOT_FOUND");
     });
+  });
+});
+
+describe("groupPolysByTitleNo", () => {
+  context("Simple case", () => {
+    it("returns polygons grouped by title_no", () => {
+      const polygons = [
+        {
+          title_no: "NN123456",
+          poly_id: "1",
+
+          geom: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [0, 1],
+                [0, 0],
+              ],
+            ],
+          },
+        },
+        {
+          title_no: "NN123456",
+          poly_id: "2",
+          geom: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [2, 2],
+                [2, 3],
+                [3, 2],
+                [2, 2],
+              ],
+            ],
+          },
+        },
+        {
+          title_no: "PQ809176",
+          poly_id: "3",
+          geom: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [3, 3],
+                [3, 4],
+                [4, 3],
+                [3, 3],
+              ],
+            ],
+          },
+        },
+      ];
+      const result = query.groupPolysByTitleNo(polygons);
+      expect(result).to.deep.equal({
+        NN123456: {
+          title_no: "NN123456",
+          polygons: [
+            {
+              poly_id: "1",
+              geom: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [0, 0],
+                    [1, 0],
+                    [0, 1],
+                    [0, 0],
+                  ],
+                ],
+              },
+            },
+            {
+              poly_id: "2",
+              geom: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [2, 2],
+                    [2, 3],
+                    [3, 2],
+                    [2, 2],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+        PQ809176: {
+          title_no: "PQ809176",
+          polygons: [
+            {
+              poly_id: "3",
+              geom: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [3, 3],
+                    [3, 4],
+                    [4, 3],
+                    [3, 3],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      });
+    });
+  });
+
+  context("There are polygons with null/empty title_no", () => {
+    it("polys with null/empty title_no get a dummy title_no of the form 'unknown_<poly_id>'", () => {
+      const polygons = [
+        {
+          title_no: null,
+          poly_id: "1",
+          geom: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [0, 0],
+              ],
+            ],
+          },
+        },
+        {
+          title_no: "",
+          poly_id: "2",
+          geom: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [2, 2],
+                [3, 2],
+                [3, 3],
+                [2, 3],
+                [2, 2],
+              ],
+            ],
+          },
+        },
+      ];
+      const result = query.groupPolysByTitleNo(polygons);
+      expect(result).to.deep.equal({
+        unknown_1: {
+          title_no: "unknown_1",
+          polygons: [
+            {
+              poly_id: "1",
+              geom: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [0, 0],
+                    [1, 0],
+                    [1, 1],
+                    [0, 1],
+                    [0, 0],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+        unknown_2: {
+          title_no: "unknown_2",
+          polygons: [
+            {
+              poly_id: "2",
+              geom: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [2, 2],
+                    [3, 2],
+                    [3, 3],
+                    [2, 3],
+                    [2, 2],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      });
+    });
+  });
+
+  it("should handle an empty array", () => {
+    const polygons = [];
+    const result = query.groupPolysByTitleNo(polygons);
+    expect(result).to.deep.equal({});
   });
 });

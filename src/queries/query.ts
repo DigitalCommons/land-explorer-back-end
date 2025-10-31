@@ -229,7 +229,11 @@ export const hashUserId = async (userId: number) => {
  * The wrapper function that should be called for most analytic events in the app, where a user is
  * logged in.
  */
-export const trackUserEvent = async (userId: number, event: EventName, data?: any) => {
+export const trackUserEvent = async (
+  userId: number,
+  event: EventName,
+  data?: any
+) => {
   const userHash = await hashUserId(userId);
 
   // Include data on which user groups the user is a member of
@@ -257,6 +261,36 @@ export const trackUserEvent = async (userId: number, event: EventName, data?: an
 
 /**
  * Return the land ownership geojson polygons within a given bounding box area
+ * Group land ownership polygons by their title_no field. Polygons with null/empty title_no get
+ * a dummy title_no of the form "unknown_<poly_id>".
+ */
+export const groupPolysByTitleNo = (
+  polygons: any[]
+): { [title_no: string]: { polygons: any[]; [key: string]: any } } => {
+  const groupedPolygons: {
+    [title_no: string]: { polygons: any[]; [key: string]: any };
+  } = {};
+
+  polygons.forEach((polygon: any) => {
+    if (!polygon.title_no) {
+      // Create dummy title_no
+      polygon.title_no = `unknown_${polygon.poly_id}`;
+    }
+
+    const { poly_id, geom, ...titleProperties } = polygon;
+
+    if (!groupedPolygons[polygon.title_no]) {
+      groupedPolygons[polygon.title_no] = { ...titleProperties, polygons: [] };
+    }
+    groupedPolygons[polygon.title_no].polygons.push({ poly_id, geom });
+  });
+
+  return groupedPolygons;
+};
+
+/**
+ * Return an array of land ownership titles, each mapping to an array of geojson polygons, within a
+ * given bounding box area.
  *
  * @param sw_lng longitude of south-west corner
  * @param sw_lat latitude of south-west corner
@@ -267,14 +301,14 @@ export const trackUserEvent = async (userId: number, event: EventName, data?: an
  * @param acceptedOnly only matters if type is "pending". If true, only return pending polys marked
  * as accepted
  */
-export const getPolygons = async (
+export const getLandOwnershipTitlesInBbox = async (
   sw_lng: number,
   sw_lat: number,
   ne_lng: number,
   ne_lat: number,
   type?: string,
   acceptedOnly?: boolean
-): Promise<any[]> => {
+): Promise<{ [title_no: string]: { polygons: any[]; [key: string]: any } }> => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/boundaries`,
     {
@@ -290,13 +324,20 @@ export const getPolygons = async (
     }
   );
 
-  return boundaryResponse.data;
+  const polygons = boundaryResponse.data;
+
+  return groupPolysByTitleNo(polygons);
 };
 
 /**
- * Perform a backsearch, to find all properties owned by a given owner.
+ * Perform a backsearch.
+ *
+ * Return an array of land ownership titles, each mapping to an array of geojson polygons, that are
+ * owned (or jointly owned) by the given proprietor.
  */
-export const searchOwner = async (proprietorName: string) => {
+export const searchOwner = async (
+  proprietorName: string
+): Promise<{ [title_no: string]: { polygons: any[]; [key: string]: any } }> => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/search`,
     {
@@ -307,7 +348,9 @@ export const searchOwner = async (proprietorName: string) => {
     }
   );
 
-  return boundaryResponse.data ?? [];
+  const polygons = boundaryResponse.data ?? [];
+
+  return groupPolysByTitleNo(polygons);
 };
 
 export const findAllDataGroupContentForUser = async (userId: number) => {
