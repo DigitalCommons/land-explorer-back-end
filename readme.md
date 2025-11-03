@@ -4,9 +4,9 @@ This application provides the back-end functionality for Land Explorer. It has 4
  - Basic user account management: Authentication, registration, user details
  - Maps: Managing access to maps, creating/updating map data
  - Data groups: Creating/updating data group data
- - Polygons: Accessing external INSPIRE dataset of property boundary polygons
- 
- Note: The polygon database is on a separate server from the application because the old provider does not support large memory for the database. With the server migration, we may merge the two database.
+ - Ownership: Accessing company ownerhsip and INSPIRE property boundary polygons data. This data is
+    served by our own separate app, the Property Boundaries Service, and this back-end application
+    mostly just forwards the data to the Land Explorer client.
 
 
 ## Requirements
@@ -24,9 +24,6 @@ This application provides the back-end functionality for Land Explorer. It has 4
  - Run seeder `npx sequelize-cli db:seed:all`
  - Run `npm run dev:serve`
  - Access 0.0.0.0:4000
-
-Note: current setup does not support polygon database.
-With this migration and seed, running the api/ownership/ endpoint will error.
 
 ## Dev command cheat sheets
 
@@ -51,15 +48,5 @@ See the full list of APIs and their purpose by looking at the bottom of each fil
 
 ## TODOs
 
-- General rafactor for best practices.
-- Graceful exceptions handling.
-- Use DB transactions.
-- Persistent error log (notification would be nice too).
-- Await is currently being used for all async calls. Things like email API doesnt have to be blocking. 
-- API calls (e.g., email) should have a retry. Or even better, be a queued job that can be retried.
-- Migration and seed for polygon database.
-- Tests (unit, system, etc)
 - Better typing (instead of "any" type).
-- Reset password process should not be auto-generating and emailing plain text password to user. 
-- Polygon database may be moved to the server as the application.
 - Dont use both import* & require(*)

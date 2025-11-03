@@ -1,9 +1,7 @@
 // TODO: separate the functions in this file into more appropriate filenames
 import {
   User,
-  Map,
   UserMap,
-  UserMapAccess,
   PendingUserMap,
   PasswordResetToken,
   Marker,
@@ -15,12 +13,14 @@ import {
   UserGroupMembership,
   UserFeedback,
   UserGroupAccess,
+  sequelize,
 } from "./database";
-import { getMapMarkers, getMapPolygonsAndLines } from "../queries/map";
 import { hashPassword } from "./helper";
 import bcrypt from "bcrypt";
+import { createHash } from "node:crypto";
 import axios from "axios";
-import { Op } from "sequelize";
+import { Op, QueryTypes } from "sequelize";
+import { EventName, trackRawEvent } from "../instrument";
 
 export const getUserById = async (id: number): Promise<typeof User | null> => {
   return await User.findOne({ where: { id } });
@@ -101,38 +101,42 @@ export const createUser = async (data: any) => {
  * Before a user is registered, other existing users may have shared a map to this user. This
  * sharing data is stored in 'pending_user_map'. Now that a given user is registered, we migrate the
  * pending user maps to 'user_map'.
+ *
+ * @returns The number of maps that were shared with the user and migrated
  */
-export const migrateGuestUserMap = async (user: typeof User) => {
-  try {
-    const userMapData = (
-      await PendingUserMap.findAll({
-        where: {
-          email_address: user.username,
-        },
-      })
-    )
-      // map to format ready to be inserted to user_map table
-      .map((pendingUserMap: any) => {
-        return {
-          access: pendingUserMap.access,
-          viewed: 0,
-          map_id: pendingUserMap.map_id,
-          user_id: user.id,
-        };
-      });
-
-    // bulk create the user map
-    await UserMap.bulkCreate(userMapData);
-
-    // Now delete user map from pendingUserMap
-    await PendingUserMap.destroy({
+export const migrateGuestUserMap = async (
+  user: typeof User
+): Promise<number> => {
+  const userMapData = (
+    await PendingUserMap.findAll({
       where: {
         email_address: user.username,
       },
+    })
+  )
+    // map to format ready to be inserted to user_map table
+    .map((pendingUserMap: any) => {
+      return {
+        access: pendingUserMap.access,
+        viewed: 0,
+        map_id: pendingUserMap.map_id,
+        user_id: user.id,
+      };
     });
-  } catch (error: any) {
-    console.log(error.message);
-  }
+
+  const mapsCount = userMapData.length;
+
+  // bulk create the user map
+  await UserMap.bulkCreate(userMapData);
+
+  // Now delete user map from pendingUserMap
+  await PendingUserMap.destroy({
+    where: {
+      email_address: user.username,
+    },
+  });
+
+  return mapsCount;
 };
 
 /**
@@ -201,16 +205,73 @@ export const checkAndReturnUser = async (
 };
 
 /**
+ * Convert a userId to a hashed value, using their username as a salt and then adding the secret
+ * pepper, to anonymize it for analytics.
+ */
+export const hashUserId = async (userId: number) => {
+  if (userId === -1) return "USER_NOT_FOUND";
+
+  const user = await getUserById(userId);
+  if (!user) {
+    console.error(`User with ID ${userId} not found for hashing`);
+    return "USER_NOT_FOUND";
+  }
+
+  const saltAndPepperedInput = `${userId}${user.username}${process.env.ANALYTICS_PEPPER}`;
+
+  return createHash("sha256")
+    .update(saltAndPepperedInput)
+    .digest("hex")
+    .substring(0, 16); // truncate to length of 16 chars
+};
+
+/**
+ * The wrapper function that should be called for most analytic events in the app, where a user is
+ * logged in.
+ */
+export const trackUserEvent = async (
+  userId: number,
+  event: EventName,
+  data?: any
+) => {
+  const userHash = await hashUserId(userId);
+
+  // Include data on which user groups the user is a member of
+  const userGroups = await sequelize.query(
+    `SELECT ug.name
+     FROM user_group_memberships ugm
+     JOIN user_groups ug ON ugm.user_group_id = ug.iduser_groups
+     WHERE ugm.user_id = :userId`,
+    {
+      replacements: { userId },
+      type: QueryTypes.SELECT,
+    }
+  );
+
+  const userGroupNames: string[] = userGroups
+    ? userGroups.map((ug: { name: string }) => ug.name)
+    : [];
+
+  trackRawEvent(event, {
+    ...data,
+    distinct_id: userHash,
+    user_groups: userGroupNames,
+  });
+};
+
+/**
+ * Return the land ownership geojson polygons within a given bounding box area
  * Group land ownership polygons by their title_no field. Polygons with null/empty title_no get
  * a dummy title_no of the form "unknown_<poly_id>".
  */
 export const groupPolysByTitleNo = (
   polygons: any[]
-): { [title_no: string]: { polygons: any[], [key: string]: any } } => { 
-  const groupedPolygons: { [title_no: string]: { polygons: any[], [key: string]: any } } = {};
+): { [title_no: string]: { polygons: any[]; [key: string]: any } } => {
+  const groupedPolygons: {
+    [title_no: string]: { polygons: any[]; [key: string]: any };
+  } = {};
 
   polygons.forEach((polygon: any) => {
-
     if (!polygon.title_no) {
       // Create dummy title_no
       polygon.title_no = `unknown_${polygon.poly_id}`;
@@ -221,7 +282,7 @@ export const groupPolysByTitleNo = (
     if (!groupedPolygons[polygon.title_no]) {
       groupedPolygons[polygon.title_no] = { ...titleProperties, polygons: [] };
     }
-    groupedPolygons[polygon.title_no].polygons.push({poly_id, geom});
+    groupedPolygons[polygon.title_no].polygons.push({ poly_id, geom });
   });
 
   return groupedPolygons;
@@ -269,6 +330,8 @@ export const getLandOwnershipTitlesInBbox = async (
 };
 
 /**
+ * Perform a backsearch.
+ *
  * Return an array of land ownership titles, each mapping to an array of geojson polygons, that are
  * owned (or jointly owned) by the given proprietor.
  */
@@ -285,7 +348,7 @@ export const searchOwner = async (
     }
   );
 
-  const polygons = boundaryResponse.data;
+  const polygons = boundaryResponse.data ?? [];
 
   return groupPolysByTitleNo(polygons);
 };
@@ -404,140 +467,6 @@ export const hasWriteAccessToDataGroup = async (
   }
 
   return false;
-};
-
-/**
- * Get a GeoJSON feature collection containing all the markers, polys and lines in a map, including
- * those in active data groups.
- */
-export const getGeoJsonFeaturesForMap = async (mapId: number) => {
-  const map = await Map.findOne({
-    where: {
-      id: mapId,
-    },
-  });
-  const mapData = JSON.parse(map.data);
-
-  // Get markers, polygons and lines that are saved to the map
-  const markers = await getMapMarkers(mapId);
-  const markerFeatures = markers.map((marker: any) => ({
-    type: "Feature",
-    geometry: {
-      type: "Point",
-      coordinates: marker.coordinates,
-    },
-    properties: {
-      name: marker.name,
-      description: marker.description,
-      group: "My Drawings",
-    },
-  }));
-
-  const polygonsAndLines = await getMapPolygonsAndLines(mapId);
-  const polygonAndLineFeatures = polygonsAndLines.map((polygon: any) => ({
-    ...polygon.data,
-    properties: {
-      name: polygon.name,
-      description: polygon.description,
-      group: "My Drawings",
-    },
-  }));
-
-  // Get features from datagroup layers which are active
-  const dataGroupFeatures: any[] = [];
-  for (const dataGroupId of mapData.mapLayers.myDataLayers) {
-    const dataGroup = await DataGroup.findOne({
-      where: {
-        // In old maps, myDataLayers used to be array of objects, each with an iddata_groups
-        // field. In newer maps, myDataLayers is just an array of data group IDs.
-        iddata_groups: dataGroupId.iddata_groups || dataGroupId,
-      },
-    });
-    const dataGroupMarkers = await Marker.findAll({
-      where: {
-        data_group_id: dataGroupId.iddata_groups || dataGroupId,
-      },
-    });
-    const dataGroupPolygons = await Polygon.findAll({
-      where: {
-        data_group_id: dataGroupId.iddata_groups || dataGroupId,
-      },
-    });
-    const dataGroupLines = await Line.findAll({
-      where: {
-        data_group_id: dataGroupId.iddata_groups || dataGroupId,
-      },
-    });
-
-    dataGroupMarkers.forEach((marker: any) => {
-      dataGroupFeatures.push({
-        type: "Feature",
-        geometry: marker.location,
-        properties: {
-          name: marker.name,
-          description: marker.description,
-          group: dataGroup.title,
-        },
-      });
-    });
-    dataGroupPolygons.forEach((polygon: any) => {
-      dataGroupFeatures.push({
-        type: "Feature",
-        geometry: polygon.vertices,
-        properties: {
-          name: polygon.name,
-          description: polygon.description,
-          group: dataGroup.title,
-        },
-      });
-    });
-    dataGroupLines.forEach((line: any) => {
-      dataGroupFeatures.push({
-        type: "Feature",
-        geometry: line.vertices,
-        properties: {
-          name: line.name,
-          description: line.description,
-          group: dataGroup.title,
-        },
-      });
-    });
-  }
-
-  return {
-    type: "FeatureCollection",
-    features: [
-      ...markerFeatures,
-      ...polygonAndLineFeatures,
-      ...dataGroupFeatures,
-    ],
-  };
-};
-
-/**
- * Make a specified map available to the public.
- * @returns URI for the public map view
- */
-export const createPublicMapView = async (mapId: number): Promise<string> => {
-  const publicUserId = -1;
-
-  const publicViewExists = await UserMap.findOne({
-    where: {
-      map_id: mapId,
-      user_id: publicUserId,
-    },
-  });
-
-  if (!publicViewExists) {
-    await UserMap.create({
-      map_id: mapId,
-      user_id: publicUserId,
-      access: UserMapAccess.Readonly,
-      viewed: 0,
-    });
-  }
-
-  return `/api/public/map/${mapId}`;
 };
 
 export const createUserFeedback = async (

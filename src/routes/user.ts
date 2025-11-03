@@ -15,9 +15,12 @@ import {
   getUserByEmail,
   createUserFeedback,
   getAskForFeedback,
+  trackUserEvent,
 } from "../queries/query";
 import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
+import { LoggedInRequest } from "./request_types";
+import { Event } from "../instrument";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
@@ -50,16 +53,19 @@ async function registerUser(
   let user = await createUser(request.payload);
 
   // migrate user map from guest account
-  await migrateGuestUserMap(user);
+  const mapsCount = await migrateGuestUserMap(user);
 
-  // sent register email
-  mailer.sendRegisterEmail(
+  // send analytic
+  trackUserEvent(user.id, Event.USER.REGISTER, {
+    sharedMaps: mapsCount > 0,
+  });
+
+  mailer.sendSuccessfullyRegisteredEmail(
     request.payload.username,
     request.payload.firstName,
     originDomain
   );
 
-  // return h.response(user);
   return h.response(user);
 }
 
@@ -119,19 +125,11 @@ async function loginUser(
   return h.response({ message: errorMessage }).code(401);
 }
 
-type UserDetailsRequest = Request & {
-  auth: {
-    credentials: {
-      user_id: number;
-    };
-  };
-};
-
 /**
  * Return the details of authenticated user
  */
 async function getAuthUserDetails(
-  request: UserDetailsRequest,
+  request: LoggedInRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
@@ -172,7 +170,7 @@ async function getAuthUserDetails(
  * Update the email of autheticated user
  */
 async function changeEmail(
-  request: Request,
+  request: LoggedInRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
@@ -201,7 +199,7 @@ async function changeEmail(
  * Change the user detail of the authenticated user
  */
 async function changeUserDetail(
-  request: Request,
+  request: LoggedInRequest,
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
@@ -237,7 +235,7 @@ async function changeUserDetail(
   return h.response().code(200);
 }
 
-type ChangePasswordRequest = Request & {
+type ChangePasswordRequest = LoggedInRequest & {
   payload: {
     password: string;
   };
@@ -327,17 +325,12 @@ async function resetPassword(
   return h.response().code(200);
 }
 
-type UserFeedbackRequest = Request & {
+type UserFeedbackRequest = LoggedInRequest & {
   payload: {
-    question1: string;
-    question2: string;
-    question3: string;
-    question4: string;
-  };
-  auth: {
-    credentials: {
-      user_id: number;
-    };
+    question_use_case: string;
+    question_impact: string;
+    question_who_benefits: string;
+    question_improvements: string;
   };
 };
 
@@ -346,20 +339,18 @@ async function userFeedback(
   h: ResponseToolkit,
   d: any
 ): Promise<ResponseObject> {
-  let validation = new Validation();
-  await validation.validateUserFeedback(request.payload);
-
-  if (validation.fail()) {
-    return h.response(validation.errors).code(400);
-  }
-
-  let payload: any = request.payload;
+  const {
+    question_use_case,
+    question_impact,
+    question_who_benefits,
+    question_improvements,
+  } = request.payload;
 
   const userFeedback = await createUserFeedback(
-    payload.question1,
-    payload.question2,
-    payload.question3,
-    payload.question4,
+    question_use_case,
+    question_impact,
+    question_who_benefits,
+    question_improvements,
     request.auth.credentials.user_id
   );
 
@@ -371,6 +362,13 @@ async function userFeedback(
       },
     }
   );
+
+  trackUserEvent(request.auth.credentials.user_id, Event.USER.FEEDBACK, {
+    question_use_case,
+    question_impact,
+    question_who_benefits,
+    question_improvements,
+  });
 
   return h.response(userFeedback).code(200);
 }
@@ -414,7 +412,7 @@ async function updateAskForFeedback(
   return h.response().code(200);
 }
 
-/** 
+/**
  * Check the user feedback flag
  * This is used to determine if the user should be asked for feedback
  */
@@ -438,7 +436,7 @@ async function getUserAskForFeedback(
   return h.response({ askForFeedback }).code(200);
 }
 
-export const databaseRoutes: ServerRoute[] = [
+export const userRoutes: ServerRoute[] = [
   /** Public APIs */
   // Register a new account
   {
