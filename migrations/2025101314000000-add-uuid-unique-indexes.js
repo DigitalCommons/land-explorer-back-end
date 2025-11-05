@@ -3,6 +3,11 @@
 module.exports = {
   async up(queryInterface, Sequelize) {
     const tables = ["markers", "polygons", "linestrings"];
+    const idColumns = {
+      markers: "idmarkers",
+      polygons: "idpolygons",
+      linestrings: "idlinestrings",
+    };
 
     for (const table of tables) {
       await queryInterface.sequelize.query(`
@@ -16,7 +21,7 @@ module.exports = {
         UPDATE ${table} t1
         JOIN ${table} t2
           ON t1.uuid = t2.uuid
-         AND t1.id > t2.id
+         AND t1.${idColumns[table]} > t2.${idColumns[table]}
         SET t1.uuid = UUID();
       `);
     }
