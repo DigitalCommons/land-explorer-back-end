@@ -277,12 +277,23 @@ export const groupPolysByTitleNo = (
       polygon.title_no = `unknown_${polygon.poly_id}`;
     }
 
-    const { poly_id, geom, ...titleProperties } = polygon;
+    const {
+      poly_id,
+      geom,
+      polyCreatedAt: createdAt,
+      polyUpdatedAt: updatedAt,
+      ...titleProperties
+    } = polygon;
 
     if (!groupedPolygons[polygon.title_no]) {
       groupedPolygons[polygon.title_no] = { ...titleProperties, polygons: [] };
     }
-    groupedPolygons[polygon.title_no].polygons.push({ poly_id, geom });
+    groupedPolygons[polygon.title_no].polygons.push({
+      poly_id,
+      geom,
+      createdAt,
+      updatedAt,
+    });
   });
 
   return groupedPolygons;
