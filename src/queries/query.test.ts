@@ -1,4 +1,5 @@
 import { expect } from "chai";
+import { create } from "domain";
 import { assert, createSandbox, fake, SinonSpy } from "sinon";
 
 // Dependencies to be stubbed
@@ -503,7 +504,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "NN123456",
           poly_id: "1",
-
+          polyCreatedAt: "2025-11-08 04:31:35",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -519,6 +521,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "NN123456",
           poly_id: "2",
+          polyCreatedAt: "2024-11-02 16:51:15",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -534,6 +538,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "PQ809176",
           poly_id: "3",
+          polyCreatedAt: "2022-11-08 00:32:56",
+          polyUpdatedAt: "2022-11-08 00:32:56",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -554,6 +560,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "1",
+              createdAt: "2025-11-08 04:31:35",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -568,6 +576,8 @@ describe("groupPolysByTitleNo", () => {
             },
             {
               poly_id: "2",
+              createdAt: "2024-11-02 16:51:15",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -587,6 +597,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "3",
+              createdAt: "2022-11-08 00:32:56",
+              updatedAt: "2022-11-08 00:32:56",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -611,6 +623,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: null,
           poly_id: "1",
+          polyCreatedAt: "2025-11-08 04:31:35",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -627,6 +641,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "",
           poly_id: "2",
+          polyCreatedAt: "2025-11-08 04:31:35",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -648,6 +664,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "1",
+              createdAt: "2025-11-08 04:31:35",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -668,6 +686,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "2",
+              createdAt: "2025-11-08 04:31:35",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
