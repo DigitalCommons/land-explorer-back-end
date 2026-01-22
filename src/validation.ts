@@ -237,24 +237,6 @@ export class Validation {
   }
 
   /**
-   * @param data
-   * @returns
-   */
-  async validateSaveMap(data: any) {
-    //name: required
-    if (Joi.string().validate(data?.name, { presence: "required" }).error) {
-      this.addErrorMessage("name", "The name field is required.");
-    }
-
-    //data: required
-    if (Joi.string().validate(data?.data, { presence: "required" }).error) {
-      this.addErrorMessage("data", "The data field is required.");
-    }
-
-    return this;
-  }
-
-  /**
    * Validate eid is provided
    *
    * @param data
@@ -298,39 +280,6 @@ export class Validation {
       this.errors[key].push(message);
     } else {
       this.errors[key] = [message];
-    }
-
-    return this;
-  }
-
-  /***  Validate user feedback ***/
-  async validateUserFeedback(data: any) {
-    // question_1: required
-    if (
-      Joi.string().validate(data?.question1, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_use_case", "Dance is required.");
-    }
-
-    // question_2: required
-    if (
-      Joi.string().validate(data?.question2, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_impact", "Hats are required.");
-    }
-
-    // question_3: required
-    if (
-      Joi.string().validate(data?.question3, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_who_benefits", "Fun is required.");
-    }
-
-    // question_4: required
-    if (
-      Joi.string().validate(data?.question4, { presence: "required" }).error
-    ) {
-      this.addErrorMessage("question_improvements", "Pizza is required.");
     }
 
     return this;

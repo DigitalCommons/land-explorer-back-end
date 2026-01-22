@@ -1,9 +1,11 @@
 import { expect } from "chai";
-import { assert, createSandbox, fake, SinonSpy } from "sinon"
+import { create } from "domain";
+import { assert, createSandbox, fake, SinonSpy } from "sinon";
 
 // Dependencies to be stubbed
 const bcrypt = require("bcrypt");
 const Model = require("../queries/database");
+const instrument = require("../instrument");
 
 // Unit under test
 const query = require("./query");
@@ -11,130 +13,179 @@ const query = require("./query");
 const sandbox = createSandbox();
 
 describe("Check and return user", () => {
-    const testUserId = 123;
-    const testUsername = 'douglas.quaid@yahoomail.com';
-    const testUser = {
-        id: testUserId,
-        username: testUsername,
-        council_id: 0,
-        is_super_user: 0,
-        enabled: 1,
-        marketing: 1,
+  const testUserId = 123;
+  const testUsername = "douglas.quaid@yahoomail.com";
+  const testUser = {
+    id: testUserId,
+    username: testUsername,
+    council_id: 0,
+    is_super_user: 0,
+    enabled: 1,
+    marketing: 1,
+  };
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  context("username and password given", () => {
+    it("returns the user if password matches", async () => {
+      sandbox.replace(bcrypt, "compare", fake.resolves(true));
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+
+      const result = await query.checkAndReturnUser(testUsername, "p4ssw0rd");
+
+      expect(result.user).to.deep.equal(testUser);
+    });
+
+    it("fails if incorrect password", async () => {
+      sandbox.replace(bcrypt, "compare", fake.resolves(false));
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+
+      const result = await query.checkAndReturnUser(
+        testUsername,
+        "bad-password"
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.errorMessage).to.equal(
+        "You have entered an invalid username or password."
+      );
+    });
+
+    it("fails if user doesn't exist", async () => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(null));
+      const result = await query.checkAndReturnUser(testUsername, "p4ssw0rd");
+
+      expect(result.success).to.equal(false);
+      expect(result.errorMessage).to.equal(
+        "You have entered an invalid username or password."
+      );
+    });
+  });
+
+  context("username and token given", () => {
+    const testExpiryTime = Date.now() + 100000; // 100 seconds after now
+    const testToken = {
+      id: 1,
+      user_id: testUserId,
+      token: "t0k3n",
+      expires: testExpiryTime,
     };
 
-    afterEach(() => {
-        sandbox.restore();
+    let fakePasswordResetTokenDestroy: SinonSpy;
+
+    beforeEach(() => {
+      fakePasswordResetTokenDestroy = sandbox.replace(
+        Model.PasswordResetToken,
+        "destroy",
+        fake()
+      );
     });
 
-    context("username and password given", () => {
-        it("returns the user if password matches", async () => {
-            sandbox.replace(bcrypt, "compare", fake.resolves(true));
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+    it("returns the user if token matches and hasn't expired", async () => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+      sandbox.replace(
+        Model.PasswordResetToken,
+        "findOne",
+        fake.resolves(testToken)
+      );
 
-            const result = await query.checkAndReturnUser(testUsername, 'p4ssw0rd');
+      const result = await query.checkAndReturnUser(
+        testUsername,
+        undefined,
+        "t0k3n"
+      );
 
-            expect(result.user).to.deep.equal(testUser);
-        });
-
-        it("fails if incorrect password", async () => {
-            sandbox.replace(bcrypt, "compare", fake.resolves(false));
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
-
-            const result = await query.checkAndReturnUser(testUsername, 'bad-password');
-
-            expect(result.success).to.equal(false);
-            expect(result.errorMessage).to.equal('You have entered an invalid username or password.');
-        });
-
-        it("fails if user doesn't exist", async () => {
-            sandbox.replace(Model.User, "findOne", fake.resolves(null));
-            const result = await query.checkAndReturnUser(testUsername, 'p4ssw0rd');
-
-            expect(result.success).to.equal(false);
-            expect(result.errorMessage).to.equal('You have entered an invalid username or password.');
-        });
+      expect(result.success).to.equal(true);
+      expect(result.user).to.deep.equal(testUser);
     });
 
-    context("username and token given", () => {
-        const testExpiryTime = Date.now() + 100000; // 100 seconds after now
-        const testToken = {
-            id: 1,
-            user_id: testUserId,
-            token: 't0k3n',
-            expires: testExpiryTime
-        };
+    it("fails if token doesn't exist for user", async () => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+      sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(null));
 
-        let fakePasswordResetTokenDestroy: SinonSpy;
+      const result = await query.checkAndReturnUser(
+        testUsername,
+        undefined,
+        "non-existent-token"
+      );
 
-        beforeEach(() => {
-            fakePasswordResetTokenDestroy = sandbox.replace(Model.PasswordResetToken, "destroy", fake());
-        });
-
-        it("returns the user if token matches and hasn't expired", async () => {
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
-            sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(testToken));
-
-            const result = await query.checkAndReturnUser(testUsername, undefined, 't0k3n');
-
-            expect(result.success).to.equal(true);
-            expect(result.user).to.deep.equal(testUser);
-        });
-
-        it("fails if token doesn't exist for user", async () => {
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
-            sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(null));
-
-            const result = await query.checkAndReturnUser(testUsername, undefined, 'non-existent-token');
-
-            expect(result.success).to.equal(false);
-            expect(result.errorMessage).to.equal('Password reset link is invalid.');
-        });
-
-        it("fails if user doesn't exist", async () => {
-            sandbox.replace(Model.User, "findOne", fake.resolves(null));
-            const result = await query.checkAndReturnUser(testUsername, undefined, 't0k3n');
-
-            expect(result.success).to.equal(false);
-            expect(result.errorMessage).to.equal('Password reset link is invalid.');
-        });
-
-        it("fails if incorrect token", async () => {
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
-            sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(testToken));
-
-            const result = await query.checkAndReturnUser(testUsername, undefined, 'bad-token');
-
-            expect(result.success).to.equal(false);
-            expect(result.errorMessage).to.equal('Password reset link is invalid.');
-        });
-
-        it("fails if token has expired", async () => {
-            const testOldToken = {
-                ...testToken,
-                expires: Date.now() - 1000 // 1 s before now
-            };
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
-            sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(testOldToken));
-
-            const result = await query.checkAndReturnUser(testUsername, undefined, 't0k3n');
-
-            expect(result.success).to.equal(false);
-            expect(result.errorMessage).to.equal('Link has expired. Please make a new password reset request.');
-        });
-
-        it("deletes the one-time token", async () => {
-            sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
-            sandbox.replace(Model.PasswordResetToken, "findOne", fake.resolves(testToken));
-
-            await query.checkAndReturnUser(testUsername, undefined, 't0k3n');
-
-            assert.calledOnceWithMatch(fakePasswordResetTokenDestroy, {
-                where: {
-                    user_id: testUserId
-                }
-            });
-        });
+      expect(result.success).to.equal(false);
+      expect(result.errorMessage).to.equal("Password reset link is invalid.");
     });
+
+    it("fails if user doesn't exist", async () => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(null));
+      const result = await query.checkAndReturnUser(
+        testUsername,
+        undefined,
+        "t0k3n"
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.errorMessage).to.equal("Password reset link is invalid.");
+    });
+
+    it("fails if incorrect token", async () => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+      sandbox.replace(
+        Model.PasswordResetToken,
+        "findOne",
+        fake.resolves(testToken)
+      );
+
+      const result = await query.checkAndReturnUser(
+        testUsername,
+        undefined,
+        "bad-token"
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.errorMessage).to.equal("Password reset link is invalid.");
+    });
+
+    it("fails if token has expired", async () => {
+      const testOldToken = {
+        ...testToken,
+        expires: Date.now() - 1000, // 1 s before now
+      };
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+      sandbox.replace(
+        Model.PasswordResetToken,
+        "findOne",
+        fake.resolves(testOldToken)
+      );
+
+      const result = await query.checkAndReturnUser(
+        testUsername,
+        undefined,
+        "t0k3n"
+      );
+
+      expect(result.success).to.equal(false);
+      expect(result.errorMessage).to.equal(
+        "Link has expired. Please make a new password reset request."
+      );
+    });
+
+    it("deletes the one-time token", async () => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(testUser));
+      sandbox.replace(
+        Model.PasswordResetToken,
+        "findOne",
+        fake.resolves(testToken)
+      );
+
+      await query.checkAndReturnUser(testUsername, undefined, "t0k3n");
+
+      assert.calledOnceWithMatch(fakePasswordResetTokenDestroy, {
+        where: {
+          user_id: testUserId,
+        },
+      });
+    });
+  });
 });
 
 describe("findAllDataGroupContentForUser", () => {
@@ -231,19 +282,19 @@ describe("findAllDataGroupContentForUser", () => {
           fake((options) => {
             return options.where.user_group_id === testUserGroup1.iduser_groups
               ? [
-                  {
-                    iddata_group_memberships: 1,
-                    data_group_id: testDataGroup1.iddata_groups,
-                    user_group_id: testUserGroup1.iduser_groups,
-                  },
-                ]
+                {
+                  iddata_group_memberships: 1,
+                  data_group_id: testDataGroup1.iddata_groups,
+                  user_group_id: testUserGroup1.iduser_groups,
+                },
+              ]
               : [
-                  {
-                    iddata_group_memberships: 2,
-                    data_group_id: testDataGroup2.iddata_groups,
-                    user_group_id: testUserGroup2.iduser_groups,
-                  },
-                ];
+                {
+                  iddata_group_memberships: 2,
+                  data_group_id: testDataGroup2.iddata_groups,
+                  user_group_id: testUserGroup2.iduser_groups,
+                },
+              ];
           })
         );
 
@@ -376,6 +427,76 @@ describe("findAllDataGroupContentForUser", () => {
   );
 });
 
+describe("trackUserEvent", () => {
+  const testUserId = 456;
+  const testUserCreatedDate = "2023-01-15 10:30:00";
+
+  beforeEach(() => {
+    sandbox.replace(Model.sequelize, "query", fake.resolves(null));
+
+    // Stub trackRawEvent to capture what it's called with
+    sandbox.replace(instrument, "trackRawEvent", fake.resolves(null));
+  });
+
+  afterEach(() => {
+    sandbox.restore();
+  });
+
+  context("User exists", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        Model.User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+        })
+      );
+    });
+
+    it("calls trackRawEvent with consistent hashed userID", async () => {
+      await query.trackUserEvent(testUserId, "User_Register");
+
+      expect(instrument.trackRawEvent.calledOnce).to.be.true;
+      const [event, data] = instrument.trackRawEvent.firstCall.args;
+
+      expect(event).to.equal("User_Register");
+      expect(data.distinct_id).to.equal("99a70b2e9c66404d");
+    });
+
+    it("merges additional data", async () => {
+      const additionalData = { shared_maps: true };
+
+      await query.trackUserEvent(testUserId, "User_Register", additionalData);
+
+      const [, data] = instrument.trackRawEvent.firstCall.args;
+      expect(data).to.deep.equal({
+        shared_maps: true,
+        distinct_id: data.distinct_id, // just verify it exists
+        user_groups: [],
+      });
+    });
+
+    it("produces different hash for different userId", async () => {
+      await query.trackUserEvent(testUserId + 1, "User_Register");
+      const [, data] = instrument.trackRawEvent.firstCall.args;
+      expect(data.distinct_id).to.not.equal("99a70b2e9c66404d");
+    });
+  });
+
+  context("User doesn't exist", () => {
+    beforeEach(() => {
+      sandbox.replace(Model.User, "findOne", fake.resolves(null));
+    });
+
+    it("uses USER_NOT_FOUND as hashed userId", async () => {
+      await query.trackUserEvent(testUserId, "User_Register");
+      const [, data] = instrument.trackRawEvent.firstCall.args;
+      expect(data.distinct_id).to.equal("USER_NOT_FOUND");
+    });
+  });
+});
+
 describe("groupPolysByTitleNo", () => {
   context("Simple case", () => {
     it("returns polygons grouped by title_no", () => {
@@ -383,7 +504,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "NN123456",
           poly_id: "1",
-
+          polyCreatedAt: "2025-11-08 04:31:35",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -399,6 +521,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "NN123456",
           poly_id: "2",
+          polyCreatedAt: "2024-11-02 16:51:15",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -414,6 +538,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "PQ809176",
           poly_id: "3",
+          polyCreatedAt: "2022-11-08 00:32:56",
+          polyUpdatedAt: "2022-11-08 00:32:56",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -434,6 +560,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "1",
+              createdAt: "2025-11-08 04:31:35",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -448,6 +576,8 @@ describe("groupPolysByTitleNo", () => {
             },
             {
               poly_id: "2",
+              createdAt: "2024-11-02 16:51:15",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -467,6 +597,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "3",
+              createdAt: "2022-11-08 00:32:56",
+              updatedAt: "2022-11-08 00:32:56",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -491,6 +623,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: null,
           poly_id: "1",
+          polyCreatedAt: "2025-11-08 04:31:35",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -507,6 +641,8 @@ describe("groupPolysByTitleNo", () => {
         {
           title_no: "",
           poly_id: "2",
+          polyCreatedAt: "2025-11-08 04:31:35",
+          polyUpdatedAt: "2025-11-08 04:31:35",
           geom: {
             type: "Polygon",
             coordinates: [
@@ -528,6 +664,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "1",
+              createdAt: "2025-11-08 04:31:35",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [
@@ -548,6 +686,8 @@ describe("groupPolysByTitleNo", () => {
           polygons: [
             {
               poly_id: "2",
+              createdAt: "2025-11-08 04:31:35",
+              updatedAt: "2025-11-08 04:31:35",
               geom: {
                 type: "Polygon",
                 coordinates: [

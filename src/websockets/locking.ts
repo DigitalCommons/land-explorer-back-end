@@ -19,10 +19,12 @@ let mapUserLocks: {
  * If the map is unlocked, lock the map for the given user, notify all listeners about the new lock,
  * and return true.
  *
- * If the map was already locoked by the same user, reset its timeout and return true.
+ * If the map was already locked by the same user, reset its timeout and return true.
  *
- * If the map was already locked by a different user, notify all listeners about the existing lock
- * since one of the clients didn't seem to know for some reason, and return false.
+ * If the map was already locked by a different user, the client trying to lock didn't seem to know
+ * the lock state for some reason, so notify all listeners about the existing lock and return false.
+ * 
+ * @returns whether the lock was successfully acquired
  */
 export const tryLockMap = async (
   mapId: number,
