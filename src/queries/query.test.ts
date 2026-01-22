@@ -282,19 +282,19 @@ describe("findAllDataGroupContentForUser", () => {
           fake((options) => {
             return options.where.user_group_id === testUserGroup1.iduser_groups
               ? [
-                  {
-                    iddata_group_memberships: 1,
-                    data_group_id: testDataGroup1.iddata_groups,
-                    user_group_id: testUserGroup1.iduser_groups,
-                  },
-                ]
+                {
+                  iddata_group_memberships: 1,
+                  data_group_id: testDataGroup1.iddata_groups,
+                  user_group_id: testUserGroup1.iduser_groups,
+                },
+              ]
               : [
-                  {
-                    iddata_group_memberships: 2,
-                    data_group_id: testDataGroup2.iddata_groups,
-                    user_group_id: testUserGroup2.iduser_groups,
-                  },
-                ];
+                {
+                  iddata_group_memberships: 2,
+                  data_group_id: testDataGroup2.iddata_groups,
+                  user_group_id: testUserGroup2.iduser_groups,
+                },
+              ];
           })
         );
 

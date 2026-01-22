@@ -308,11 +308,10 @@ async function resetPassword(
   });
 
   // Use the token to build the reset link
-  const passwordResetLink = `https://${
-    request.info.host
-  }/auth?email=${encodeURIComponent(
-    username
-  )}&reset_token=${passwordResetToken}`;
+  const passwordResetLink = `https://${request.info.host
+    }/auth?email=${encodeURIComponent(
+      username
+    )}&reset_token=${passwordResetToken}`;
 
   // Send email
   mailer.sendResetPasswordEmail(

@@ -31,7 +31,7 @@ export const getUserInitials = async (id: number): Promise<string | null> => {
   return user === null
     ? null
     : (user.first_name || "?")[0].toUpperCase() +
-        (user.last_name || "?")[0].toUpperCase();
+    (user.last_name || "?")[0].toUpperCase();
 };
 
 /**
@@ -266,9 +266,9 @@ export const trackUserEvent = async (
  */
 export const groupPolysByTitleNo = (
   polygons: any[]
-): { [title_no: string]: { polygons: any[]; [key: string]: any } } => {
+): { [title_no: string]: { polygons: any[];[key: string]: any } } => {
   const groupedPolygons: {
-    [title_no: string]: { polygons: any[]; [key: string]: any };
+    [title_no: string]: { polygons: any[];[key: string]: any };
   } = {};
 
   polygons.forEach((polygon: any) => {
@@ -319,7 +319,7 @@ export const getLandOwnershipTitlesInBbox = async (
   ne_lat: number,
   type?: string,
   acceptedOnly?: boolean
-): Promise<{ [title_no: string]: { polygons: any[]; [key: string]: any } }> => {
+): Promise<{ [title_no: string]: { polygons: any[];[key: string]: any } }> => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/boundaries`,
     {
@@ -348,7 +348,7 @@ export const getLandOwnershipTitlesInBbox = async (
  */
 export const searchOwner = async (
   proprietorName: string
-): Promise<{ [title_no: string]: { polygons: any[]; [key: string]: any } }> => {
+): Promise<{ [title_no: string]: { polygons: any[];[key: string]: any } }> => {
   const boundaryResponse = await axios.get(
     `${process.env.BOUNDARY_SERVICE_URL}/search`,
     {
