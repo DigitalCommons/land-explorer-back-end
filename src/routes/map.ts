@@ -716,7 +716,7 @@ type GetLandOwnershipPolygonsRequest = LoggedInRequest & {
     ne_lat: number;
     /**
      * The type of ownership to return, one of "all", "localAuthority", "churchOfEngland",
-     * "pending", or "unregistered". The latter is regions of land that have no registered
+     * "socialHousing", "pending", or "unregistered". The latter is regions of land that have no registered
      * ownership.
      */
     type?: string;

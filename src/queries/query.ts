@@ -308,7 +308,7 @@ export const groupPolysByTitleNo = (
  * @param ne_lng longitude of north-east corner
  * @param ne_lat latitude of north-east corner
  * @param type type of ownership to return, one of "all" (default), "localAuthority",
- * "churchOfEngland", "pending" or "unregistered".
+ * "churchOfEngland", "socialHousing" "pending" or "unregistered".
  * @param acceptedOnly only matters if type is "pending". If true, only return pending polys marked
  * as accepted
  */
