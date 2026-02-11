@@ -14,7 +14,9 @@ Sentry.init({
 let mixpanel: Mixpanel.Mixpanel;
 if (process.env.MIXPANEL_TOKEN) {
   mixpanel = Mixpanel.init(process.env.MIXPANEL_TOKEN, {
-    // debug: process.env.NODE_ENV === "development",
+    host: "api-eu.mixpanel.com",
+    geolocate: false,
+    // debug: true,
   });
 } else {
   console.warn("Mixpanel token not found. Analytics will not be sent.");
@@ -43,10 +45,7 @@ export const Event = {
 } as const;
 
 // Recursively extract the union of values of the leaves of an object into a type
-type LeafValues<T> =
-  T extends object
-    ? LeafValues<T[keyof T]>
-    : T;
+type LeafValues<T> = T extends object ? LeafValues<T[keyof T]> : T;
 
 export type EventName = LeafValues<typeof Event>;
 
