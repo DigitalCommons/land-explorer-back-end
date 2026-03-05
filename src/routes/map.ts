@@ -745,12 +745,13 @@ async function getLandOwnershipTitles(
     case undefined:
     case "localAuthority":
     case "churchOfEngland":
+    case "socialHousing":
       titles = await getLandOwnershipTitlesInBbox(
         sw_lng,
         sw_lat,
         ne_lng,
         ne_lat,
-        type
+        type,
       );
       return h.response(titles).code(200);
     case "unregistered":
@@ -761,8 +762,8 @@ async function getLandOwnershipTitles(
             sw_lat,
             ne_lng,
             ne_lat,
-            type
-          )
+            type,
+          ),
         ).map(([title_no, props]) => [
           title_no.replace("unknown_", "U-"), // Use U- prefix to avoid conflicts with actual title_nos
           {
@@ -771,7 +772,7 @@ async function getLandOwnershipTitles(
             // Add tenure field which is used by front-end
             tenure: "unregistered",
           },
-        ])
+        ]),
       );
       return h.response(titles).code(200);
     case "pending":
@@ -795,8 +796,8 @@ async function getLandOwnershipTitles(
             ne_lng,
             ne_lat,
             type,
-            acceptedOnly
-          )
+            acceptedOnly,
+          ),
         ).map(([title_no, props]) => [
           // Use "pending_" prefix in title_nos and also add to poly_ids to avoid conflicts with
           // normal polygons
@@ -809,7 +810,7 @@ async function getLandOwnershipTitles(
               poly_id: `pending_${poly.poly_id}`,
             })),
           },
-        ])
+        ]),
       );
 
       return h.response(titles).code(200);
