@@ -265,7 +265,7 @@ describe("GET /api/ownership", () => {
           id: 1,
           username: "user1@mail.coop",
           is_super_user: 1,
-        })
+        }),
       );
     });
 
@@ -288,6 +288,12 @@ describe("GET /api/ownership", () => {
 
     it("getting churchOfEngland polygons returns status 200", async () => {
       getLandOwnershipPolygonsRequest.url += "&type=churchOfEngland";
+      const res = await server.inject(getLandOwnershipPolygonsRequest);
+      expect(res.statusCode).to.equal(200);
+    });
+
+    it("getting socialHousing polygons returns status 200", async () => {
+      getLandOwnershipPolygonsRequest.url += "&type=socialHousing";
       const res = await server.inject(getLandOwnershipPolygonsRequest);
       expect(res.statusCode).to.equal(200);
     });
