@@ -78,59 +78,66 @@ describe("GET /api/proprietors", () => {
     });
   });
 
-  context("missing page (uses default)", () => {
-    beforeEach(() => {
-      sandbox.replace(
-        proprietors,
-        "searchProprietors",
-        fake.resolves(pbsResponse),
-      );
+    context("empty searchTerm", () => {
+      it("returns status 400", async () => {
+        const res = await server.inject({
+          ...validRequest,
+          url: "/api/proprietors?searchTerm=&page=1&pageSize=10",
+        });
+
+        expect(res.statusCode).to.equal(400);
+        expect(res.result)
+          .to.have.property("message")
+          .that.includes('"searchTerm" is not allowed to be empty');
+      });
     });
 
+    context("searchTerm exceeds maximum length", () => {
+      it("returns status 400", async () => {
+        const longSearchTerm = "a".repeat(201);
+        const res = await server.inject({
+          ...validRequest,
+          url: `/api/proprietors?searchTerm=${longSearchTerm}&page=1&pageSize=10`,
+        });
+
+        expect(res.statusCode).to.equal(400);
+        expect(res.result)
+          .to.have.property("message")
+          .that.includes(
+            '"searchTerm" length must be less than or equal to 200',
+          );
+      });
+    });
+
+  context("missing page (uses default)", () => {
     it("returns status 200", async () => {
+      const stub = fake.resolves(pbsResponse);
+      sandbox.replace(proprietors, "searchProprietors", stub);
+
       const res = await server.inject({
         ...validRequest,
         url: "/api/proprietors?searchTerm=Cambridge&pageSize=10",
       });
 
       expect(res.statusCode).to.equal(200);
+      expect(stub.firstCall.args[1]).to.equal(1); // Verify default page is passed to PBS
       expect(res.result).to.have.property("page").that.equal(1); // Default page is 1
     });
   });
 
-  context("missing pageSize (uses default)", () => {
-    beforeEach(() => {
-      sandbox.replace(
-        proprietors,
-        "searchProprietors",
-        fake.resolves(pbsResponse),
-      );
-    });
+   context("non-integer page", () => {
+     it("returns status 400", async () => {
+       const res = await server.inject({
+         ...validRequest,
+         url: "/api/proprietors?searchTerm=Cambridge&page=abc&pageSize=10",
+       });
 
-    it("returns status 200", async () => {
-      const res = await server.inject({
-        ...validRequest,
-        url: "/api/proprietors?searchTerm=Cambridge&page=1",
-      });
-
-      expect(res.statusCode).to.equal(200);
-      expect(res.result).to.have.property("pageSize").that.equal(10); // Default pageSize is 10
-    });
-  });
-
-  context("non-integer page", () => {
-    it("returns status 400", async () => {
-      const res = await server.inject({
-        ...validRequest,
-        url: "/api/proprietors?searchTerm=Cambridge&page=abc&pageSize=10",
-      });
-
-      expect(res.statusCode).to.equal(400);
-      expect(res.result)
-        .to.have.property("message")
-        .that.includes('"page" must be a number');
-    });
-  });
+       expect(res.statusCode).to.equal(400);
+       expect(res.result)
+         .to.have.property("message")
+         .that.includes('"page" must be a number');
+     });
+   });
 
   context("page less than 1", () => {
     it("returns status 400", async () => {
@@ -143,6 +150,80 @@ describe("GET /api/proprietors", () => {
       expect(res.result)
         .to.have.property("message")
         .that.includes('"page" must be greater than or equal to 1');
+    });
+  });
+
+  context("missing pageSize (uses default)", () => {
+    it("returns status 200", async () => {
+      const stub = fake.resolves(pbsResponse);
+      sandbox.replace(proprietors, "searchProprietors", stub);
+      const res = await server.inject({
+        ...validRequest,
+        url: "/api/proprietors?searchTerm=Cambridge&page=1",
+      });
+
+      expect(res.statusCode).to.equal(200);
+      expect(stub.firstCall.args[2]).to.equal(10); // Verify default pageSize is passed to PBS
+      expect(res.result).to.have.property("pageSize").that.equal(10); // Default pageSize is 10
+    });
+  });
+
+  context("non-integer pageSize", () => {
+    it("returns status 400", async () => {
+      const res = await server.inject({
+        ...validRequest,
+        url: "/api/proprietors?searchTerm=Cambridge&page=1&pageSize=abc",
+      });
+
+      expect(res.statusCode).to.equal(400);
+      expect(res.result)
+        .to.have.property("message")
+        .that.includes('"pageSize" must be a number');
+    });
+  });
+
+  context("pageSize less than 1", () => {
+    it("returns status 400", async () => {
+      const res = await server.inject({
+        ...validRequest,
+        url: "/api/proprietors?searchTerm=Cambridge&page=1&pageSize=0",
+      });
+
+      expect(res.statusCode).to.equal(400);
+      expect(res.result)
+        .to.have.property("message")
+        .that.includes('"pageSize" must be greater than or equal to 1');
+    });
+  });
+
+  context("pageSize exceeds maximum", () => {
+    it("returns status 400", async () => {
+      const res = await server.inject({
+        ...validRequest,
+        url: "/api/proprietors?searchTerm=Cambridge&page=1&pageSize=101",
+      });
+
+      expect(res.statusCode).to.equal(400);
+      expect(res.result)
+        .to.have.property("message")
+        .that.includes('"pageSize" must be less than or equal to 100');
+    });
+  });
+
+  context("arguments passed to PBS", () => {
+    it("forwards searchTerm, page and pageSize from the request", async () => {
+      const stub = fake.resolves(pbsResponse);
+      sandbox.replace(proprietors, "searchProprietors", stub);
+
+      await server.inject({
+        ...validRequest,
+        url: "/api/proprietors?searchTerm=Test+Council&page=3&pageSize=25",
+      });
+
+      expect(stub.calledOnce).to.be.true;
+      expect(stub.firstCall.args[0]).to.equal("Test Council");
+      expect(stub.firstCall.args[1]).to.equal(3);
+      expect(stub.firstCall.args[2]).to.equal(25);
     });
   });
 
@@ -161,15 +242,12 @@ describe("GET /api/proprietors", () => {
   });
 
   context("PBS throws an error", () => {
-    beforeEach(() => {
+    it("returns status 500", async () => {
       sandbox.replace(
         proprietors,
         "searchProprietors",
         fake.rejects(new Error("PBS unavailable")),
       );
-    });
-
-    it("returns status 500", async () => {
       const res = await server.inject(validRequest);
 
       expect(res.statusCode).to.equal(500);
