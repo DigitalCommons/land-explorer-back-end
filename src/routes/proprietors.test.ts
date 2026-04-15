@@ -9,7 +9,7 @@ const proprietors = require("../queries/proprietors");
 
 const sandbox = createSandbox();
 
-describe.only("GET /api/proprietors", () => {
+describe("GET /api/proprietors", () => {
   let server: Server;
 
   const validRequest = {
@@ -79,6 +79,14 @@ describe.only("GET /api/proprietors", () => {
   });
 
   context("missing page (uses default)", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        proprietors,
+        "searchProprietors",
+        fake.resolves(pbsResponse),
+      );
+    });
+
     it("returns status 200", async () => {
       const res = await server.inject({
         ...validRequest,
@@ -91,6 +99,14 @@ describe.only("GET /api/proprietors", () => {
   });
 
   context("missing pageSize (uses default)", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        proprietors,
+        "searchProprietors",
+        fake.resolves(pbsResponse),
+      );
+    });
+
     it("returns status 200", async () => {
       const res = await server.inject({
         ...validRequest,

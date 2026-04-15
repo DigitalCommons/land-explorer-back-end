@@ -6,6 +6,7 @@ import { searchProprietors } from "../queries/proprietors";
 const DEFAULT_PAGE: number = 1;
 const DEFAULT_PAGE_SIZE: number = 10;
 const MAX_PAGE_SIZE: number = 100;
+const MAX_SEARCH_TERM_LENGTH: number = 200;
 
 type GetProprietorsRequest = LoggedInRequest & {
   query: {
@@ -33,7 +34,7 @@ async function getProprietors(
   request.raw.req.on("close", onClose);
 
   try {
-   // Forward client abort to PBS so in-flight requests are not left running
+    // Forward client abort to PBS so in-flight requests are not left running
     const result = await searchProprietors(
       searchTerm,
       page,
@@ -60,7 +61,10 @@ export const proprietorRoutes: ServerRoute[] = [
     options: {
       validate: {
         query: Joi.object({
-          searchTerm: Joi.string().required(),
+          searchTerm: Joi.string()
+            .min(1)
+            .max(MAX_SEARCH_TERM_LENGTH)
+            .required(),
           page: Joi.number().integer().min(1).optional().default(DEFAULT_PAGE),
           pageSize: Joi.number()
             .integer()
