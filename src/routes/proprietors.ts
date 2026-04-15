@@ -3,9 +3,9 @@ import Joi from "joi";
 import { LoggedInRequest } from "./request_types";
 import { searchProprietors } from "../queries/proprietors";
 
-const DEFAULT_PAGE = 1;
-const DEFAULT_PAGE_SIZE = 10;
-const MAX_PAGE_SIZE = 100;
+const DEFAULT_PAGE: number = 1;
+const DEFAULT_PAGE_SIZE: number = 10;
+const MAX_PAGE_SIZE: number = 100;
 
 type GetProprietorsRequest = LoggedInRequest & {
   query: {
