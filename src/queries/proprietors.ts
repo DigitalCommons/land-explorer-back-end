@@ -1,7 +1,7 @@
 import axios from "axios";
 
 export type ProprietorSearchResponse = {
-  results: { id: number; proprietorName: string }[];
+  results: { id: string; proprietorName: string }[];
   page: number;
   pageSize: number;
   totalResults: number;
