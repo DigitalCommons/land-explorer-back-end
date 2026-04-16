@@ -8,6 +8,7 @@ This application provides the back-end functionality for Land Explorer. It has 4
     served by our own separate app, the Property Boundaries Service (repo [here](https://github.com/DigitalCommons/property-boundaries-service)), and this back-end application
     mostly just forwards the data to the Land Explorer client.
 
+This is a Digital Commons Coop project, so please review the [contribution guidelines](https://github.com/DigitalCommons/property-boundaries-service) before work.
 
 ## Requirements
 
