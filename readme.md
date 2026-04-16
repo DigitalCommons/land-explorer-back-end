@@ -5,7 +5,7 @@ This application provides the back-end functionality for Land Explorer. It has 4
  - Maps: Managing access to maps, creating/updating map data
  - Data groups: Creating/updating data group data
  - Ownership: Accessing company ownership and INSPIRE property boundary polygons data. This data is
-    served by our own separate app, the Property Boundaries Service, and this back-end application
+    served by our own separate app, the Property Boundaries Service (repo [here](https://github.com/DigitalCommons/property-boundaries-service)), and this back-end application
     mostly just forwards the data to the Land Explorer client.
 
 
