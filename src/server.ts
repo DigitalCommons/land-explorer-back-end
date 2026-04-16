@@ -9,6 +9,7 @@ import { Request, Server } from "@hapi/hapi";
 import { userRoutes } from "./routes/user";
 import { mapRoutes } from "./routes/map";
 import { dataGroupRoutes } from "./routes/datagroup";
+import { proprietorRoutes } from "./routes/proprietors";
 import { setupWebsockets } from "./websockets/server";
 
 const AuthBearer = require("hapi-auth-bearer-token");
@@ -74,6 +75,9 @@ export const init = async function (): Promise<Server> {
   server.route(userRoutes);
   server.route(mapRoutes);
   server.route(dataGroupRoutes);
+  if (process.env.MEILISEARCH_ENABLED === "true") {
+    server.route(proprietorRoutes);
+  }
 
   // Log requests and response codes
   server.events.on("response", (request: any) => {
