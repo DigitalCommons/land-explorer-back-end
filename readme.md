@@ -22,8 +22,8 @@ This is a Digital Commons Coop project, so please review the [contribution guide
 
 ## Requirements
 
- - Nodejs
- - MySQL
+ - Nodejs 16
+ - MySQL 8
 
 ## Installation
 
