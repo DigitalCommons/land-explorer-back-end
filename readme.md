@@ -4,15 +4,26 @@ This application provides the back-end functionality for Land Explorer. It has 4
  - Basic user account management: Authentication, registration, user details
  - Maps: Managing access to maps, creating/updating map data
  - Data groups: Creating/updating data group data
- - Ownership: Accessing company ownerhsip and INSPIRE property boundary polygons data. This data is
-    served by our own separate app, the Property Boundaries Service, and this back-end application
+ - Ownership: Accessing company ownership and INSPIRE property boundary polygons data. This data is
+    served by our own separate app, the Property Boundaries Service (repo [here](https://github.com/DigitalCommons/property-boundaries-service)), and this back-end application
     mostly just forwards the data to the Land Explorer client.
 
+This is a Digital Commons Coop project, so please review the [contribution guidelines](# Land Explorer Back End
+
+This application provides the back-end functionality for Land Explorer. It has 4 main features:
+ - Basic user account management: Authentication, registration, user details
+ - Maps: Managing access to maps, creating/updating map data
+ - Data groups: Creating/updating data group data
+ - Ownership: Accessing company ownership and INSPIRE property boundary polygons data. This data is
+    served by our own separate app, the Property Boundaries Service (repo [here](https://github.com/DigitalCommons/property-boundaries-service)), and this back-end application
+    mostly just forwards the data to the Land Explorer client.
+
+This is a Digital Commons Coop project, so please review the [contribution guidelines](https://github.com/DigitalCommons#-contributing) before work.
 
 ## Requirements
 
- - Nodejs
- - MySQL
+ - Nodejs 16
+ - MySQL 8
 
 ## Installation
 
@@ -45,8 +56,4 @@ This application provides the back-end functionality for Land Explorer. It has 4
 ## APIs
 
 See the full list of APIs and their purpose by looking at the bottom of each file in the `src/routes/` directory.
-
-## TODOs
-
-- Better typing (instead of "any" type).
-- Dont use both import* & require(*)
+) before work.
