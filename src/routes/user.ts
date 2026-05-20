@@ -21,6 +21,7 @@ import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
 import { LoggedInRequest } from "./request_types";
 import { Event } from "../instrument";
+import { GetUpdateHasSeenUserGuideRequest } from "./user.types";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
@@ -435,21 +436,6 @@ async function getUserAskForFeedback(
 
   return h.response({ askForFeedback }).code(200);
 }
-
-type UpdateUserGuidePromptSeenPayload = {
-  userGuidePromptSeen: boolean;
-  viewedUserGuide: boolean;
-  viewedSource: string;
-};
-
-type GetUpdateHasSeenUserGuideRequest = Request & {
-  auth: {
-    credentials: {
-      user_id: number;
-    };
-  };
-  payload: UpdateUserGuidePromptSeenPayload;
-};
 
 async function updateUserGuidePromptSeen(
   request: GetUpdateHasSeenUserGuideRequest,
