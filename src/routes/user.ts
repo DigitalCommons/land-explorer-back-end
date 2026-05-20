@@ -435,6 +435,24 @@ async function getUserAskForFeedback(
   return h.response({ askForFeedback }).code(200);
 }
 
+async function updateHasSeenUserGuideFlag(
+  request: GetAskForFeedbackRequest,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const userId = request.auth.credentials.user_id;
+
+  await User.update(
+    { has_seen_user_guide: true },
+    {
+      where: {
+        id: userId,
+      },
+    },
+  );
+
+  return h.response().code(200);
+}
+
 export const userRoutes: ServerRoute[] = [
   /** Public APIs */
   // Register a new account
@@ -482,4 +500,10 @@ export const userRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
   { method: "POST", path: "/api/user/feedback", handler: userFeedback },
+  // update has_seen_user_guide flag
+  {
+    method: "POST",
+    path: "/api/user/has-seen-user-guide",
+    handler: updateHasSeenUserGuideFlag,
+  },
 ];
