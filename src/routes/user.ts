@@ -163,6 +163,7 @@ async function getAuthUserDetails(
     phone: user.phone ?? "",
     council_id: user.council_id ?? 0,
     is_super_user: user.is_super_user ?? 0,
+    userGuidePromptSeen: user.user_guide_prompt_seen ?? false,
   });
 }
 
@@ -435,14 +436,26 @@ async function getUserAskForFeedback(
   return h.response({ askForFeedback }).code(200);
 }
 
-async function updateHasSeenUserGuideFlag(
-  request: GetAskForFeedbackRequest,
+type UpdateUserGuidePromptSeenPayload = {
+  userGuidePromptSeen: boolean;
+};
+
+type GetUpdateHasSeenUserGuideRequest = Request & {
+  auth: {
+    credentials: {
+      user_id: number;
+    };
+  };
+  payload: UpdateUserGuidePromptSeenPayload;
+};
+
+async function updateUserGuidePromptSeen(
+  request: GetUpdateHasSeenUserGuideRequest,
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
-
   await User.update(
-    { has_seen_user_guide: true },
+    { user_guide_prompt_seen: request.payload.userGuidePromptSeen },
     {
       where: {
         id: userId,
@@ -500,10 +513,10 @@ export const userRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
   { method: "POST", path: "/api/user/feedback", handler: userFeedback },
-  // update has_seen_user_guide flag
+  // update user_guide_prompt_seen flag
   {
     method: "POST",
-    path: "/api/user/has-seen-user-guide",
-    handler: updateHasSeenUserGuideFlag,
+    path: "/api/user/user-guide-prompt-seen",
+    handler: updateUserGuidePromptSeen,
   },
 ];
