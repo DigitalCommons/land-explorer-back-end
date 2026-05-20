@@ -4,17 +4,17 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     await queryInterface.sequelize.query(
       `ALTER TABLE user
-            ADD has_seen_user_guide BOOLEAN DEFAULT '0';`,
+            ADD user_guide_prompt_seen BOOLEAN DEFAULT '0';`,
     );
     await queryInterface.sequelize.query(
-      `UPDATE user SET has_seen_user_guide = 1;`,
+      `UPDATE user SET user_guide_prompt_seen = 1;`,
     );
   },
 
   async down(queryInterface, Sequelize) {
     await queryInterface.sequelize.query(
       `ALTER TABLE user 
-            DROP has_seen_user_guide;`,
+            DROP user_guide_prompt_seen;`,
     );
   },
 };

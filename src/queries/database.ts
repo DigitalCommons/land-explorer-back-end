@@ -47,7 +47,7 @@ const UserModel = sequelize.define(
     enabled: DataTypes.INTEGER,
     is_super_user: { type: DataTypes.BOOLEAN, allowNull: false },
     ask_for_feedback: DataTypes.BOOLEAN,
-    has_seen_user_guide: DataTypes.BOOLEAN,
+    user_guide_prompt_seen: DataTypes.BOOLEAN,
 
     created_date: Sequelize.DATE,
     last_modified: Sequelize.DATE,
