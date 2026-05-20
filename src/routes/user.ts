@@ -438,6 +438,8 @@ async function getUserAskForFeedback(
 
 type UpdateUserGuidePromptSeenPayload = {
   userGuidePromptSeen: boolean;
+  viewedUserGuide: boolean;
+  viewedSource: string;
 };
 
 type GetUpdateHasSeenUserGuideRequest = Request & {
@@ -454,6 +456,13 @@ async function updateUserGuidePromptSeen(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
+  //send analytics if user viewed the user guide, so we can understand how many users are viewing the guide when prompted, and from which source they are coming to the guide
+  if (request.payload.viewedUserGuide) {
+    trackUserEvent(userId, Event.USER.USER_GUIDE_VIEWED, {
+      source: request.payload.viewedSource,
+    });
+  }
+
   await User.update(
     { user_guide_prompt_seen: request.payload.userGuidePromptSeen },
     {

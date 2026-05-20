@@ -21,6 +21,9 @@ import { createHash } from "node:crypto";
 import axios from "axios";
 import { Op, QueryTypes } from "sequelize";
 import { EventName, trackRawEvent } from "../instrument";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 export const getUserById = async (id: number): Promise<typeof User | null> => {
   return await User.findOne({ where: { id } });
