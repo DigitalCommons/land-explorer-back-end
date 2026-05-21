@@ -9,3 +9,11 @@ type UpdateUserGuidePromptSeenPayload = {
 export type UpdateUserGuidePromptSeenRequest = LoggedInRequest & {
   payload: UpdateUserGuidePromptSeenPayload;
 };
+
+type UpdateAnalyticsConsentPayload = {
+  analyticsConsent: boolean;
+};
+
+export type UpdateAnalyticsConsentRequest = LoggedInRequest & {
+  payload: UpdateAnalyticsConsentPayload;
+};

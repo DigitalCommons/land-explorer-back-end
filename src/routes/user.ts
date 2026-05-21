@@ -21,7 +21,7 @@ import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
 import { LoggedInRequest } from "./request_types";
 import { Event } from "../instrument";
-import { UpdateUserGuidePromptSeenRequest } from "./user.types";
+import { UpdateUserGuidePromptSeenRequest, UpdateAnalyticsConsentRequest } from "./user.types";
 import Joi from "joi";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
@@ -438,6 +438,18 @@ async function getUserAskForFeedback(
   return h.response({ askForFeedback }).code(200);
 }
 
+async function updateAnalyticsConsent(
+  request: UpdateAnalyticsConsentRequest,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  await User.update(
+    { analytics_consent: request.payload.analyticsConsent },
+    { where: { id: request.auth.credentials.user_id } },
+  );
+
+  return h.response().code(200);
+}
+
 async function updateUserGuidePromptSeen(
   request: UpdateUserGuidePromptSeenRequest,
   h: ResponseToolkit,
@@ -509,6 +521,24 @@ export const userRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
   { method: "POST", path: "/api/user/feedback", handler: userFeedback },
+  // Update analytics consent
+  {
+    method: "POST",
+    path: "/api/user/analytics-consent",
+    handler: updateAnalyticsConsent,
+    options: {
+      validate: {
+        payload: Joi.object({
+          analyticsConsent: Joi.boolean().required(),
+        }),
+        failAction: (request, h, err) =>
+          h
+            .response({ message: (err as Error).message })
+            .code(400)
+            .takeover(),
+      },
+    },
+  },
   // update user_guide_prompt_seen flag
   {
     method: "POST",
