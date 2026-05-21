@@ -519,7 +519,7 @@ export const userRoutes: ServerRoute[] = [
         payload: Joi.object({
           userGuidePromptSeen: Joi.boolean().required(),
           viewedUserGuide: Joi.boolean().required(),
-          viewedSource: Joi.string().optional(),
+          viewedSource: Joi.string().allow("").optional(),
         }),
         failAction: (request, h, err) =>
           h
