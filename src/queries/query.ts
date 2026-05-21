@@ -21,9 +21,7 @@ import { createHash } from "node:crypto";
 import axios from "axios";
 import { Op, QueryTypes } from "sequelize";
 import { EventName, trackRawEvent } from "../instrument";
-import dotenv from "dotenv";
 
-dotenv.config();
 
 export const getUserById = async (id: number): Promise<typeof User | null> => {
   return await User.findOne({ where: { id } });
@@ -221,6 +219,9 @@ export const hashUserId = async (userId: number) => {
   }
 
   const saltAndPepperedInput = `${userId}${user.username}${process.env.ANALYTICS_PEPPER}`;
+  console.log(
+    `Hashing user ID ${userId} with salt and pepper for analytics: ${saltAndPepperedInput}`,
+  );
 
   return createHash("sha256")
     .update(saltAndPepperedInput)

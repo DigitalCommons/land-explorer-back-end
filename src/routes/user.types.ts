@@ -1,14 +1,11 @@
+import { LoggedInRequest } from "./request_types";
+
 type UpdateUserGuidePromptSeenPayload = {
   userGuidePromptSeen: boolean;
   viewedUserGuide: boolean;
-  viewedSource: string;
+  viewedSource?: string;
 };
 
-export type GetUpdateHasSeenUserGuideRequest = Request & {
-  auth: {
-    credentials: {
-      user_id: number;
-    };
-  };
+export type UpdateUserGuidePromptSeenRequest = LoggedInRequest & {
   payload: UpdateUserGuidePromptSeenPayload;
 };

@@ -320,67 +320,92 @@ describe("POST /api/user/password-reset", () => {
 });
 
 describe("POST /api/user/user-guide-prompt-seen", () => {
-    const testUserId = 123;
+  const testUserId = 123;
 
-    let fakeUserUpdate: SinonSpy;
-    let fakeTrackUserEvent: SinonSpy;
+  let fakeUserUpdate: SinonSpy;
+  let fakeTrackUserEvent: SinonSpy;
 
-    beforeEach(async () => {
-        server = await init();
-        fakeUserUpdate = sandbox.replace(Model.User, "update", fake.resolves(null));
-        fakeTrackUserEvent = sandbox.replace(query, "trackUserEvent", fake());
+  beforeEach(async () => {
+    server = await init();
+    fakeUserUpdate = sandbox.replace(Model.User, "update", fake.resolves(null));
+    fakeTrackUserEvent = sandbox.replace(query, "trackUserEvent", fake());
+  });
+
+  afterEach(async () => {
+    await server.stop();
+    sandbox.restore();
+  });
+
+  it("returns status 200", async () => {
+    const res = await server.inject({
+      method: "POST",
+      url: "/api/user/user-guide-prompt-seen",
+      auth: { strategy: "simple", credentials: { user_id: testUserId } },
+      payload: {
+        userGuidePromptSeen: true,
+        viewedUserGuide: false,
+        viewedSource: "",
+      },
     });
 
-    afterEach(async () => {
-        await server.stop();
-        sandbox.restore();
+    expect(res.statusCode).to.equal(200);
+  });
+
+  it("updates user_guide_prompt_seen for the authenticated user", async () => {
+    await server.inject({
+      method: "POST",
+      url: "/api/user/user-guide-prompt-seen",
+      auth: { strategy: "simple", credentials: { user_id: testUserId } },
+      payload: {
+        userGuidePromptSeen: true,
+        viewedUserGuide: false,
+        viewedSource: "",
+      },
     });
 
-    it("returns status 200", async () => {
-        const res = await server.inject({
-            method: "POST",
-            url: "/api/user/user-guide-prompt-seen",
-            auth: { strategy: "simple", credentials: { user_id: testUserId } },
-            payload: { userGuidePromptSeen: true, viewedUserGuide: false, viewedSource: "" },
-        });
+    assert.calledOnceWithMatch(
+      fakeUserUpdate,
+      { user_guide_prompt_seen: true },
+      { where: { id: testUserId } },
+    );
+  });
 
-        expect(res.statusCode).to.equal(200);
+  context("when viewedUserGuide is true", () => {
+    it("tracks a USER_GUIDE_VIEWED analytics event with the source", async () => {
+      await server.inject({
+        method: "POST",
+        url: "/api/user/user-guide-prompt-seen",
+        auth: { strategy: "simple", credentials: { user_id: testUserId } },
+        payload: {
+          userGuidePromptSeen: true,
+          viewedUserGuide: true,
+          viewedSource: "button",
+        },
+      });
+
+      assert.calledOnceWithMatch(
+        fakeTrackUserEvent,
+        testUserId,
+        "User_ViewedGuide",
+        { source: "button" },
+      );
     });
+  });
 
-    it("updates user_guide_prompt_seen for the authenticated user", async () => {
-        await server.inject({
-            method: "POST",
-            url: "/api/user/user-guide-prompt-seen",
-            auth: { strategy: "simple", credentials: { user_id: testUserId } },
-            payload: { userGuidePromptSeen: true, viewedUserGuide: false, viewedSource: "" },
-        });
+  context("when viewedUserGuide is false", () => {
+    it("does not track an analytics event", async () => {
+      await server.inject({
+        method: "POST",
+        url: "/api/user/user-guide-prompt-seen",
+        auth: { strategy: "simple", credentials: { user_id: testUserId } },
+        payload: {
+          userGuidePromptSeen: false,
+          viewedUserGuide: false,
+          viewedSource: "",
+        },
+      });
 
-        assert.calledOnceWithMatch(fakeUserUpdate, { user_guide_prompt_seen: true }, { where: { id: testUserId } });
+      assert.notCalled(fakeTrackUserEvent);
     });
-
-    context("when viewedUserGuide is true", () => {
-        it("tracks a USER_GUIDE_VIEWED analytics event with the source", async () => {
-            await server.inject({
-                method: "POST",
-                url: "/api/user/user-guide-prompt-seen",
-                auth: { strategy: "simple", credentials: { user_id: testUserId } },
-                payload: { userGuidePromptSeen: true, viewedUserGuide: true, viewedSource: "button" },
-            });
-
-            assert.calledOnceWithMatch(fakeTrackUserEvent, testUserId, "User_ViewedGuide", { source: "button" });
-        });
-    });
-
-    context("when viewedUserGuide is false", () => {
-        it("does not track an analytics event", async () => {
-            await server.inject({
-                method: "POST",
-                url: "/api/user/user-guide-prompt-seen",
-                auth: { strategy: "simple", credentials: { user_id: testUserId } },
-                payload: { userGuidePromptSeen: false, viewedUserGuide: false, viewedSource: "" },
-            });
-
-            assert.notCalled(fakeTrackUserEvent);
-        });
-    });
+  });
 });
