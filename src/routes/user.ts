@@ -166,6 +166,7 @@ async function getAuthUserDetails(
     council_id: user.council_id ?? 0,
     is_super_user: user.is_super_user ?? 0,
     userGuidePromptSeen: user.user_guide_prompt_seen ?? false,
+    analyticsConsent: user.analytics_consent,
   });
 }
 
