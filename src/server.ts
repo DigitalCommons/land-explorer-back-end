@@ -33,7 +33,7 @@ export const init = async function (): Promise<Server> {
       cors: process.env.NODE_ENV === "development" && {
         origin: ["http://localhost:8080"],
         // Allow WebSocket connections
-        additionalHeaders: ["authorization", "content-type"],
+        additionalHeaders: ["authorization", "content-type", "x-session-id"],
       },
     },
   });

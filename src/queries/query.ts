@@ -219,9 +219,6 @@ export const hashUserId = async (userId: number) => {
   }
 
   const saltAndPepperedInput = `${userId}${user.username}${process.env.ANALYTICS_PEPPER}`;
-  console.log(
-    `Hashing user ID ${userId} with salt and pepper for analytics: ${saltAndPepperedInput}`,
-  );
 
   return createHash("sha256")
     .update(saltAndPepperedInput)
@@ -232,35 +229,50 @@ export const hashUserId = async (userId: number) => {
 /**
  * The wrapper function that should be called for most analytic events in the app, where a user is
  * logged in.
+ * @param sessionId - This is a randomly generated string that identifies a user's session, used when we don't have consent to use the hashed user ID
+ * @param userId - The user's ID in our database
+ * @param event - The name of the event being tracked
+ * @param data - Any additional data to include with the event
  */
 export const trackUserEvent = async (
+  sessionId: string,
   userId: number,
   event: EventName,
-  data?: any
+  data?: any,
 ) => {
-  const userHash = await hashUserId(userId);
+  const user = await getUserById(userId); // TODO Try Catch
+  user.analytics_consent = user.analytics_consent ?? false; // default to false if null/undefined
 
-  // Include data on which user groups the user is a member of
-  const userGroups = await sequelize.query(
-    `SELECT ug.name
-     FROM user_group_memberships ugm
-     JOIN user_groups ug ON ugm.user_group_id = ug.iduser_groups
-     WHERE ugm.user_id = :userId`,
-    {
-      replacements: { userId },
-      type: QueryTypes.SELECT,
-    }
-  );
+  if (user.analytics_consent) {
+    const analyticsUserId = await hashUserId(userId);
 
-  const userGroupNames: string[] = userGroups
-    ? userGroups.map((ug: { name: string }) => ug.name)
-    : [];
+    // Include data on which user groups the user is a member of
+    const userGroups = await sequelize.query(
+      `SELECT ug.name
+      FROM user_group_memberships ugm
+      JOIN user_groups ug ON ugm.user_group_id = ug.iduser_groups
+      WHERE ugm.user_id = :userId`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT,
+      },
+    );
 
-  trackRawEvent(event, {
-    ...data,
-    distinct_id: userHash,
-    user_groups: userGroupNames,
-  });
+    const userGroupNames: string[] = userGroups
+      ? userGroups.map((ug: { name: string }) => ug.name)
+      : [];
+
+    trackRawEvent(event, {
+      ...data,
+      distinct_id: analyticsUserId,
+      user_groups: userGroupNames,
+    });
+  } else {
+    trackRawEvent(event, {
+      ...data,
+      distinct_id: sessionId,
+    });
+  }
 };
 
 /**

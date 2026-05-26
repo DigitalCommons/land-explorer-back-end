@@ -8,4 +8,7 @@ export type LoggedInRequest = Request & {
       user_id: number;
     };
   };
+  headers: Request["headers"] & {
+    sessionId: string;
+  };
 };

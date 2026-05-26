@@ -58,14 +58,14 @@ async function registerUser(
   const mapsCount = await migrateGuestUserMap(user);
 
   // send analytic
-  trackUserEvent(user.id, Event.USER.REGISTER, {
+  trackUserEvent(crypto.randomUUID(), user.id, Event.USER.REGISTER, {
     sharedMaps: mapsCount > 0,
   });
 
   mailer.sendSuccessfullyRegisteredEmail(
     request.payload.username,
     request.payload.firstName,
-    originDomain
+    originDomain,
   );
 
   return h.response(user);
@@ -357,6 +357,8 @@ async function userFeedback(
     request.auth.credentials.user_id
   );
 
+  const sessionUserId = request.headers.sessionId;
+
   await User.update(
     { ask_for_feedback: false },
     {
@@ -366,12 +368,17 @@ async function userFeedback(
     }
   );
 
-  trackUserEvent(request.auth.credentials.user_id, Event.USER.FEEDBACK, {
-    question_use_case,
-    question_impact,
-    question_who_benefits,
-    question_improvements,
-  });
+  trackUserEvent(
+    sessionUserId,
+    request.auth.credentials.user_id,
+    Event.USER.FEEDBACK,
+    {
+      question_use_case,
+      question_impact,
+      question_who_benefits,
+      question_improvements,
+    },
+  );
 
   return h.response(userFeedback).code(200);
 }
@@ -456,9 +463,10 @@ async function updateUserGuidePromptSeen(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
+  const sessionId = request.headers.sessionId;
   //send analytics if user viewed the user guide, so we can understand how many users are viewing the guide when prompted, and from which source they are coming to the guide
   if (request.payload.viewedUserGuide) {
-    trackUserEvent(userId, Event.USER.USER_GUIDE_VIEWED, {
+    trackUserEvent(sessionId, userId, Event.USER.USER_GUIDE_VIEWED, {
       source: request.payload.viewedSource ?? "",
     });
   }
