@@ -318,3 +318,123 @@ describe("POST /api/user/password-reset", () => {
 
     });
 });
+
+describe("GET /api/user/details", () => {
+    const testUserId = 123;
+
+    beforeEach(async () => {
+        server = await init();
+    });
+
+    afterEach(async () => {
+        await server.stop();
+        sandbox.restore();
+    });
+
+    context("User exists", () => {
+        it("returns analyticsConsent: true when set", async () => {
+            sandbox.replace(Model.User, "findOne", fake.resolves({
+                id: testUserId,
+                username: "douglas.quaid@yahoomail.com",
+                first_name: "Douglas",
+                last_name: "Quaid",
+                analytics_consent: true,
+            }));
+
+            const res = await server.inject({
+                method: "GET",
+                url: "/api/user/details",
+                auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            });
+
+            expect(res.statusCode).to.equal(200);
+            expect((res.result as any).analyticsConsent).to.equal(true);
+        });
+
+        it("returns analyticsConsent: false when not set", async () => {
+            sandbox.replace(Model.User, "findOne", fake.resolves({
+                id: testUserId,
+                username: "douglas.quaid@yahoomail.com",
+                first_name: "Douglas",
+                last_name: "Quaid",
+                analytics_consent: false,
+            }));
+
+            const res = await server.inject({
+                method: "GET",
+                url: "/api/user/details",
+                auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            });
+
+            expect(res.statusCode).to.equal(200);
+            expect((res.result as any).analyticsConsent).to.equal(false);
+        });
+    });
+});
+
+describe("POST /api/user/analytics-consent", () => {
+    const testUserId = 123;
+    let fakeUserUpdate: SinonSpy;
+
+    beforeEach(async () => {
+        server = await init();
+        fakeUserUpdate = sandbox.replace(Model.User, "update", fake.resolves([1]));
+    });
+
+    afterEach(async () => {
+        await server.stop();
+        sandbox.restore();
+    });
+
+    it("returns status 200 and persists consent when set to true", async () => {
+        const res = await server.inject({
+            method: "POST",
+            url: "/api/user/analytics-consent",
+            auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            payload: { analyticsConsent: true },
+        });
+
+        expect(res.statusCode).to.equal(200);
+        assert.calledOnceWithMatch(fakeUserUpdate,
+            { analytics_consent: true },
+            { where: { id: testUserId } }
+        );
+    });
+
+    it("returns status 200 and persists consent when set to false", async () => {
+        const res = await server.inject({
+            method: "POST",
+            url: "/api/user/analytics-consent",
+            auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            payload: { analyticsConsent: false },
+        });
+
+        expect(res.statusCode).to.equal(200);
+        assert.calledOnceWithMatch(fakeUserUpdate,
+            { analytics_consent: false },
+            { where: { id: testUserId } }
+        );
+    });
+
+    it("returns status 400 when payload is missing analyticsConsent", async () => {
+        const res = await server.inject({
+            method: "POST",
+            url: "/api/user/analytics-consent",
+            auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            payload: {},
+        });
+
+        expect(res.statusCode).to.equal(400);
+    });
+
+    it("returns status 400 when analyticsConsent is not a boolean", async () => {
+        const res = await server.inject({
+            method: "POST",
+            url: "/api/user/analytics-consent",
+            auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            payload: { analyticsConsent: "yes" },
+        });
+
+        expect(res.statusCode).to.equal(400);
+    });
+});
