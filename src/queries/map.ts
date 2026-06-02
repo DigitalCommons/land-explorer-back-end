@@ -59,7 +59,7 @@ export const trackUserMapEvent = async (
   data?: any,
 ) => {
   const mapIdHash = await hashMapId(mapId);
-  trackUserEvent(sessionId, userId, event, {
+  await trackUserEvent(sessionId, userId, event, {
     ...data,
     map_id: mapIdHash,
   });
