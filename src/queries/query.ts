@@ -209,17 +209,10 @@ export const checkAndReturnUser = async (
  * Convert a userId to a hashed value, using their username as a salt and then adding the secret
  * pepper, to anonymize it for analytics.
  */
-export const hashUserId = async (userId: number) => {
-  if (userId === -1) return "USER_NOT_FOUND";
-
-  const user = await getUserById(userId);
-  if (!user) {
-    console.error(`User with ID ${userId} not found for hashing`);
-    return "USER_NOT_FOUND";
-  }
+export const hashUserId = async (user: typeof User) => {
+  const userId = user.id;
 
   const saltAndPepperedInput = `${userId}${user.username}${process.env.ANALYTICS_PEPPER}`;
-
   return createHash("sha256")
     .update(saltAndPepperedInput)
     .digest("hex")
@@ -240,11 +233,16 @@ export const trackUserEvent = async (
   event: EventName,
   data?: any,
 ) => {
-  const user = await getUserById(userId); // TODO Try Catch
-  user.analytics_consent = user.analytics_consent ?? false; // default to false if null/undefined
+  const user = await getUserById(userId);
+  if (!user) {
+    console.error(
+      `User with ID ${userId} not found for tracking event ${event}`,
+    );
+  }
+  let analyticsConsent = user?.analytics_consent ?? false; // default to false if null/undefined
 
-  if (user.analytics_consent) {
-    const analyticsUserId = await hashUserId(userId);
+  if (analyticsConsent) {
+    const analyticsUserId = await hashUserId(user);
 
     // Include data on which user groups the user is a member of
     const userGroups = await sequelize.query(

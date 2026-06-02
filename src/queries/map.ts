@@ -986,7 +986,7 @@ export const grantMapAccessByEmails = async (
           domain,
         );
       }
-      sharedWithAnalyticsData.push(await hashUserId(user.id));
+      sharedWithAnalyticsData.push(await hashUserId(user));
     } else {
       await PendingUserMap.create({
         map_id: mapId,
