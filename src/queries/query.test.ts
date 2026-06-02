@@ -437,20 +437,17 @@ describe("trackUserEvent", () => {
     sandbox.restore();
   });
 
-  context("User exists", () => {
+  context("User exists with analytics consent", () => {
     beforeEach(() => {
-      sandbox.replace(
-        User,
-        "findOne",
-        fake.resolves({
-          id: testUserId,
-          created_date: testUserCreatedDate,
-        }),
-      );
+      sandbox.stub(User, "findOne").callsFake(async (options: any) => ({
+        id: options?.where?.id ?? testUserId,
+        created_date: testUserCreatedDate,
+        analytics_consent: true,
+      }));
     });
 
     it("calls trackRawEvent with consistent hashed userID", async () => {
-      await query.trackUserEvent(testUserId, "User_Register");
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register");
 
       expect(trackRawEventSpy.calledOnce).to.be.true;
       const [event, data] = trackRawEventSpy.firstCall.args;
@@ -462,7 +459,7 @@ describe("trackUserEvent", () => {
     it("merges additional data", async () => {
       const additionalData = { shared_maps: true };
 
-      await query.trackUserEvent(testUserId, "User_Register", additionalData);
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register", additionalData);
 
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data).to.deep.equal({
@@ -473,9 +470,38 @@ describe("trackUserEvent", () => {
     });
 
     it("produces different hash for different userId", async () => {
-      await query.trackUserEvent(testUserId + 1, "User_Register");
+      await query.trackUserEvent("test-session-id", testUserId + 1, "User_Register");
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data.distinct_id).to.not.equal("99a70b2e9c66404d");
+    });
+  });
+
+  context("User exists without analytics consent", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+          analytics_consent: false,
+        }),
+      );
+    });
+
+    it("uses sessionId as distinct_id", async () => {
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register");
+
+      expect(trackRawEventSpy.calledOnce).to.be.true;
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data.distinct_id).to.equal("test-session-id");
+    });
+
+    it("does not include user_groups", async () => {
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register");
+
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data).to.not.have.property("user_groups");
     });
   });
 
@@ -485,7 +511,7 @@ describe("trackUserEvent", () => {
     });
 
     it("uses USER_NOT_FOUND as hashed userId", async () => {
-      await query.trackUserEvent(testUserId, "User_Register");
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register");
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data.distinct_id).to.equal("USER_NOT_FOUND");
     });
