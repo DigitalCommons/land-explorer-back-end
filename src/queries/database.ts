@@ -47,6 +47,7 @@ const UserModel = sequelize.define(
     enabled: DataTypes.INTEGER,
     is_super_user: { type: DataTypes.BOOLEAN, allowNull: false },
     ask_for_feedback: DataTypes.BOOLEAN,
+    analytics_consent: DataTypes.BOOLEAN,
 
     created_date: Sequelize.DATE,
     last_modified: Sequelize.DATE,
@@ -55,7 +56,7 @@ const UserModel = sequelize.define(
     tableName: "user",
     createdAt: "created_date",
     updatedAt: "last_modified",
-  }
+  },
 );
 
 const MapModel = sequelize.define(
