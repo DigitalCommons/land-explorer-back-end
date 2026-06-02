@@ -357,7 +357,7 @@ async function userFeedback(
     request.auth.credentials.user_id
   );
 
-  const sessionUserId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
 
   await User.update(
     { ask_for_feedback: false },
@@ -369,7 +369,7 @@ async function userFeedback(
   );
 
   trackUserEvent(
-    sessionUserId,
+    sessionId,
     request.auth.credentials.user_id,
     Event.USER.FEEDBACK,
     {
@@ -463,7 +463,8 @@ async function updateUserGuidePromptSeen(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
-  const sessionId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
+
   //send analytics if user viewed the user guide, so we can understand how many users are viewing the guide when prompted, and from which source they are coming to the guide
   if (request.payload.viewedUserGuide) {
     trackUserEvent(sessionId, userId, Event.USER.USER_GUIDE_VIEWED, {

@@ -72,7 +72,7 @@ async function saveMap(
   try {
     const { eid, name, data, isSnapshot } = request.payload;
     const userId = request.auth.credentials.user_id;
-    const sessionId = request.headers.sessionId;
+    const { "x-session-id": sessionId } = request.headers;
 
     // eid provided means update map
     const isUpdate = eid !== null;
@@ -476,7 +476,7 @@ async function shareMap(
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const originDomain = `https://${request.info.host}`;
-  const sessionId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
 
   const validation = new Validation();
   await validation.validateShareMap(request.payload);
@@ -639,7 +639,7 @@ async function getMapData(
   try {
     const { eid } = request.params;
     const userId = request.auth.credentials.user_id;
-    const sessionId = request.headers.sessionId;
+    const { "x-session-id": sessionId } = request.headers;
 
     const userMap = await UserMap.findOne({
       where: {
@@ -837,7 +837,7 @@ async function searchOwnership(
 ): Promise<ResponseObject> {
   const { proprietorName } = request.query;
   const { user_id } = request.auth.credentials;
-  const sessionId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
 
   const titles = await searchOwner(proprietorName);
 
@@ -865,7 +865,7 @@ async function downloadShapefile(
 ): Promise<ResponseObject> {
   const { mapId } = request.params;
   const { user_id } = request.auth.credentials;
-  const sessionId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
 
   const hasAccess = await UserMap.findOne({
     where: {
@@ -922,7 +922,7 @@ async function createMapGeoJSONLink(
 ): Promise<ResponseObject> {
   const { mapId } = request.payload;
   const { user_id } = request.auth.credentials;
-  const sessionId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
 
   const userMapView = await UserMap.findOne({
     where: {
@@ -949,7 +949,7 @@ async function getPublicMap(
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const { mapId } = request.params;
-  const sessionId = request.headers.sessionId;
+  const { "x-session-id": sessionId } = request.headers;
 
   const publicMapView = await UserMap.findOne({
     where: {

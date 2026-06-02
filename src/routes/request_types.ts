@@ -9,6 +9,6 @@ export type LoggedInRequest = Request & {
     };
   };
   headers: Request["headers"] & {
-    sessionId: string;
+    ["x-session-id"]: string;
   };
 };
