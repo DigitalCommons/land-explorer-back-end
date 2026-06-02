@@ -21,6 +21,8 @@ import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
 import { LoggedInRequest } from "./request_types";
 import { Event } from "../instrument";
+import Joi from "joi";
+import { UpdateAnalyticsConsentRequest } from "./user.types";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
@@ -56,7 +58,7 @@ async function registerUser(
   const mapsCount = await migrateGuestUserMap(user);
 
   // send analytic
-  trackUserEvent(user.id, Event.USER.REGISTER, {
+  trackUserEvent(crypto.randomUUID(), user.id, Event.USER.REGISTER, {
     sharedMaps: mapsCount > 0,
   });
 
@@ -163,6 +165,7 @@ async function getAuthUserDetails(
     phone: user.phone ?? "",
     council_id: user.council_id ?? 0,
     is_super_user: user.is_super_user ?? 0,
+    analyticsConsent: user.analytics_consent,
   });
 }
 
@@ -353,6 +356,8 @@ async function userFeedback(
     request.auth.credentials.user_id
   );
 
+  const { "x-session-id": sessionId } = request.headers;
+
   await User.update(
     { ask_for_feedback: false },
     {
@@ -362,12 +367,17 @@ async function userFeedback(
     }
   );
 
-  trackUserEvent(request.auth.credentials.user_id, Event.USER.FEEDBACK, {
-    question_use_case,
-    question_impact,
-    question_who_benefits,
-    question_improvements,
-  });
+  trackUserEvent(
+    sessionId,
+    request.auth.credentials.user_id,
+    Event.USER.FEEDBACK,
+    {
+      question_use_case,
+      question_impact,
+      question_who_benefits,
+      question_improvements,
+    },
+  );
 
   return h.response(userFeedback).code(200);
 }
@@ -435,6 +445,18 @@ async function getUserAskForFeedback(
   return h.response({ askForFeedback }).code(200);
 }
 
+async function updateAnalyticsConsent(
+  request: UpdateAnalyticsConsentRequest,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  await User.update(
+    { analytics_consent: request.payload.analyticsConsent },
+    { where: { id: request.auth.credentials.user_id } },
+  );
+
+  return h.response().code(200);
+}
+
 export const userRoutes: ServerRoute[] = [
   /** Public APIs */
   // Register a new account
@@ -482,4 +504,22 @@ export const userRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
   { method: "POST", path: "/api/user/feedback", handler: userFeedback },
+  // Update analytics consent
+  {
+    method: "POST",
+    path: "/api/user/analytics-consent",
+    handler: updateAnalyticsConsent,
+    options: {
+      validate: {
+        payload: Joi.object({
+          analyticsConsent: Joi.boolean().required(),
+        }),
+        failAction: (request, h, err) =>
+          h
+            .response({ message: (err as Error).message })
+            .code(400)
+            .takeover(),
+      },
+    },
+  },
 ];

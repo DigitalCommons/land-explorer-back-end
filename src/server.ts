@@ -12,6 +12,7 @@ import { dataGroupRoutes } from "./routes/datagroup";
 import { proprietorRoutes } from "./routes/proprietors";
 import { setupWebsockets } from "./websockets/server";
 
+
 const AuthBearer = require("hapi-auth-bearer-token");
 const Inert = require("@hapi/inert");
 const jwt = require("jsonwebtoken");
@@ -33,7 +34,7 @@ export const init = async function (): Promise<Server> {
       cors: process.env.NODE_ENV === "development" && {
         origin: ["http://localhost:8080"],
         // Allow WebSocket connections
-        additionalHeaders: ["authorization", "content-type"],
+        additionalHeaders: ["authorization", "content-type", "x-session-id"],
       },
     },
   });

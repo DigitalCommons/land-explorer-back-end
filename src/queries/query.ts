@@ -208,16 +208,8 @@ export const checkAndReturnUser = async (
  * Convert a userId to a hashed value, using their username as a salt and then adding the secret
  * pepper, to anonymize it for analytics.
  */
-export const hashUserId = async (userId: number) => {
-  if (userId === -1) return "USER_NOT_FOUND";
-
-  const user = await getUserById(userId);
-  if (!user) {
-    console.error(`User with ID ${userId} not found for hashing`);
-    return "USER_NOT_FOUND";
-  }
-
-  const saltAndPepperedInput = `${userId}${user.username}${process.env.ANALYTICS_PEPPER}`;
+export const hashUserId = async (user: typeof User) => {
+  const saltAndPepperedInput = `${user.id}${user.username}${process.env.ANALYTICS_PEPPER}`;
 
   return createHash("sha256")
     .update(saltAndPepperedInput)
@@ -228,35 +220,56 @@ export const hashUserId = async (userId: number) => {
 /**
  * The wrapper function that should be called for most analytic events in the app, where a user is
  * logged in.
+ * @param sessionId - This is a randomly generated string that identifies a user's session, used when we don't have consent to use the hashed user ID
+ * @param userId - The user's ID in our database
+ * @param event - The name of the event being tracked
+ * @param data - Any additional data to include with the event
  */
 export const trackUserEvent = async (
+  sessionId: string,
   userId: number,
   event: EventName,
-  data?: any
+  data?: any,
 ) => {
-  const userHash = await hashUserId(userId);
+  let analyticsUserId = sessionId; // default to sessionId if we don't have consent to use the hashed user ID
+  const user = await getUserById(userId);
+  if (!user) {
+    console.error(
+      `User with ID ${userId} not found for tracking event ${event}`,
+    );
+    analyticsUserId = "USER_NOT_FOUND";
+  }
+  let analyticsConsent = user?.analytics_consent ?? false; // default to false if null/undefined
 
-  // Include data on which user groups the user is a member of
-  const userGroups = await sequelize.query(
-    `SELECT ug.name
-     FROM user_group_memberships ugm
-     JOIN user_groups ug ON ugm.user_group_id = ug.iduser_groups
-     WHERE ugm.user_id = :userId`,
-    {
-      replacements: { userId },
-      type: QueryTypes.SELECT,
-    }
-  );
+  if (analyticsConsent) {
+    analyticsUserId = await hashUserId(user);
+    // Include data on which user groups the user is a member of
+    const userGroups = await sequelize.query(
+      `SELECT ug.name
+      FROM user_group_memberships ugm
+      JOIN user_groups ug ON ugm.user_group_id = ug.iduser_groups
+      WHERE ugm.user_id = :userId`,
+      {
+        replacements: { userId },
+        type: QueryTypes.SELECT,
+      },
+    );
 
-  const userGroupNames: string[] = userGroups
-    ? userGroups.map((ug: { name: string }) => ug.name)
-    : [];
+    const userGroupNames: string[] = userGroups
+      ? userGroups.map((ug: { name: string }) => ug.name)
+      : [];
 
-  trackRawEvent(event, {
-    ...data,
-    distinct_id: userHash,
-    user_groups: userGroupNames,
-  });
+    trackRawEvent(event, {
+      ...data,
+      distinct_id: analyticsUserId,
+      user_groups: userGroupNames,
+    });
+  } else {
+    trackRawEvent(event, {
+      ...data,
+      distinct_id: analyticsUserId,
+    });
+  }
 };
 
 /**
