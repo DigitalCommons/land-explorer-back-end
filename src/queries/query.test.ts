@@ -505,6 +505,35 @@ describe("trackUserEvent", () => {
     });
   });
 
+  context("User exists with analytics_consent null (pre-migration existing user)", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+          analytics_consent: null,
+        }),
+      );
+    });
+
+    it("uses sessionId as distinct_id", async () => {
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register");
+
+      expect(trackRawEventSpy.calledOnce).to.be.true;
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data.distinct_id).to.equal("test-session-id");
+    });
+
+    it("does not include user_groups", async () => {
+      await query.trackUserEvent("test-session-id", testUserId, "User_Register");
+
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data).to.not.have.property("user_groups");
+    });
+  });
+
   context("User doesn't exist", () => {
     beforeEach(() => {
       sandbox.replace(User, "findOne", fake.resolves(null));

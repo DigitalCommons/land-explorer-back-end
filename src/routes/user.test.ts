@@ -369,6 +369,25 @@ describe("GET /api/user/details", () => {
             expect(res.statusCode).to.equal(200);
             expect((res.result as any).analyticsConsent).to.equal(false);
         });
+
+        it("returns analyticsConsent: null for existing users before consent migration", async () => {
+            sandbox.replace(Model.User, "findOne", fake.resolves({
+                id: testUserId,
+                username: "douglas.quaid@yahoomail.com",
+                first_name: "Douglas",
+                last_name: "Quaid",
+                analytics_consent: null,
+            }));
+
+            const res = await server.inject({
+                method: "GET",
+                url: "/api/user/details",
+                auth: { strategy: "simple", credentials: { user_id: testUserId } },
+            });
+
+            expect(res.statusCode).to.equal(200);
+            expect((res.result as any).analyticsConsent).to.equal(null);
+        });
     });
 });
 
