@@ -72,6 +72,7 @@ async function saveMap(
   try {
     const { eid, name, data, isSnapshot } = request.payload;
     const userId = request.auth.credentials.user_id;
+    const { "x-session-id": sessionId } = request.headers;
 
     // eid provided means update map
     const isUpdate = eid !== null;
@@ -108,9 +109,15 @@ async function saveMap(
         return h.response("Map is locked").code(503);
       }
 
-      await updateMap(userId, eid, name, data);
+      await updateMap(sessionId, userId, eid, name, data);
     } else {
-      const newMapId = await createMap(name, data, userId, isSnapshot);
+      const newMapId = await createMap(
+        sessionId,
+        name,
+        data,
+        userId,
+        isSnapshot,
+      );
       await tryLockMap(newMapId, userId);
     }
 
@@ -469,6 +476,8 @@ async function shareMap(
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const originDomain = `https://${request.info.host}`;
+  const { "x-session-id": sessionId } = request.headers;
+
 
   const validation = new Validation();
   await validation.validateShareMap(request.payload);
@@ -495,7 +504,7 @@ async function shareMap(
     return h.response("Unauthorised!").code(403);
   }
 
-  await grantMapAccessByEmails(eid, users, originDomain);
+  await grantMapAccessByEmails(sessionId, eid, users, originDomain);
 
   return h.response().code(200);
 }
@@ -631,6 +640,7 @@ async function getMapData(
   try {
     const { eid } = request.params;
     const userId = request.auth.credentials.user_id;
+    const { "x-session-id": sessionId } = request.headers;
 
     const userMap = await UserMap.findOne({
       where: {
@@ -677,12 +687,12 @@ async function getMapData(
       // If the owner hasn't viewed the map before, this is due to the map just being saved for
       // the first time and immediately opened. So don't record a Map_Open event.
       if (userMap.viewed) {
-        trackUserMapEvent(userId, eid, Event.MAP.OPEN, {
+        trackUserMapEvent(sessionId, userId, eid, Event.MAP.OPEN, {
           drawn_count: drawnCount,
         });
       }
     } else {
-      trackUserMapEvent(userId, eid, Event.MAP.SHARED_OPEN, {
+      trackUserMapEvent(sessionId, userId, eid, Event.MAP.SHARED_OPEN, {
         drawn_count: drawnCount,
         access: UserMapAccess[userMap.access],
       });
@@ -828,10 +838,11 @@ async function searchOwnership(
 ): Promise<ResponseObject> {
   const { proprietorName } = request.query;
   const { user_id } = request.auth.credentials;
+  const { "x-session-id": sessionId } = request.headers;
 
   const titles = await searchOwner(proprietorName);
 
-  trackUserEvent(user_id, Event.LAND_OWNERSHIP.BACKSEARCH, {
+  trackUserEvent(sessionId, user_id, Event.LAND_OWNERSHIP.BACKSEARCH, {
     proprietor_name: proprietorName,
     properties_count: titles.length,
   });
@@ -855,6 +866,7 @@ async function downloadShapefile(
 ): Promise<ResponseObject> {
   const { mapId } = request.params;
   const { user_id } = request.auth.credentials;
+  const { "x-session-id": sessionId } = request.headers;
 
   const hasAccess = await UserMap.findOne({
     where: {
@@ -900,7 +912,7 @@ async function downloadShapefile(
 
   setTimeout(deleteFile, 5000);
 
-  trackUserMapEvent(user_id, mapId, Event.MAP.EXPORT_SHAPEFILE);
+  trackUserMapEvent(sessionId, user_id, mapId, Event.MAP.EXPORT_SHAPEFILE);
 
   return response;
 }
@@ -911,6 +923,7 @@ async function createMapGeoJSONLink(
 ): Promise<ResponseObject> {
   const { mapId } = request.payload;
   const { user_id } = request.auth.credentials;
+  const { "x-session-id": sessionId } = request.headers;
 
   const userMapView = await UserMap.findOne({
     where: {
@@ -922,7 +935,7 @@ async function createMapGeoJSONLink(
   if (userMapView?.access === UserMapAccess.Owner) {
     const publicMapAddress = await createPublicMapView(mapId);
 
-    trackUserMapEvent(user_id, mapId, Event.MAP.EXPORT_GEOJSON);
+    trackUserMapEvent(sessionId, user_id, mapId, Event.MAP.EXPORT_GEOJSON);
 
     return h.response(publicMapAddress);
   } else {
@@ -937,6 +950,7 @@ async function getPublicMap(
   h: ResponseToolkit
 ): Promise<ResponseObject> {
   const { mapId } = request.params;
+  const { "x-session-id": sessionId } = request.headers;
 
   const publicMapView = await UserMap.findOne({
     where: {
@@ -947,7 +961,7 @@ async function getPublicMap(
 
   if (publicMapView) {
     const geoJsonData = await getGeoJsonFeaturesForMap(mapId);
-    trackUserMapEvent(-1, mapId, Event.MAP.GEOJSON_OPEN);
+    trackUserMapEvent(sessionId, -1, mapId, Event.MAP.GEOJSON_OPEN);
     return h.response(geoJsonData);
   } else {
     return h.response("No public map at this address.").code(404);

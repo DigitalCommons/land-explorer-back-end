@@ -40,10 +40,10 @@ describe("trackUserMapEvent", () => {
     });
 
     it("calls trackUserEvent with consistent hashed mapId", async () => {
-      await trackUserMapEvent(testUserId, testMapId, Event.MAP.OPEN);
+      await trackUserMapEvent("test-session-id", testUserId, testMapId, Event.MAP.OPEN);
 
       expect(query.trackUserEvent.calledOnce).to.be.true;
-      const [userId, event, data] = (query.trackUserEvent as any).firstCall
+      const [, userId, event, data] = (query.trackUserEvent as any).firstCall
         .args;
 
       expect(userId).to.equal(testUserId);
@@ -55,13 +55,14 @@ describe("trackUserMapEvent", () => {
       const additionalData = { drawn_count: 5, access: "Readonly" };
 
       await trackUserMapEvent(
+        "test-session-id",
         testUserId,
         testMapId,
         Event.MAP.SHARED_OPEN,
         additionalData
       );
 
-      const [, , data] = (query.trackUserEvent as any).firstCall.args;
+      const [, , , data] = (query.trackUserEvent as any).firstCall.args;
 
       expect(data).to.deep.equal({
         drawn_count: 5,
@@ -71,8 +72,8 @@ describe("trackUserMapEvent", () => {
     });
 
     it("produces different hash for different mapId", async () => {
-      await trackUserMapEvent(testUserId, testMapId + 1, Event.MAP.OPEN);
-      const [, , data] = (query.trackUserEvent as any).firstCall.args;
+      await trackUserMapEvent("test-session-id", testUserId, testMapId + 1, Event.MAP.OPEN);
+      const [, , , data] = (query.trackUserEvent as any).firstCall.args;
       expect(data.map_id).to.not.equal("0936b464a63bf05d");
     });
   });
@@ -83,9 +84,9 @@ describe("trackUserMapEvent", () => {
     });
 
     it("uses MAP_NOT_FOUND as hashed mapId", async () => {
-      await trackUserMapEvent(testUserId, testMapId, Event.MAP.OPEN);
+      await trackUserMapEvent("test-session-id", testUserId, testMapId, Event.MAP.OPEN);
 
-      const [, , data] = (query.trackUserEvent as any).firstCall.args;
+      const [, , , data] = (query.trackUserEvent as any).firstCall.args;
       expect(data.map_id).to.equal("MAP_NOT_FOUND");
     });
   });
@@ -153,6 +154,7 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
     };
 
     await compareMapDataChangesAndSendAnalytics(
+      "test-session-id",
       testUserId,
       testMapId,
       oldData,
@@ -160,7 +162,7 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
     );
 
     expect(query.trackUserEvent.calledOnce).to.be.true;
-    const [, event, data] = (query.trackUserEvent as any).firstCall.args;
+    const [, , event, data] = (query.trackUserEvent as any).firstCall.args;
 
     expect(event).to.equal(Event.LAND_OWNERSHIP.ENABLE);
     expect(data.layer_id).to.equal("localAuthority");
@@ -177,6 +179,7 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
     };
 
     await compareMapDataChangesAndSendAnalytics(
+      "test-session-id",
       testUserId,
       testMapId,
       oldData,
@@ -184,7 +187,7 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
     );
 
     expect(query.trackUserEvent.calledOnce).to.be.true;
-    const [, event, data] = (query.trackUserEvent as any).firstCall.args;
+    const [, , event, data] = (query.trackUserEvent as any).firstCall.args;
 
     expect(event).to.equal(Event.LAND_OWNERSHIP.ENABLE);
     expect(data.layer_id).to.equal("localAuthority");
@@ -201,6 +204,7 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
     };
 
     compareMapDataChangesAndSendAnalytics(
+      "test-session-id",
       testUserId,
       testMapId,
       oldData,
@@ -231,6 +235,7 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
     };
 
     compareMapDataChangesAndSendAnalytics(
+      "test-session-id",
       testUserId,
       testMapId,
       oldData,

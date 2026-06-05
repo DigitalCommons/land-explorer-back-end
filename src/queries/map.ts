@@ -52,13 +52,14 @@ const hashMapId = async (mapId: number) => {
  * a user's saved map.
  */
 export const trackUserMapEvent = async (
+  sessionId: string,
   userId: number,
   mapId: number,
   event: EventName,
-  data?: any
+  data?: any,
 ) => {
   const mapIdHash = await hashMapId(mapId);
-  trackUserEvent(userId, event, {
+  await trackUserEvent(sessionId, userId, event, {
     ...data,
     map_id: mapIdHash,
   });
@@ -541,10 +542,11 @@ const copyDataGroupObjectsToNewMap = async (
 
 /** Returns ID of the created map */
 export const createMap = async (
+  sessionId: string,
   name: string,
   data: SaveMapData,
   userId: number,
-  isSnapshot: boolean
+  isSnapshot: boolean,
 ): Promise<number> => {
   // Saving drawings to DB separately so can remove from JSON
   const markers = data.markers.markers ?? [];
@@ -574,7 +576,7 @@ export const createMap = async (
     // In old maps, dataLayers used to be array of objects, each with an iddata_groups
     // field. In newer maps, myDataLayers is just an array of data group IDs.
     const dataGroupIds = myDataLayers.map((item: any) =>
-      typeof item === "number" ? item : item.iddata_groups
+      typeof item === "number" ? item : item.iddata_groups,
     );
     await copyDataGroupObjectsToNewMap(newMap.id, dataGroupIds);
 
@@ -588,12 +590,12 @@ export const createMap = async (
   await bulkCreateUpdateAndDeletePolygonsAndLines(
     newMap.id,
     polygonsAndLines,
-    false
+    false,
   );
 
   console.log(`Created map ${newMap.id} with name ${name}`);
 
-  trackUserMapEvent(userId, newMap.id, Event.MAP.FIRST_SAVE, {
+  trackUserMapEvent(sessionId, userId, newMap.id, Event.MAP.FIRST_SAVE, {
     // TODO: when we save properties, include this as properties_count
     drawings_count: markers.length + polygonsAndLines.length,
   });
@@ -635,10 +637,11 @@ export type SaveMapData = {
  * otherwise we add it to the DB. And we delete any items with UUIDs that are not in the new data.
  */
 export const updateMap = async (
+  sessionId: string,
   userId: number,
   mapId: number,
   name: string,
-  data: SaveMapData
+  data: SaveMapData,
 ) => {
   console.log(`User ${userId} updating map ${mapId}`);
 
@@ -650,7 +653,7 @@ export const updateMap = async (
     await bulkCreateUpdateAndDeletePolygonsAndLines(
       mapId,
       data.drawings.drawings,
-      true
+      true,
     );
   }
 
@@ -664,7 +667,13 @@ export const updateMap = async (
   const existingMap = await getMap(mapId);
   const existingMapData = JSON.parse(existingMap.data);
 
-  compareMapDataChangesAndSendAnalytics(userId, mapId, existingMapData, data);
+  compareMapDataChangesAndSendAnalytics(
+    sessionId,
+    userId,
+    mapId,
+    existingMapData,
+    data,
+  );
 
   // Save the new map data in the DB
   await Map.update(
@@ -676,7 +685,7 @@ export const updateMap = async (
       where: {
         id: mapId,
       },
-    }
+    },
   );
 };
 
@@ -687,28 +696,35 @@ export const updateMap = async (
  *   (this is the only one for now but we may choose to track more later)
  */
 export const compareMapDataChangesAndSendAnalytics = async (
+  sessionId: string,
   userId: number,
   mapId: number,
   oldData: SaveMapData,
-  newData: SaveMapData
+  newData: SaveMapData,
 ) => {
   const changes = atomizeChangeset(
     diff(oldData, newData, {
       keysToSkip: ["map", "drawings", "markers", "version"],
-    })
+    }),
   );
 
   const ownershipDisplayChange = changes.find(
     (change) =>
       (change.type === "ADD" || change.type === "UPDATE") &&
       change.value !== null &&
-      change.path.startsWith("$.mapLayers.ownershipDisplay")
+      change.path.startsWith("$.mapLayers.ownershipDisplay"),
   );
 
   if (ownershipDisplayChange) {
-    await trackUserMapEvent(userId, mapId, Event.LAND_OWNERSHIP.ENABLE, {
-      layer_id: ownershipDisplayChange.value,
-    });
+    await trackUserMapEvent(
+      sessionId,
+      userId,
+      mapId,
+      Event.LAND_OWNERSHIP.ENABLE,
+      {
+        layer_id: ownershipDisplayChange.value,
+      },
+    );
   }
 };
 
@@ -856,9 +872,10 @@ export const deleteMapAccessByEmails = async (
  *               emails that are granted access
  */
 export const grantMapAccessByEmails = async (
+  sessionId: string,
   mapId: number,
   users: { email: string; access: UserMapAccess }[],
-  domain: string = ""
+  domain: string = "",
 ) => {
   // email address comparison should be case insensitive
   const normalisedUsers = users.map(({ email, access }) => ({
@@ -873,7 +890,7 @@ export const grantMapAccessByEmails = async (
     ({ email, access }) => ({
       email: email.toLowerCase(),
       access,
-    })
+    }),
   );
 
   // Get emails that need to be removed from the DB (access has been completely revoked)
@@ -881,7 +898,7 @@ export const grantMapAccessByEmails = async (
     .map((oldUser) => oldUser.email)
     .filter(
       (oldEmail) =>
-        !normalisedUsers.map((newUser) => newUser.email).includes(oldEmail)
+        !normalisedUsers.map((newUser) => newUser.email).includes(oldEmail),
     );
 
   await deleteMapAccessByEmails(mapId, emailsToRemove);
@@ -892,7 +909,7 @@ export const grantMapAccessByEmails = async (
 
   for (const user of normalisedUsers) {
     const oldUser = oldUsersWithSharedMapAccess.find(
-      (oldUser) => oldUser.email === user.email
+      (oldUser) => oldUser.email === user.email,
     );
     if (oldUser) {
       if (oldUser.access !== user.access) {
@@ -966,10 +983,10 @@ export const grantMapAccessByEmails = async (
           ownerFirstName,
           ownerLastName,
           mapName,
-          domain
+          domain,
         );
       }
-      sharedWithAnalyticsData.push(await hashUserId(user.id));
+      sharedWithAnalyticsData.push(await hashUserId(user));
     } else {
       await PendingUserMap.create({
         map_id: mapId,
@@ -982,7 +999,7 @@ export const grantMapAccessByEmails = async (
           ownerFirstName,
           ownerLastName,
           mapName,
-          domain
+          domain,
         );
       }
       sharedWithAnalyticsData.push("PENDING_USER");
@@ -990,7 +1007,7 @@ export const grantMapAccessByEmails = async (
   }
 
   if (sharedWithAnalyticsData.length > 0) {
-    trackUserMapEvent(ownerUserId, mapId, Event.MAP.SHARE, {
+    trackUserMapEvent(sessionId, ownerUserId, mapId, Event.MAP.SHARE, {
       sharedWith: sharedWithAnalyticsData,
     });
   }
