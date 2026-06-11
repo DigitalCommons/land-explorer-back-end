@@ -41,6 +41,7 @@ export const Event = {
   USER: {
     REGISTER: "User_Register",
     FEEDBACK: "User_Feedback",
+    USER_GUIDE_VIEWED: "User_ViewedGuide",
   },
 } as const;
 
