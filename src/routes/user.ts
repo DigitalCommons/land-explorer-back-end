@@ -43,7 +43,7 @@ type RegisterRequest = Request & {
  */
 async function registerUser(
   request: RegisterRequest,
-  h: ResponseToolkit
+  h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const originDomain = `https://${request.info.host}`;
 
@@ -68,7 +68,7 @@ async function registerUser(
   mailer.sendSuccessfullyRegisteredEmail(
     request.payload.username,
     request.payload.firstName,
-    originDomain
+    originDomain,
   );
 
   return h.response(user);
@@ -87,7 +87,7 @@ type LoginRequest = Request & {
  */
 async function loginUser(
   request: LoginRequest,
-  h: ResponseToolkit
+  h: ResponseToolkit,
 ): Promise<ResponseObject> {
   console.log("login user");
 
@@ -95,7 +95,7 @@ async function loginUser(
   const { success, user, errorMessage } = await checkAndReturnUser(
     username,
     password,
-    reset_token
+    reset_token,
   );
 
   if (success) {
@@ -117,7 +117,7 @@ async function loginUser(
       secretKey,
       {
         expiresIn: expiry_day + "d",
-      }
+      },
     );
 
     return h.response({
@@ -136,7 +136,7 @@ async function loginUser(
 async function getAuthUserDetails(
   request: LoggedInRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let user: typeof User;
 
@@ -179,7 +179,7 @@ async function getAuthUserDetails(
 async function changeEmail(
   request: LoggedInRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let validation = new Validation();
   await validation.validateChangeEmail(request.payload);
@@ -196,7 +196,7 @@ async function changeEmail(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -208,7 +208,7 @@ async function changeEmail(
 async function changeUserDetail(
   request: LoggedInRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let validation = new Validation();
   await validation.validateUserDetailUpdate(request.payload);
@@ -236,7 +236,7 @@ async function changeUserDetail(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -254,7 +254,7 @@ type ChangePasswordRequest = LoggedInRequest & {
 async function changePassword(
   request: ChangePasswordRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const { password } = request.payload;
 
@@ -271,7 +271,7 @@ async function changePassword(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -289,7 +289,7 @@ type ResetPasswordRequest = Request & {
 async function resetPassword(
   request: ResetPasswordRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const { username } = request.payload;
 
@@ -315,17 +315,18 @@ async function resetPassword(
   });
 
   // Use the token to build the reset link
-  const passwordResetLink = `https://${request.info.host
-    }/auth?email=${encodeURIComponent(
-      username
-    )}&reset_token=${passwordResetToken}`;
+  const passwordResetLink = `https://${
+    request.info.host
+  }/auth?email=${encodeURIComponent(
+    username,
+  )}&reset_token=${passwordResetToken}`;
 
   // Send email
   mailer.sendResetPasswordEmail(
     username,
     user.first_name,
     passwordResetLink,
-    RESET_PASSWORD_EXPIRY_HOURS
+    RESET_PASSWORD_EXPIRY_HOURS,
   );
 
   return h.response().code(200);
@@ -343,7 +344,7 @@ type UserFeedbackRequest = LoggedInRequest & {
 async function userFeedback(
   request: UserFeedbackRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const {
     question_use_case,
@@ -357,7 +358,7 @@ async function userFeedback(
     question_impact,
     question_who_benefits,
     question_improvements,
-    request.auth.credentials.user_id
+    request.auth.credentials.user_id,
   );
 
   const { "x-session-id": sessionId } = request.headers;
@@ -368,7 +369,7 @@ async function userFeedback(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   trackUserEvent(
@@ -405,7 +406,7 @@ type AskForFeedbackRequest = Request & {
 async function updateAskForFeedback(
   request: AskForFeedbackRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let payload: any = request.payload;
 
@@ -419,7 +420,7 @@ async function updateAskForFeedback(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -441,7 +442,7 @@ type GetAskForFeedbackRequest = Request & {
 async function getUserAskForFeedback(
   request: GetAskForFeedbackRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
   const askForFeedback = await getAskForFeedback(userId);

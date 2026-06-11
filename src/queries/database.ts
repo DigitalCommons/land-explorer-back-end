@@ -19,7 +19,7 @@ export const sequelize = new Sequelize(
     host: config.host,
     dialect: config.dialect,
     logging: config.logging,
-  }
+  },
 );
 
 const UserModel = sequelize.define(
@@ -74,7 +74,7 @@ const MapModel = sequelize.define(
     tableName: "map",
     createdAt: "created_date",
     updatedAt: "last_modified",
-  }
+  },
 );
 
 const UserMapModel = sequelize.define(
@@ -96,7 +96,7 @@ const UserMapModel = sequelize.define(
     tableName: "user_map",
     createdAt: "created_date",
     updatedAt: false,
-  }
+  },
 );
 
 const PendingUserMapModel = sequelize.define(
@@ -114,7 +114,7 @@ const PendingUserMapModel = sequelize.define(
     tableName: "pending_user_map",
     createdAt: "created_date",
     updatedAt: false,
-  }
+  },
 );
 
 const DataGroupModel = sequelize.define(
@@ -137,7 +137,7 @@ const DataGroupModel = sequelize.define(
     tableName: "data_groups",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const MarkerModel = sequelize.define(
@@ -163,7 +163,7 @@ const MarkerModel = sequelize.define(
     tableName: "markers",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const PolygonModel = sequelize.define(
@@ -192,7 +192,7 @@ const PolygonModel = sequelize.define(
     tableName: "polygons",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const LineModel = sequelize.define(
@@ -219,7 +219,7 @@ const LineModel = sequelize.define(
     tableName: "linestrings",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const UserGroupModel = sequelize.define(
@@ -236,7 +236,7 @@ const UserGroupModel = sequelize.define(
     tableName: "user_groups",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const DataGroupMembershipModel = sequelize.define(
@@ -262,7 +262,7 @@ const DataGroupMembershipModel = sequelize.define(
     tableName: "data_group_memberships",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const UserGroupMembershipModel = sequelize.define(
@@ -292,7 +292,7 @@ const UserGroupMembershipModel = sequelize.define(
     tableName: "user_group_memberships",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const ItemTypeModel = sequelize.define(
@@ -311,7 +311,7 @@ const ItemTypeModel = sequelize.define(
     tableName: "item_types",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const MapMembershipModel = sequelize.define(
@@ -339,7 +339,7 @@ const MapMembershipModel = sequelize.define(
     tableName: "map_memberships",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const PasswordResetTokenModel = sequelize.define(
@@ -363,7 +363,7 @@ const PasswordResetTokenModel = sequelize.define(
     tableName: "password_reset_token",
     createdAt: false,
     updatedAt: false,
-  }
+  },
 );
 
 const UserFeedbackModel = sequelize.define(
@@ -384,7 +384,7 @@ const UserFeedbackModel = sequelize.define(
     tableName: "user_feedback",
     createdAt: "submission_date",
     updatedAt: false,
-  }
+  },
 );
 
 UserModel.hasMany(UserMapModel, { foreignKey: { name: "user_id" } });
