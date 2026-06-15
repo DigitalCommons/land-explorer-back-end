@@ -1,0 +1,164 @@
+# Local development stack for the WHOLE Land Explorer system:
+#   front-end + back-end + property-boundaries-service + MySQL + Meilisearch.
+#
+# This file is a *local development aid* - one command to bring the whole stack
+# up. It is NOT the production deployment artefact (each repo has its own
+# single-app docker-compose.yml for that). It refers to the sibling repos by
+# relative path, so it assumes the standard checkout layout:
+#
+#   <somewhere>/land-explorer-back-end       <- this repo (run compose from here)
+#   <somewhere>/land-explorer-front-end
+#   <somewhere>/property-boundaries-service
+#
+# Usage (from this repo's root):
+#   docker compose -f compose.all.yml up --build
+# then open http://localhost:8080
+#
+# The values below are DEV-ONLY throwaway credentials. Real secrets are handled
+# via Docker secrets in the per-repo production compose files (see docs/coolify.md).
+#
+# Map tiles need real Ordnance Survey / Mapbox keys to render; with the
+# placeholder keys below the app and login work but the map won't draw. Set
+# VITE_OS_KEY / VITE_MAPBOX_TOKEN / VITE_GEOCODER_TOKEN below (or via your shell)
+# to see the map.
+
+name: land-explorer-dev
+
+services:
+  mysql:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: devroot
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    # Ping over TCP (not the unix socket) so "healthy" means the network port is
+    # actually accepting connections - during first-init MySQL briefly serves a
+    # temporary server on the socket only, and a socket ping would pass too early.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-uroot", "-pdevroot", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks:
+      - lx
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.41.0
+    environment:
+      MEILI_MASTER_KEY: devmasterkey
+      MEILI_ENV: development
+    volumes:
+      - meilisearch_data:/meili_data
+    ports:
+      - "7700:7700"
+    networks:
+      - lx
+
+  # One-shot: apply the LX back-end DB migrations, then exit. Uses the build
+  # stage (which still has dev deps incl. sequelize-cli and the full source).
+  back-end-migrate:
+    build:
+      context: .
+      target: build
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    command: ["npx", "sequelize-cli", "db:migrate"]
+    environment:
+      NODE_ENV: development
+      DATABASE_HOST: mysql
+      DATABASE_PORT: "3306"
+      DATABASE_USER: root
+      DATABASE_PASSWORD: devroot
+      DATABASE_NAME: land_explorer
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - lx
+
+  back-end:
+    build:
+      context: .
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    # NODE_ENV=development so the back-end's CORS allows the http://localhost:8080
+    # front-end origin (see src/server.ts).
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DATABASE_HOST: mysql
+      DATABASE_PORT: "3306"
+      DATABASE_USER: root
+      DATABASE_PASSWORD: devroot
+      DATABASE_NAME: land_explorer
+      TOKEN_KEY: dev-token-key-not-for-production
+      TOKEN_EXPIRY_DAYS: "365"
+      BOUNDARY_SERVICE_URL: http://pbs:4000
+      BOUNDARY_SERVICE_SECRET: devsecret
+      MEILISEARCH_ENABLED: "true"
+    ports:
+      - "4000:4000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      back-end-migrate:
+        condition: service_completed_successfully
+    networks:
+      - lx
+
+  pbs:
+    build:
+      context: ../property-boundaries-service
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASSWORD: devroot
+      DB_NAME: property_boundaries
+      SECRET: devsecret
+      MEILISEARCH_ENABLED: "true"
+      MEILI_HOST: http://meilisearch:7700
+      MEILI_MASTER_KEY: devmasterkey
+    ports:
+      - "4001:4000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+    networks:
+      - lx
+
+  front-end:
+    build:
+      context: ../land-explorer-front-end
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+        CADDY_HOSTNAME: localhost
+        # The SPA calls the back-end cross-origin at this URL (baked in at build).
+        VITE_ROOT_URL: http://localhost:4000
+        # Placeholders - replace with real keys to render the map.
+        VITE_OS_KEY: ${VITE_OS_KEY:-placeholder}
+        VITE_GEOCODER_TOKEN: ${VITE_GEOCODER_TOKEN:-placeholder}
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-placeholder}
+    ports:
+      - "8080:80"
+    depends_on:
+      - back-end
+    networks:
+      - lx
+
+volumes:
+  mysql_data:
+  meilisearch_data:
+
+networks:
+  lx:
