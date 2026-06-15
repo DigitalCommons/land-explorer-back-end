@@ -24,14 +24,30 @@ function index(request: Request): string {
 }
 
 export const init = async function (): Promise<Server> {
+  // Origins allowed to make cross-origin requests to this API. Prefer the
+  // explicit CORS_ORIGINS env var (comma-separated); fall back to the local
+  // dev front-end origin when running in development so local setups keep
+  // working with no extra config.
+  const corsOrigins = (
+    process.env.CORS_ORIGINS ??
+    (process.env.NODE_ENV === "development" ? "http://localhost:8080" : "")
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   server = Hapi.server({
     port: process.env.PORT || 4000,
     host: "0.0.0.0",
     debug: { log: ["error"], request: ["error"] },
-    // if we are running in development, allow requests from the expected localhost:8080 origin
+    // Allow cross-origin requests from the front-end origin(s). In local dev the
+    // front-end is at localhost:8080; in deployed environments (e.g. Coolify) the
+    // front-end is served from its own domain, so set CORS_ORIGINS to a
+    // comma-separated list of allowed origins, e.g.
+    //   CORS_ORIGINS=https://dev.cool.landexplorer.coop
     routes: {
-      cors: process.env.NODE_ENV === "development" && {
-        origin: ["http://localhost:8080"],
+      cors: corsOrigins.length > 0 && {
+        origin: corsOrigins,
         // Allow WebSocket connections
         additionalHeaders: ["authorization", "content-type"],
       },
