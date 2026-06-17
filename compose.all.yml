@@ -58,12 +58,12 @@ services:
     networks:
       - lx
 
-  # One-shot: apply the LX back-end DB migrations, then exit. Uses the build
-  # stage (which still has dev deps incl. sequelize-cli and the full source).
+  # One-shot: apply the LX back-end DB migrations, then exit. Runs the runtime
+  # image (which now ships the migration sources + sequelize-cli), so this
+  # exercises the same migrate path Coolify uses via its pre-deploy command.
   back-end-migrate:
     build:
       context: .
-      target: build
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
     command: ["npx", "sequelize-cli", "db:migrate"]

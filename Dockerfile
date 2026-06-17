@@ -32,17 +32,31 @@ RUN npm run build
 FROM node:${NODE_VERSION}-alpine
 WORKDIR /app
 
-# Default to production. The dev compose overrides this to `development` so the
-# back-end's CORS allows the local front-end origin (see src/server.ts).
+# Default to production. The dev compose overrides this to `development`. In
+# deployed environments set CORS_ORIGINS to the front-end origin so the API
+# accepts its cross-origin requests (see src/server.ts).
 ENV NODE_ENV=production
 
-# Compiled app + node_modules + the Sequelize config, then strip dev deps
-# (keeping compiled native modules like bcrypt intact).
+# Compiled app + node_modules + the Sequelize config.
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/lib ./lib
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/package-lock.json ./package-lock.json
 COPY --from=build /app/config ./config
-RUN npm prune --omit=dev
+
+# DB migrations run at deploy time (e.g. Coolify's pre-deploy command:
+# `npx sequelize-cli db:migrate`). Bring in the migration sources and the
+# Sequelize config so the CLI can run inside this image. `models/` isn't needed
+# by db:migrate and doesn't exist in this repo.
+COPY --from=build /app/migrations ./migrations
+COPY --from=build /app/seeders ./seeders
+COPY --from=build /app/.sequelizerc ./.sequelizerc
+
+# Strip dev deps to slim the image (keeping compiled native modules like bcrypt
+# intact), then add back just the Sequelize CLI - a dev dep, but needed to run
+# migrations at deploy time. Pinned to the major version in package.json.
+RUN npm prune --omit=dev \
+    && npm install --no-save sequelize-cli@6
 
 USER node
 EXPOSE 4000
