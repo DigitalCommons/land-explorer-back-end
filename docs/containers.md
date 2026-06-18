@@ -15,11 +15,17 @@ This documentation is about building and running through docker, see technology-
 
 ## Quick start - whole stack on your local dev machine
 
-compose.all.yml at the root of this repo bring up everything with one command, all three repos and throwaway mysql and meilisearch. The three repos need to be checked out side by side to run it then from land-explorer-back-end run:
+compose.all.yml at the root of this repo bring up everything with one command, all three repos and throwaway mysql and meilisearch. The three repos need to be checked out side by side to run it.
+
+First download the secrets file docker.env from Bitwarden (named Land Explorer docker.env) and put it in this repo's root - or if you don't have Bitwarden access edit the docker.env.example and rename it to docker.env
+
+Then from land-explorer-back-end run:
 
 ```
-docker compose -f compose.all.yml up --build
+docker compose --env-file docker.env -f compose.all.yml up --build
 ```
+
+`--env-file docker.env` is needed because the front-end's map keys are build args, which Compose only resolves from `--env-file` or the shell not from the env_file arg in the compose file.
 
 You will see logs in the console. The first time starting up migrations will take several minutes.
 
@@ -40,23 +46,24 @@ If you change the front-end or back-end host port, update the matching value:
 - the back-end's `CORS_ORIGINS` (the front-end's browser origin)
 - the front-end's `VITE_ROOT_URL` build arg (where the SPA calls the API).
 
-The credentials in compose.all.yml are dev throwaways - the live (dev/staging/prod) secrets are injected by Coolify.
+The credentials inlined in compose.all.yml are dev throwaways. Real secrets - map keys, SendGrid, analytics, PBS pipeline keys - are in docker.env (from Bitwarden). The live secrets are injected by Coolify.
 
-### Seeing the map
+### Env vars and secrets
 
-Tiles won't render without keys. Get those from bitwarden and run like this:
+There are two kinds of config:
 
-```
-VITE_OS_KEY=... VITE_MAPBOX_TOKEN=... VITE_GEOCODER_TOKEN=... \
-    docker compose -f compose.all.yml up --build
-```
+- dev throwaways - inlined in compose.all.yml (DB host/user/password, dev `TOKEN_KEY`, `devsecret`). Nothing to do.
+- real secrets - in `docker.env` (download from Bitwarden, see `docker.env.example`). The back-end and PBS load it at runtime via `env_file:`; the front-end map keys are build args fed by `--env-file docker.env`. Without keys the app and login work but the map won't render and emails won't send.
+
+`.env.example` in each repo is the reference list of every variable and is what you copy to `.env` for *native* (non-Docker) dev - it is not read by the containers.
 
 ### Reset
 
-MySQL and Meilisearch data is stored in named volumes (mysql_data and meilisearch_data) - to wipe and start clean:
+MySQL and Meilisearch data is stored in named volumes (mysql_data and meilisearch_data) - to wipe the database and start clean drop the volumes:
 
 ```
-docker compose -f compose.all.yml down -v
+docker compose --env-file docker.env  -f compose.all.yml down -v
+docker compose --env-file docker.env -f compose.all.yml up --build
 ```
 
 ### Individual images
