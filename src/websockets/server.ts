@@ -2,6 +2,7 @@ import { Socket, Server as SocketIOServer } from "socket.io";
 import { Server as HapiServer } from "@hapi/hapi";
 import { clearAllLocks, maybeUnlock, getUserWithLockOrNull } from "./locking";
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { getCorsOrigins } from "../cors";
 
 /** The socket.io server object */
 export let io: SocketIOServer;
@@ -11,15 +12,13 @@ export const setupWebsockets = (server: HapiServer): void => {
   io?.close();
   clearAllLocks();
 
+  // Allow websocket (socket.io) connections from the same front-end origins
+  // the HTTP API allows (see src/cors.ts)
+  // An empty list imples no cross-origin config (same-origin only)
+  const corsOrigins = getCorsOrigins();
   io = new SocketIOServer(
     server.listener,
-    process.env.NODE_ENV === "development"
-      ? {
-          cors: {
-            origin: "http://localhost:8080",
-          },
-        }
-      : {}
+    corsOrigins.length > 0 ? { cors: { origin: corsOrigins } } : {}
   );
 
   io.on("connection", (socket) => {

@@ -11,6 +11,7 @@ import { mapRoutes } from "./routes/map";
 import { dataGroupRoutes } from "./routes/datagroup";
 import { proprietorRoutes } from "./routes/proprietors";
 import { setupWebsockets } from "./websockets/server";
+import { getCorsOrigins } from "./cors";
 
 const AuthBearer = require("hapi-auth-bearer-token");
 const Inert = require("@hapi/inert");
@@ -24,17 +25,7 @@ function index(request: Request): string {
 }
 
 export const init = async function (): Promise<Server> {
-  // Origins allowed to make cross-origin requests to this API. Prefer the
-  // explicit CORS_ORIGINS env var (comma-separated); fall back to the local
-  // dev front-end origin when running in development so local setups keep
-  // working with no extra config.
-  const corsOrigins = (
-    process.env.CORS_ORIGINS ??
-    (process.env.NODE_ENV === "development" ? "http://localhost:8080" : "")
-  )
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const corsOrigins = getCorsOrigins();
 
   server = Hapi.server({
     port: process.env.PORT || 4000,
@@ -48,8 +39,10 @@ export const init = async function (): Promise<Server> {
     routes: {
       cors: corsOrigins.length > 0 && {
         origin: corsOrigins,
-        // Allow WebSocket connections
-        additionalHeaders: ["authorization", "content-type"],
+        // Allow the headers the front-end actually sends
+        // x-session-id is added to every request as otherwise CORS preflight
+        // fails for authenticated calls
+        additionalHeaders: ["authorization", "content-type", "x-session-id"],
       },
     },
   });
