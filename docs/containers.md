@@ -71,8 +71,10 @@ docker compose --env-file docker.env -f compose.all.yml up --build
 To rebuild, for example, just the back end, run:
 
 ```
-docker compose --env-file docker.env -f compose.all.yml up -d --build lx-be
+docker compose --env-file docker.env -f compose.all.yml up --build lx-be
 ```
+
+You can add `-d` to run in the background as well and use `docker logs` to inspect the logs.
 
 ### Individual images
 
