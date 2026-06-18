@@ -21,16 +21,24 @@ compose.all.yml at the root of this repo bring up everything with one command, a
 docker compose -f compose.all.yml up --build
 ```
 
-Open http://localhost:8080
+You will see logs in the console. The first time starting up migrations will take several minutes.
 
-The services running when the containers come up are:
+Open LX at http://localhost:28080
 
-| Port | Service |
-| 8080 | Caddy - front-end reverse proxy for end users |
-| 4000 | Back-end API |
-| 4001 | PBS API |
-| 3306 | MySQL |
-| 7700 | Meilisearch |
+The host ports are deliberately uncommon so they don't clash with other things you might have running:
+
+| Host port | Service (container) | Container port |
+| --- | --- | --- |
+| 28080 | Caddy - front-end for end users (lx-fe) | 80 |
+| 24000 | Back-end API (lx-be) | 4000 |
+| 24001 | PBS API (lx-pbs) | 4000 |
+| 23306 | MySQL (lx-mysql) | 3306 |
+| 27700 | Meilisearch (lx-meilisearch) | 7700 |
+
+If you change the front-end or back-end host port, update the matching value:
+
+- the back-end's `CORS_ORIGINS` (the front-end's browser origin)
+- the front-end's `VITE_ROOT_URL` build arg (where the SPA calls the API).
 
 The credentials in compose.all.yml are dev throwaways - the live (dev/staging/prod) secrets are injected by Coolify.
 
@@ -71,4 +79,4 @@ Unlike the front end the BE and PBS read config from runtime env variables. The 
 
 ### Database migrations
 
-The images run the app, not migrations. There is a back-end-migrate service that runs `npx sequelize-cli db:migrate` before the app starts.
+The images run the app, not migrations. Two one-shot services, lx-be-migrate and lx-pbs-migrate, run `npx sequelize-cli db:migrate` (against the lx-be and lx-pbs runtime images) before the back end and pbs start. This is the same migrate path Coolify uses via its pre-deploy command.

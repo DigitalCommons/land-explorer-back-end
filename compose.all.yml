@@ -12,10 +12,17 @@
 #
 # Usage (from this repo's root):
 #   docker compose -f compose.all.yml up --build
-# then open http://localhost:8080
+# then open the front-end at http://localhost:28080
+#
+# Host ports are deliberately uncommon (28080/24000/24001/23306/27700) so they
+# don't clash with anything else you have running (a local MySQL on 3306, a dev
+# server on 8080, etc.). The container-internal ports are unchanged. If you
+# change a port here, update the matching value:
+#   - front-end host port  -> back-end CORS_ORIGINS (browser origin)
+#   - back-end host port    -> front-end VITE_ROOT_URL (where the SPA calls the API)
 #
 # The values below are DEV-ONLY throwaway credentials. Real secrets are handled
-# via Docker secrets in the per-repo production compose files (see docs/coolify.md).
+# via Coolify in deployed environments (see technology-and-infrastructure).
 #
 # Map tiles need real Ordnance Survey / Mapbox keys to render; with the
 # placeholder keys below the app and login work but the map won't draw. Set
@@ -25,15 +32,16 @@
 name: land-explorer-dev
 
 services:
-  mysql:
+  lx-mysql:
     image: mysql:8
+    container_name: lx-mysql
     environment:
       MYSQL_ROOT_PASSWORD: devroot
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
     ports:
-      - "3306:3306"
+      - "23306:3306"
     # Ping over TCP (not the unix socket) so "healthy" means the network port is
     # actually accepting connections - during first-init MySQL briefly serves a
     # temporary server on the socket only, and a socket ping would pass too early.
@@ -46,136 +54,144 @@ services:
     networks:
       - lx
 
-  meilisearch:
+  lx-meilisearch:
     image: getmeili/meilisearch:v1.41.0
+    container_name: lx-meilisearch
     environment:
       MEILI_MASTER_KEY: devmasterkey
       MEILI_ENV: development
     volumes:
       - meilisearch_data:/meili_data
     ports:
-      - "7700:7700"
+      - "27700:7700"
     networks:
       - lx
 
   # One-shot: apply the LX back-end DB migrations, then exit. Runs the runtime
   # image (which now ships the migration sources + sequelize-cli), so this
   # exercises the same migrate path Coolify uses via its pre-deploy command.
-  back-end-migrate:
+  lx-be-migrate:
     build:
       context: .
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-be-migrate
     command: ["npx", "sequelize-cli", "db:migrate"]
     environment:
       NODE_ENV: development
-      DATABASE_HOST: mysql
+      DATABASE_HOST: lx-mysql
       DATABASE_PORT: "3306"
       DATABASE_USER: root
       DATABASE_PASSWORD: devroot
       DATABASE_NAME: land_explorer
     depends_on:
-      mysql:
+      lx-mysql:
         condition: service_healthy
     restart: "no"
     networks:
       - lx
 
-  back-end:
+  lx-be:
     build:
       context: .
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
-    # NODE_ENV=development so the back-end's CORS allows the http://localhost:8080
-    # front-end origin (see src/server.ts).
+    container_name: lx-be
     environment:
       NODE_ENV: development
       PORT: "4000"
-      DATABASE_HOST: mysql
+      # The front-end runs on host port 28080, so that's its browser origin.
+      # This is what lets the SPA call the API cross-origin (see src/cors.ts).
+      CORS_ORIGINS: http://localhost:28080
+      DATABASE_HOST: lx-mysql
       DATABASE_PORT: "3306"
       DATABASE_USER: root
       DATABASE_PASSWORD: devroot
       DATABASE_NAME: land_explorer
       TOKEN_KEY: dev-token-key-not-for-production
       TOKEN_EXPIRY_DAYS: "365"
-      BOUNDARY_SERVICE_URL: http://pbs:4000
+      BOUNDARY_SERVICE_URL: http://lx-pbs:4000
       BOUNDARY_SERVICE_SECRET: devsecret
       MEILISEARCH_ENABLED: "true"
     ports:
-      - "4000:4000"
+      - "24000:4000"
     depends_on:
-      mysql:
+      lx-mysql:
         condition: service_healthy
-      back-end-migrate:
+      lx-be-migrate:
         condition: service_completed_successfully
     networks:
       - lx
 
-  # One-shot: apply the PBS DB migrations, then exit. Like back-end-migrate, this
+  # One-shot: apply the PBS DB migrations, then exit. Like lx-be-migrate, this
   # runs the runtime image so it mirrors the Coolify pre-deploy migrate path.
-  pbs-migrate:
+  lx-pbs-migrate:
     build:
       context: ../property-boundaries-service
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-pbs-migrate
     command: ["npx", "sequelize-cli", "db:migrate"]
     environment:
       NODE_ENV: development
-      DB_HOST: mysql
+      DB_HOST: lx-mysql
       DB_USER: root
       DB_PASSWORD: devroot
       DB_NAME: property_boundaries
     depends_on:
-      mysql:
+      lx-mysql:
         condition: service_healthy
     restart: "no"
     networks:
       - lx
 
-  pbs:
+  lx-pbs:
     build:
       context: ../property-boundaries-service
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-pbs
     environment:
       NODE_ENV: development
       PORT: "4000"
-      DB_HOST: mysql
+      DB_HOST: lx-mysql
       DB_USER: root
       DB_PASSWORD: devroot
       DB_NAME: property_boundaries
       SECRET: devsecret
       MEILISEARCH_ENABLED: "true"
-      MEILI_HOST: http://meilisearch:7700
+      MEILI_HOST: http://lx-meilisearch:7700
       MEILI_MASTER_KEY: devmasterkey
     ports:
-      - "4001:4000"
+      - "24001:4000"
     depends_on:
-      mysql:
+      lx-mysql:
         condition: service_healthy
-      meilisearch:
+      lx-meilisearch:
         condition: service_started
-      pbs-migrate:
+      lx-pbs-migrate:
         condition: service_completed_successfully
     networks:
       - lx
 
-  front-end:
+  lx-fe:
     build:
       context: ../land-explorer-front-end
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
         CADDY_HOSTNAME: localhost
         # The SPA calls the back-end cross-origin at this URL (baked in at build).
-        VITE_ROOT_URL: http://localhost:4000
+        # Must match the back-end's host port (24000).
+        VITE_ROOT_URL: http://localhost:24000
         # Placeholders - replace with real keys to render the map.
         VITE_OS_KEY: ${VITE_OS_KEY:-placeholder}
         VITE_GEOCODER_TOKEN: ${VITE_GEOCODER_TOKEN:-placeholder}
         VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:-placeholder}
+    container_name: lx-fe
     ports:
-      - "8080:80"
+      - "28080:80"
     depends_on:
-      - back-end
+      - lx-be
     networks:
       - lx
 
