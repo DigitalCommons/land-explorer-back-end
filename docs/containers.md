@@ -66,6 +66,14 @@ docker compose --env-file docker.env  -f compose.all.yml down -v
 docker compose --env-file docker.env -f compose.all.yml up --build
 ```
 
+## Rebuild
+
+To rebuild, for example, just the back end, run:
+
+```
+docker compose --env-file docker.env -f compose.all.yml up -d --build lx-be
+```
+
 ### Individual images
 
 Each repo has a Dockerfile. They are multi stage (Node then runtime stage) and they all require NODE_VERSION to be passed explicity. For example to build the front end:
