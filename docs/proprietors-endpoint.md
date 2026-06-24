@@ -47,10 +47,6 @@ GET /api/proprietors?searchTerm=Acme&page=1&pageSize=10
 
 **500 Internal Server Error** - returned on unexpected errors from the PBS.
 
-## Feature flag
-
-Set `MEILISEARCH_ENABLED=true` in your `.env` to enable this endpoint. It is enabled by default in `.env.test`.
-
 ## Implementation
 
 | File | Role |

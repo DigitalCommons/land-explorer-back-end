@@ -76,9 +76,7 @@ export const init = async function (): Promise<Server> {
   server.route(userRoutes);
   server.route(mapRoutes);
   server.route(dataGroupRoutes);
-  if (process.env.MEILISEARCH_ENABLED === "true") {
-    server.route(proprietorRoutes);
-  }
+  server.route(proprietorRoutes);
 
   // Log requests and response codes
   server.events.on("response", (request: any) => {
@@ -89,7 +87,7 @@ export const init = async function (): Promise<Server> {
         " " +
         request.path +
         " --> " +
-        request.response.statusCode
+        request.response.statusCode,
     );
   });
 
