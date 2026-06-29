@@ -137,7 +137,7 @@ When analtics consent is given, the `distinct_id` hash is SHA-256 of `userId + u
 
 | Field | Consenting | Non-consenting |
 |---|---|---|
-| `distinct_id` | — | session UUID |
+| `distinct_id` | — | — |
 | `map_id` | — | — |
 
 ---
