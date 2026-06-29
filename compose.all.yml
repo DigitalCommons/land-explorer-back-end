@@ -82,13 +82,15 @@ services:
   # One-shot: apply the LX back-end DB migrations, then exit. Runs the runtime
   # image (which now ships the migration sources + sequelize-cli), so this
   # exercises the same migrate path Coolify uses via its pre-deploy command.
+  # Also ensure the database exists with a sequelize db:create if something
+  #  went wrong in the mysql container creation.
   lx-be-migrate:
     build:
       context: .
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
     container_name: lx-be-migrate
-    command: ["npx", "sequelize-cli", "db:migrate"]
+    command: ["sh", "-c", "npx sequelize-cli db:create || true; npx sequelize-cli db:migrate"]
     environment:
       NODE_ENV: development
       DATABASE_HOST: lx-mysql
@@ -148,7 +150,7 @@ services:
       args:
         NODE_VERSION: ${NODE_VERSION:-24}
     container_name: lx-pbs-migrate
-    command: ["npx", "sequelize-cli", "db:migrate"]
+    command: ["sh", "-c", "npx sequelize-cli db:create || true; npx sequelize-cli db:migrate"]
     environment:
       NODE_ENV: development
       DB_HOST: lx-mysql
