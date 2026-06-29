@@ -69,6 +69,17 @@ services:
       - "27700:7700"
     networks:
       - lx
+    # Meilisearch has a build-in health check at GET /health
+    # Use it to wait for lx-pbs to know when it is ready
+    #   (service_healthy not service_started)
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks:
+      - lx
 
   # One-shot: apply the LX back-end DB migrations, then exit. Runs the runtime
   # image (which now ships the migration sources + sequelize-cli), so this
@@ -181,7 +192,7 @@ services:
       lx-mysql:
         condition: service_healthy
       lx-meilisearch:
-        condition: service_started
+        condition: service_healthy
       lx-pbs-migrate:
         condition: service_completed_successfully
     networks:
