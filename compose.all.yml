@@ -213,6 +213,11 @@ services:
         VITE_OS_KEY: ${VITE_OS_KEY:?missing - download docker.env from Bitwarden and run with --env-file docker.env}
         VITE_GEOCODER_TOKEN: ${VITE_GEOCODER_TOKEN:?missing - download docker.env from Bitwarden and run with --env-file docker.env}
         VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:?missing - download docker.env from Bitwarden and run with --env-file docker.env}
+        # Optional build args - these won't be wired up if they are unset
+        VITE_USER_GUIDE_URL: ${VITE_USER_GUIDE_URL:-}
+        VITE_MIXPANEL_TOKEN: ${VITE_MIXPANEL_TOKEN:-}
+        VITE_MIXPANEL_PEPPER: ${VITE_MIXPANEL_PEPPER:-}
+
     container_name: lx-fe
     ports:
       - "28080:80"
