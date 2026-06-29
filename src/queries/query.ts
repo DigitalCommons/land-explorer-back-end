@@ -235,9 +235,7 @@ export const trackUserEvent = async (
   let analyticsUserId = sessionId; // default to sessionId if we don't have consent to use the hashed user ID
   const user = await getUserById(userId);
   if (!user) {
-    console.error(
-      `User with ID ${userId} not found for tracking event ${event}`,
-    );
+    console.error(`User with not found for tracking event ${event}`);
     analyticsUserId = "USER_NOT_FOUND";
   }
   let analyticsConsent = computeAnalyticsConsent(user) ?? false;
