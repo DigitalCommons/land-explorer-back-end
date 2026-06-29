@@ -198,6 +198,32 @@ services:
     networks:
       - lx
 
+  # Optional one-shot: populate the proprietor data + Meilisearch index
+  #  When starting we get no prop boundaries and no meilisearch index
+  #  This triggers the ownerships + updateProprietors tasks
+  # TODO: It stops before downloadInspire which is failing - see
+  #  https://github.com/DigitalCommons/property-boundaries-service/issues/45
+  # It does not run on a normal up - it takes a LONG time to run and need
+  #  real GOV_API_ keys - if you need it for testing run it explicity once
+  #  everything is up and watch lx-pbs logs for progress:
+  #   docker compose --env-file docker.env -f compose.all.yml --profile seed up lx-pbs-seed
+  lx-pbs-seed:
+    image: curlimages/curl:8.11.1
+    container_name: lx-pbs-seed
+    profiles: ["seed"]
+    command:
+      - "--retry"
+      - "30"
+      - "--retry-connrefused"
+      - "--retry-delay"
+      - "5"
+      - "http://lx-pbs:4000/run-pipeline?secret=devsecret&startAtTask=ownerships&stopBeforeTask=downloadInspire"
+    depends_on:
+      - lx-pbs
+    restart: "no"
+    networks:
+      - lx
+
   lx-fe:
     build:
       context: ../land-explorer-front-end
