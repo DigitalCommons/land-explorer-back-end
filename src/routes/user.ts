@@ -371,9 +371,15 @@ async function userFeedback(
   );
 
   const user = await getUserById(userId);
-  const feedbackPayload = computeAnalyticsConsent(user)
-    ? { question_use_case, question_impact, question_who_benefits, question_improvements }
-    : {};
+  const feedbackPayload =
+    user && computeAnalyticsConsent(user)
+      ? {
+          question_use_case,
+          question_impact,
+          question_who_benefits,
+          question_improvements,
+        }
+      : {};
 
   trackUserEvent(sessionId, userId, Event.USER.FEEDBACK, feedbackPayload);
 
