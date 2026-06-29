@@ -21,6 +21,7 @@ import { createHash } from "node:crypto";
 import axios from "axios";
 import { Op, QueryTypes } from "sequelize";
 import { EventName, trackRawEvent } from "../instrument";
+import { computeAnalyticsConsent } from "../userAnalyticsConsent";
 
 export const getUserById = async (id: number): Promise<typeof User | null> => {
   return await User.findOne({ where: { id } });
@@ -239,8 +240,8 @@ export const trackUserEvent = async (
     );
     analyticsUserId = "USER_NOT_FOUND";
   }
-  let analyticsConsent = user?.analytics_consent ?? false; // default to false if null/undefined
-
+  let analyticsConsent = computeAnalyticsConsent(user) ?? false;
+    
   if (analyticsConsent) {
     analyticsUserId = await hashUserId(user);
     // Include data on which user groups the user is a member of
