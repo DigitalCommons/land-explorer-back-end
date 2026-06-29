@@ -442,7 +442,8 @@ describe("trackUserEvent", () => {
       sandbox.stub(User, "findOne").callsFake(async (options: any) => ({
         id: options?.where?.id ?? testUserId,
         created_date: testUserCreatedDate,
-        analytics_consent: true,
+        analytics_consent_granted_at: new Date("2024-01-01"),
+        analytics_consent_revoked_at: null,
       }));
     });
 
@@ -497,7 +498,8 @@ describe("trackUserEvent", () => {
         fake.resolves({
           id: testUserId,
           created_date: testUserCreatedDate,
-          analytics_consent: false,
+          analytics_consent_granted_at: null,
+          analytics_consent_revoked_at: new Date("2024-01-01"),
         }),
       );
     });
@@ -526,6 +528,58 @@ describe("trackUserEvent", () => {
     });
   });
 
+  context("User exists with granted_at more recent than revoked_at", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+          analytics_consent_granted_at: new Date("2024-06-01"),
+          analytics_consent_revoked_at: new Date("2024-01-01"),
+        }),
+      );
+    });
+
+    it("uses hashed userID as distinct_id", async () => {
+      await query.trackUserEvent(
+        "test-session-id",
+        testUserId,
+        "User_Register",
+      );
+
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data.distinct_id).to.equal("99a70b2e9c66404d");
+    });
+  });
+
+  context("User exists with revoked_at more recent than granted_at", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+          analytics_consent_granted_at: new Date("2024-01-01"),
+          analytics_consent_revoked_at: new Date("2024-06-01"),
+        }),
+      );
+    });
+
+    it("uses sessionId as distinct_id", async () => {
+      await query.trackUserEvent(
+        "test-session-id",
+        testUserId,
+        "User_Register",
+      );
+
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data.distinct_id).to.equal("test-session-id");
+    });
+  });
+
   context(
     "User exists with analytics_consent null (pre-migration existing user)",
     () => {
@@ -536,7 +590,8 @@ describe("trackUserEvent", () => {
           fake.resolves({
             id: testUserId,
             created_date: testUserCreatedDate,
-            analytics_consent: null,
+            analytics_consent_granted_at: null,
+            analytics_consent_revoked_at: null,
           }),
         );
       });
