@@ -26,6 +26,7 @@ import {
   UpdateAnalyticsConsentRequest,
   UpdateUserGuidePromptSeenRequest,
 } from "./user.types";
+import { computeAnalyticsConsent } from "../userAnalyticsConsent";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
@@ -168,7 +169,7 @@ async function getAuthUserDetails(
     phone: user.phone ?? "",
     council_id: user.council_id ?? 0,
     is_super_user: user.is_super_user ?? 0,
-    analyticsConsent: user.analytics_consent,
+    analyticsConsent: computeAnalyticsConsent(user),
     userGuidePromptSeen: user.user_guide_prompt_seen ?? false,
   });
 }
@@ -361,28 +362,20 @@ async function userFeedback(
     request.auth.credentials.user_id,
   );
 
+  const userId = request.auth.credentials.user_id;
   const { "x-session-id": sessionId } = request.headers;
 
   await User.update(
     { ask_for_feedback: false },
-    {
-      where: {
-        id: request.auth.credentials.user_id,
-      },
-    },
+    { where: { id: userId } },
   );
 
-  trackUserEvent(
-    sessionId,
-    request.auth.credentials.user_id,
-    Event.USER.FEEDBACK,
-    {
-      question_use_case,
-      question_impact,
-      question_who_benefits,
-      question_improvements,
-    },
-  );
+  const user = await getUserById(userId);
+  const feedbackPayload = computeAnalyticsConsent(user)
+    ? { question_use_case, question_impact, question_who_benefits, question_improvements }
+    : {};
+
+  trackUserEvent(sessionId, userId, Event.USER.FEEDBACK, feedbackPayload);
 
   return h.response(userFeedback).code(200);
 }
@@ -455,7 +448,9 @@ async function updateAnalyticsConsent(
   h: ResponseToolkit,
 ): Promise<ResponseObject> {
   await User.update(
-    { analytics_consent: request.payload.analyticsConsent },
+    request.payload.analyticsConsent
+      ? { analytics_consent_granted_at: new Date() }
+      : { analytics_consent_revoked_at: new Date() },
     { where: { id: request.auth.credentials.user_id } },
   );
 
