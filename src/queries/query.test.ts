@@ -451,13 +451,13 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       expect(trackRawEventSpy.calledOnce).to.be.true;
       const [event, data] = trackRawEventSpy.firstCall.args;
 
-      expect(event).to.equal("User_Register");
+      expect(event).to.equal("User_ViewedGuide");
       expect(data.distinct_id).to.equal("99a70b2e9c66404d");
     });
 
@@ -467,7 +467,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
         additionalData,
       );
 
@@ -483,7 +483,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId + 1,
-        "User_Register",
+        "User_ViewedGuide",
       );
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data.distinct_id).to.not.equal("99a70b2e9c66404d");
@@ -508,7 +508,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       expect(trackRawEventSpy.calledOnce).to.be.true;
@@ -520,7 +520,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       const [, data] = trackRawEventSpy.firstCall.args;
@@ -546,7 +546,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       const [, data] = trackRawEventSpy.firstCall.args;
@@ -572,7 +572,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       const [, data] = trackRawEventSpy.firstCall.args;
@@ -600,7 +600,7 @@ describe("trackUserEvent", () => {
         await query.trackUserEvent(
           "test-session-id",
           testUserId,
-          "User_Register",
+          "User_ViewedGuide",
         );
 
         expect(trackRawEventSpy.calledOnce).to.be.true;
@@ -612,7 +612,7 @@ describe("trackUserEvent", () => {
         await query.trackUserEvent(
           "test-session-id",
           testUserId,
-          "User_Register",
+          "User_ViewedGuide",
         );
 
         const [, data] = trackRawEventSpy.firstCall.args;
@@ -630,7 +630,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data.distinct_id).to.equal("USER_NOT_FOUND");

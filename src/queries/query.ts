@@ -236,7 +236,8 @@ export const trackUserEvent = async (
   const user = await getUserById(userId);
   if (!user) {
     console.error(`User with not found for tracking event ${event}`);
-    analyticsUserId = "USER_NOT_FOUND";
+    trackRawEvent(event, { ...data, distinct_id: "USER_NOT_FOUND" });
+    return;
   }
   let analyticsConsent = computeAnalyticsConsent(user) ?? false;
     
