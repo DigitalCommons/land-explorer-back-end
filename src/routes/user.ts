@@ -363,25 +363,16 @@ async function userFeedback(
   );
 
   const userId = request.auth.credentials.user_id;
-  const { "x-session-id": sessionId } = request.headers;
 
-  await User.update(
-    { ask_for_feedback: false },
-    { where: { id: userId } },
-  );
+  await User.update({ ask_for_feedback: false }, { where: { id: userId } });
 
-  const user = await getUserById(userId);
-  const feedbackPayload =
-    user && computeAnalyticsConsent(user)
-      ? {
-          question_use_case,
-          question_impact,
-          question_who_benefits,
-          question_improvements,
-        }
-      : {};
-
-  trackUserEvent(sessionId, userId, Event.USER.FEEDBACK, feedbackPayload);
+  // we intentionally don't pass the sessionId for this event so that the user feedback can't be used to determine the user that links to a sessionId
+  trackUserEvent("0", userId, Event.USER.FEEDBACK, {
+    question_use_case,
+    question_impact,
+    question_who_benefits,
+    question_improvements,
+  });
 
   return h.response(userFeedback).code(200);
 }

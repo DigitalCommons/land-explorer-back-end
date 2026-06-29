@@ -27,16 +27,16 @@ When analtics consent is given, the `distinct_id` hash is SHA-256 of `userId + u
 ### `User_Feedback`
 **Trigger:** User submits the in-app feedback form  
 **Source:** `src/routes/user.ts`  
-**Notes:** Free-text answers are withheld for non-consenting users because the text is uniquely matchable to a `user_id` via the database, making it re-identifiable personal data.
+**Notes:** `sessionId` is hardcoded to `"0"` rather than the real session ID, so feedback cannot be linked to a user's other session activity. Free-text answers are sent regardless of consent - the consent check in `trackUserEvent` only controls `distinct_id` and `user_groups`, not the payload.
 
 | Field | Consenting | Non-consenting |
 |---|---|---|
-| `distinct_id` | hashed user ID | session UUID |
+| `distinct_id` | hashed user ID | `"0"` |
 | `user_groups` | array of group names | — |
-| `question_use_case` | string | — |
-| `question_impact` | string | — |
-| `question_who_benefits` | string | — |
-| `question_improvements` | string | — |
+| `question_use_case` | string | string |
+| `question_impact` | string | string |
+| `question_who_benefits` | string | string |
+| `question_improvements` | string | string |
 
 ---
 
