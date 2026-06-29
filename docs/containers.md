@@ -57,6 +57,30 @@ There are two kinds of config:
 
 `.env.example` in each repo is the reference list of every variable and is what you copy to `.env` for *native* (non-Docker) dev - it is not read by the containers.
 
+### Populating property data and proprietor search
+
+When you start the containers fresh you will get an empty property_boundaries table and an empty Meilisearch index. Map and login work but Land Ownership layer and proprietor search return nothing until PBS pipeline runs.
+
+At some point we should add a small set of test data or the ability to copy from an existing database.
+
+To populate the data needed for these features run this optional one-shot docker service - it happens in lx-pbs and you can watch the logs to see progress:
+
+```
+docker compose --env-file docker.env -f compose.all.yml --profile seed up lx-pbs-seed
+```
+
+You can also trigger it manually:
+
+```
+curl 'http://localhost:24001/run-pipeline?secret=devsecret&startAtTask=ownerships'
+```
+
+Two issues:
+
+- It will take a **LONG TIME** - possibly several days and needs real GOV_API_* keys in docker.env - if you start it at updateProprietors instead it will re-index land_ownerships instead of starting from the beginning
+- The downloadInspire task for the INSPIRE boundaries from https://use-land-property-data.service.gov.uk/datasets/inspire/download is failing - it is failing in the non-docker version - see https://github.com/DigitalCommons/property-boundaries-service/issues/45
+
+
 ### Reset
 
 MySQL and Meilisearch data is stored in named volumes (mysql_data and meilisearch_data) - to wipe the database and start clean drop the volumes:
