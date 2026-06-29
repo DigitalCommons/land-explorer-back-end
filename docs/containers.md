@@ -48,6 +48,25 @@ If you change the front-end or back-end host port, update the matching value:
 
 The credentials inlined in compose.all.yml are dev throwaways. Real secrets - map keys, SendGrid, analytics, PBS pipeline keys - are in docker.env (from Bitwarden). The live secrets are injected by Coolify.
 
+### Reset
+
+MySQL and Meilisearch data is stored in named volumes (mysql_data and meilisearch_data) - to wipe the database and start clean drop the volumes:
+
+```
+docker compose --env-file docker.env  -f compose.all.yml down -v --remove-orphans
+docker compose --env-file docker.env -f compose.all.yml up --build
+```
+
+## Rebuild
+
+To rebuild, for example, just the back end, run:
+
+```
+docker compose --env-file docker.env -f compose.all.yml up --build lx-be
+```
+
+You can add `-d` to run in the background as well and use `docker logs` to inspect the logs.
+
 ### Env vars and secrets
 
 There are two kinds of config:
@@ -86,25 +105,6 @@ Two issues:
 - It will take a **LONG TIME** - possibly several days and needs real GOV_API_* keys in docker.env - if you start it at updateProprietors instead it will re-index land_ownerships instead of starting from the beginning
 - The downloadInspire task for the INSPIRE boundaries from https://use-land-property-data.service.gov.uk/datasets/inspire/download is failing - it is failing in the non-docker version - see https://github.com/DigitalCommons/property-boundaries-service/issues/45
 
-
-### Reset
-
-MySQL and Meilisearch data is stored in named volumes (mysql_data and meilisearch_data) - to wipe the database and start clean drop the volumes:
-
-```
-docker compose --env-file docker.env  -f compose.all.yml down -v
-docker compose --env-file docker.env -f compose.all.yml up --build
-```
-
-## Rebuild
-
-To rebuild, for example, just the back end, run:
-
-```
-docker compose --env-file docker.env -f compose.all.yml up --build lx-be
-```
-
-You can add `-d` to run in the background as well and use `docker logs` to inspect the logs.
 
 ### Individual images
 
