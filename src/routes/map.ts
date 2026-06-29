@@ -843,7 +843,6 @@ async function searchOwnership(
   const titles = await searchOwner(proprietorName);
 
   trackUserEvent(sessionId, user_id, Event.LAND_OWNERSHIP.BACKSEARCH, {
-    proprietor_name: proprietorName,
     properties_count: titles.length,
   });
 
