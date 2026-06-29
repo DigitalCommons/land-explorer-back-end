@@ -1,0 +1,260 @@
+# Local development stack for the WHOLE Land Explorer system:
+#   front-end + back-end + property-boundaries-service + MySQL + Meilisearch.
+#
+# This file is a *local development aid* - one command to bring the whole stack
+# up. It is NOT the production deployment artefact (each repo has its own
+# single-app docker-compose.yml for that). It refers to the sibling repos by
+# relative path, so it assumes the standard checkout layout:
+#
+#   <somewhere>/land-explorer-back-end       <- this repo (run compose from here)
+#   <somewhere>/land-explorer-front-end
+#   <somewhere>/property-boundaries-service
+#
+# Usage (from this repo's root) - REQUIRES the secrets file `docker.env`, which
+# you download from Bitwarden (it is gitignored; see docker.env.example for the
+# list of keys). Compose fails fast if it's missing:
+#   docker compose --env-file docker.env -f compose.all.yml up --build
+# then open the front-end at http://localhost:28080
+#
+# Why --env-file AND env_file: the back-end / PBS services load docker.env at
+# runtime via `env_file:` (so a missing file is a hard error), while the
+# front-end's VITE_* map keys are *build args* that Compose can only resolve
+# through --env-file (a service env_file does not feed build-time interpolation).
+#
+# Host ports are deliberately uncommon (28080/24000/24001/23306/27700) so they
+# don't clash with anything else you have running (a local MySQL on 3306, a dev
+# server on 8080, etc.). The container-internal ports are unchanged. If you
+# change a port here, update the matching value:
+#   - front-end host port  -> back-end CORS_ORIGINS (browser origin)
+#   - back-end host port    -> front-end VITE_ROOT_URL (where the SPA calls the API)
+#
+# The values inlined below are DEV-ONLY throwaways (DB creds, dev token/secret).
+# Real secrets - map tile keys, SendGrid, analytics, PBS pipeline keys - are NOT
+# here; they live in docker.env, fetched from Bitwarden.
+
+name: land-explorer-dev
+
+services:
+  lx-mysql:
+    image: mysql:8
+    container_name: lx-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: devroot
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "23306:3306"
+    # Ping over TCP (not the unix socket) so "healthy" means the network port is
+    # actually accepting connections - during first-init MySQL briefly serves a
+    # temporary server on the socket only, and a socket ping would pass too early.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=TCP", "-uroot", "-pdevroot", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks:
+      - lx
+
+  lx-meilisearch:
+    image: getmeili/meilisearch:v1.41.0
+    container_name: lx-meilisearch
+    environment:
+      MEILI_MASTER_KEY: devmasterkey
+      MEILI_ENV: development
+    volumes:
+      - meilisearch_data:/meili_data
+    ports:
+      - "27700:7700"
+    # Meilisearch has a build-in health check at GET /health
+    # Use it to wait for lx-pbs to know when it is ready
+    #   (service_healthy not service_started)
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+    networks:
+      - lx
+
+  # One-shot: apply the LX back-end DB migrations, then exit. Runs the runtime
+  # image (which now ships the migration sources + sequelize-cli), so this
+  # exercises the same migrate path Coolify uses via its pre-deploy command.
+  # Also ensure the database exists with a sequelize db:create if something
+  #  went wrong in the mysql container creation.
+  lx-be-migrate:
+    build:
+      context: .
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-be-migrate
+    command: ["sh", "-c", "npx sequelize-cli db:create || true; npx sequelize-cli db:migrate"]
+    environment:
+      NODE_ENV: development
+      DATABASE_HOST: lx-mysql
+      DATABASE_PORT: "3306"
+      DATABASE_USER: root
+      DATABASE_PASSWORD: devroot
+      DATABASE_NAME: land_explorer
+    depends_on:
+      lx-mysql:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - lx
+
+  lx-be:
+    build:
+      context: .
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-be
+    # Real secrets (SENDGRID_API_KEY, MIXPANEL_TOKEN, ANALYTICS_PEPPER, ...) come
+    # from docker.env. required: true => `up` fails if the file is missing.
+    env_file:
+      - path: ./docker.env
+        required: true
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      # The front-end runs on host port 28080, so that's its browser origin.
+      # This is what lets the SPA call the API cross-origin (see src/cors.ts).
+      CORS_ORIGINS: http://localhost:28080
+      DATABASE_HOST: lx-mysql
+      DATABASE_PORT: "3306"
+      DATABASE_USER: root
+      DATABASE_PASSWORD: devroot
+      DATABASE_NAME: land_explorer
+      TOKEN_KEY: dev-token-key-not-for-production
+      TOKEN_EXPIRY_DAYS: "365"
+      BOUNDARY_SERVICE_URL: http://lx-pbs:4000
+      BOUNDARY_SERVICE_SECRET: devsecret
+      MEILISEARCH_ENABLED: "true"
+    ports:
+      - "24000:4000"
+    depends_on:
+      lx-mysql:
+        condition: service_healthy
+      lx-be-migrate:
+        condition: service_completed_successfully
+    networks:
+      - lx
+
+  # One-shot: apply the PBS DB migrations, then exit. Like lx-be-migrate, this
+  # runs the runtime image so it mirrors the Coolify pre-deploy migrate path.
+  lx-pbs-migrate:
+    build:
+      context: ../property-boundaries-service
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-pbs-migrate
+    command: ["sh", "-c", "npx sequelize-cli db:create || true; npx sequelize-cli db:migrate"]
+    environment:
+      NODE_ENV: development
+      DB_HOST: lx-mysql
+      DB_USER: root
+      DB_PASSWORD: devroot
+      DB_NAME: property_boundaries
+    depends_on:
+      lx-mysql:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - lx
+
+  lx-pbs:
+    build:
+      context: ../property-boundaries-service
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+    container_name: lx-pbs
+    # PBS pipeline secrets (GOV_API_KEY, OS_NGD_API_KEY, ...) come from docker.env.
+    # required: true => `up` fails if the file is missing.
+    env_file:
+      - path: ./docker.env
+        required: true
+    environment:
+      NODE_ENV: development
+      PORT: "4000"
+      DB_HOST: lx-mysql
+      DB_USER: root
+      DB_PASSWORD: devroot
+      DB_NAME: property_boundaries
+      SECRET: devsecret
+      MEILISEARCH_ENABLED: "true"
+      MEILI_HOST: http://lx-meilisearch:7700
+      MEILI_MASTER_KEY: devmasterkey
+    ports:
+      - "24001:4000"
+    depends_on:
+      lx-mysql:
+        condition: service_healthy
+      lx-meilisearch:
+        condition: service_healthy
+      lx-pbs-migrate:
+        condition: service_completed_successfully
+    networks:
+      - lx
+
+  # Optional one-shot: populate the proprietor data + Meilisearch index
+  #  When starting we get no prop boundaries and no meilisearch index
+  #  This triggers the ownerships + updateProprietors tasks
+  # TODO: It stops before downloadInspire which is failing - see
+  #  https://github.com/DigitalCommons/property-boundaries-service/issues/45
+  # It does not run on a normal up - it takes a LONG time to run and need
+  #  real GOV_API_ keys - if you need it for testing run it explicity once
+  #  everything is up and watch lx-pbs logs for progress:
+  #   docker compose --env-file docker.env -f compose.all.yml --profile seed up lx-pbs-seed
+  lx-pbs-seed:
+    image: curlimages/curl:8.11.1
+    container_name: lx-pbs-seed
+    profiles: ["seed"]
+    command:
+      - "--retry"
+      - "30"
+      - "--retry-connrefused"
+      - "--retry-delay"
+      - "5"
+      - "http://lx-pbs:4000/run-pipeline?secret=devsecret&startAtTask=ownerships&stopBeforeTask=downloadInspire"
+    depends_on:
+      - lx-pbs
+    restart: "no"
+    networks:
+      - lx
+
+  lx-fe:
+    build:
+      context: ../land-explorer-front-end
+      args:
+        NODE_VERSION: ${NODE_VERSION:-24}
+        CADDY_HOSTNAME: localhost
+        # The SPA calls the back-end cross-origin at this URL (baked in at build).
+        # Must match the back-end's host port (24000).
+        VITE_ROOT_URL: http://localhost:24000
+        # Map tile keys, required (the map won't render without them). These are
+        # build args, so they come from docker.env via --env-file. The ${VAR:?}
+        # form makes Compose abort with this message if they're unset.
+        VITE_OS_KEY: ${VITE_OS_KEY:?missing - download docker.env from Bitwarden and run with --env-file docker.env}
+        VITE_GEOCODER_TOKEN: ${VITE_GEOCODER_TOKEN:?missing - download docker.env from Bitwarden and run with --env-file docker.env}
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN:?missing - download docker.env from Bitwarden and run with --env-file docker.env}
+        # Optional build args - these won't be wired up if they are unset
+        VITE_USER_GUIDE_URL: ${VITE_USER_GUIDE_URL:-}
+        VITE_MIXPANEL_TOKEN: ${VITE_MIXPANEL_TOKEN:-}
+        VITE_MIXPANEL_PEPPER: ${VITE_MIXPANEL_PEPPER:-}
+
+    container_name: lx-fe
+    ports:
+      - "28080:80"
+    depends_on:
+      - lx-be
+    networks:
+      - lx
+
+volumes:
+  mysql_data:
+  meilisearch_data:
+
+networks:
+  lx:
