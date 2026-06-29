@@ -75,6 +75,12 @@ You can also trigger it manually:
 curl 'http://localhost:24001/run-pipeline?secret=devsecret&startAtTask=ownerships'
 ```
 
+For just meilisearch you need to trigger it via:
+
+```
+curl 'http://localhost:24001/run-pipeline?secret=devsecret&startAtTask=updateProprietors&stopBeforeTask=downloadInspire'
+```
+
 Two issues:
 
 - It will take a **LONG TIME** - possibly several days and needs real GOV_API_* keys in docker.env - if you start it at updateProprietors instead it will re-index land_ownerships instead of starting from the beginning
