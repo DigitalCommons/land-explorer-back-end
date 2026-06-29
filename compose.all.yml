@@ -67,8 +67,6 @@ services:
       - meilisearch_data:/meili_data
     ports:
       - "27700:7700"
-    networks:
-      - lx
     # Meilisearch has a build-in health check at GET /health
     # Use it to wait for lx-pbs to know when it is ready
     #   (service_healthy not service_started)
