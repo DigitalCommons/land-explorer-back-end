@@ -39,48 +39,91 @@ describe("trackUserMapEvent", () => {
       );
     });
 
-    it("calls trackUserEvent with consistent hashed mapId", async () => {
-      await trackUserMapEvent("test-session-id", testUserId, testMapId, Event.MAP.OPEN);
+    context("User has given analytics consent", () => {
+      beforeEach(() => {
+        sandbox.replace(
+          query,
+          "getUserById",
+          fake.resolves({
+            id: testUserId,
+            analytics_consent_granted_at: new Date("2024-01-01"),
+            analytics_consent_revoked_at: null,
+          })
+        );
+      });
 
-      expect(query.trackUserEvent.calledOnce).to.be.true;
-      const [, userId, event, data] = (query.trackUserEvent as any).firstCall
-        .args;
+      it("calls trackUserEvent with consistent hashed mapId", async () => {
+        await trackUserMapEvent("test-session-id", testUserId, testMapId, Event.MAP.OPEN);
 
-      expect(userId).to.equal(testUserId);
-      expect(event).to.equal(Event.MAP.OPEN);
-      expect(data.map_id).to.equal("0936b464a63bf05d"); // precomputed hash
-    });
+        expect(query.trackUserEvent.calledOnce).to.be.true;
+        const [, userId, event, data] = (query.trackUserEvent as any).firstCall.args;
 
-    it("merges additional data with hashed mapId", async () => {
-      const additionalData = { drawn_count: 5, access: "Readonly" };
+        expect(userId).to.equal(testUserId);
+        expect(event).to.equal(Event.MAP.OPEN);
+        expect(data.map_id).to.equal("0936b464a63bf05d"); // precomputed hash
+      });
 
-      await trackUserMapEvent(
-        "test-session-id",
-        testUserId,
-        testMapId,
-        Event.MAP.SHARED_OPEN,
-        additionalData
-      );
+      it("merges additional data with hashed mapId", async () => {
+        const additionalData = { drawn_count: 5, access: "Readonly" };
 
-      const [, , , data] = (query.trackUserEvent as any).firstCall.args;
+        await trackUserMapEvent(
+          "test-session-id",
+          testUserId,
+          testMapId,
+          Event.MAP.SHARED_OPEN,
+          additionalData
+        );
 
-      expect(data).to.deep.equal({
-        drawn_count: 5,
-        access: "Readonly",
-        map_id: data.map_id, // just verify it exists
+        const [, , , data] = (query.trackUserEvent as any).firstCall.args;
+
+        expect(data).to.deep.equal({
+          drawn_count: 5,
+          access: "Readonly",
+          map_id: data.map_id, // just verify it exists
+        });
+      });
+
+      it("produces different hash for different mapId", async () => {
+        await trackUserMapEvent("test-session-id", testUserId, testMapId + 1, Event.MAP.OPEN);
+        const [, , , data] = (query.trackUserEvent as any).firstCall.args;
+        expect(data.map_id).to.not.equal("0936b464a63bf05d");
       });
     });
 
-    it("produces different hash for different mapId", async () => {
-      await trackUserMapEvent("test-session-id", testUserId, testMapId + 1, Event.MAP.OPEN);
-      const [, , , data] = (query.trackUserEvent as any).firstCall.args;
-      expect(data.map_id).to.not.equal("0936b464a63bf05d");
+    context("User has not given analytics consent", () => {
+      beforeEach(() => {
+        sandbox.replace(
+          query,
+          "getUserById",
+          fake.resolves({
+            id: testUserId,
+            analytics_consent_granted_at: null,
+            analytics_consent_revoked_at: new Date("2024-01-01"),
+          })
+        );
+      });
+
+      it("does not include map_id in the event data", async () => {
+        await trackUserMapEvent("test-session-id", testUserId, testMapId, Event.MAP.OPEN);
+
+        const [, , , data] = (query.trackUserEvent as any).firstCall.args;
+        expect(data).to.not.have.property("map_id");
+      });
     });
   });
 
   context("Map doesn't exist", () => {
     beforeEach(() => {
       sandbox.replace(Model.Map, "findOne", fake.resolves(null));
+      sandbox.replace(
+        query,
+        "getUserById",
+        fake.resolves({
+          id: testUserId,
+          analytics_consent_granted_at: new Date("2024-01-01"),
+          analytics_consent_revoked_at: null,
+        })
+      );
     });
 
     it("uses MAP_NOT_FOUND as hashed mapId", async () => {
@@ -131,6 +174,15 @@ describe("compareMapDataChangesAndSendAnalytics", () => {
       })
     );
     sandbox.replace(query, "trackUserEvent", fake.resolves(null));
+    sandbox.replace(
+      query,
+      "getUserById",
+      fake.resolves({
+        id: testUserId,
+        analytics_consent_granted_at: new Date("2024-01-01"),
+        analytics_consent_revoked_at: null,
+      })
+    );
   });
 
   afterEach(() => {

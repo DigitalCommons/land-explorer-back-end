@@ -38,21 +38,21 @@ export const setupWebsockets = (server: HapiServer): void => {
       throw err;
     }
 
-    console.log("User websocket connected", socket.data.userId);
+    console.log("User websocket connected");
 
     socket.on("disconnecting", () => {
-      console.log("User websocket disconnecting", socket.data.userId);
+      console.log("User websocket disconnecting");
       leaveAllMaps(socket);
     });
 
     socket.on("currentMap", async (mapId) => {
       if (mapId === null) {
         // null map id means a new untitled map was opened
-        console.log(`User ${socket.data.userId} opened a new untitled map`);
+        console.log(`User opened a new untitled map`);
         leaveAllMaps(socket);
       } else {
         if (getCurrentMapId(socket) != mapId) {
-          console.log(`User ${socket.data.userId} opened map ${mapId}`);
+          console.log(`User opened map`);
           leaveAllMaps(socket);
           socket.join(`${mapId}`);
         }

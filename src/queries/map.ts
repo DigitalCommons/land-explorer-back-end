@@ -15,9 +15,10 @@ import {
 import { Op } from "sequelize";
 import { createHash } from "node:crypto";
 import { v4 as uuidv4 } from "uuid";
-import { getUserByEmail, hashUserId, trackUserEvent } from "./query";
+import { getUserByEmail, getUserById, hashUserId, trackUserEvent } from "./query";
 import * as mailer from "./mails";
 import { Event, EventName } from "../instrument";
+import { computeAnalyticsConsent } from "../userAnalyticsConsent";
 import * as Sentry from "@sentry/node";
 import { atomizeChangeset, diff } from "json-diff-ts";
 
@@ -58,10 +59,11 @@ export const trackUserMapEvent = async (
   event: EventName,
   data?: any,
 ) => {
-  const mapIdHash = await hashMapId(mapId);
+  const user = await getUserById(userId);
+  const mapIdHash = user && computeAnalyticsConsent(user) ? await hashMapId(mapId) : undefined;
   await trackUserEvent(sessionId, userId, event, {
     ...data,
-    map_id: mapIdHash,
+    ...(mapIdHash && { map_id: mapIdHash }),
   });
 };
 
@@ -593,8 +595,6 @@ export const createMap = async (
     false,
   );
 
-  console.log(`Created map ${newMap.id} with name ${name}`);
-
   trackUserMapEvent(sessionId, userId, newMap.id, Event.MAP.FIRST_SAVE, {
     // TODO: when we save properties, include this as properties_count
     drawings_count: markers.length + polygonsAndLines.length,
@@ -643,8 +643,6 @@ export const updateMap = async (
   name: string,
   data: SaveMapData,
 ) => {
-  console.log(`User ${userId} updating map ${mapId}`);
-
   if (data.markers.markers) {
     await bulkCreateUpdateAndDeleteMarkers(mapId, data.markers.markers, true);
   }
@@ -986,7 +984,9 @@ export const grantMapAccessByEmails = async (
           domain,
         );
       }
-      sharedWithAnalyticsData.push(await hashUserId(user));
+      sharedWithAnalyticsData.push(
+        computeAnalyticsConsent(user) ? await hashUserId(user) : "NO_CONSENT",
+      );
     } else {
       await PendingUserMap.create({
         map_id: mapId,

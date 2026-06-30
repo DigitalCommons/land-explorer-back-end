@@ -2,7 +2,7 @@
 import { expect } from "chai";
 // Sinon provides mocks, spies, stubs, etc. We use them to replace and control the behaviour of code
 // that is external to our test unit, or to verify how out test unit interfaces with external code.
-import { assert, createSandbox, fake, SinonSpy } from "sinon";
+import { assert, createSandbox, fake, match, SinonSpy } from "sinon";
 import { Server } from "@hapi/hapi";
 import { init } from "../server";
 
@@ -374,7 +374,8 @@ describe("GET /api/user/details", () => {
           username: "douglas.quaid@yahoomail.com",
           first_name: "Douglas",
           last_name: "Quaid",
-          analytics_consent: true,
+          analytics_consent_granted_at: new Date("2024-01-01"),
+          analytics_consent_revoked_at: null,
         }),
       );
 
@@ -397,7 +398,56 @@ describe("GET /api/user/details", () => {
           username: "douglas.quaid@yahoomail.com",
           first_name: "Douglas",
           last_name: "Quaid",
-          analytics_consent: false,
+          analytics_consent_granted_at: null,
+          analytics_consent_revoked_at: new Date("2024-01-01"),
+        }),
+      );
+
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/user/details",
+        auth: { strategy: "simple", credentials: { user_id: testUserId } },
+      });
+
+      expect(res.statusCode).to.equal(200);
+      expect((res.result as any).analyticsConsent).to.equal(false);
+    });
+
+    it("returns analyticsConsent: true when granted_at is more recent than revoked_at", async () => {
+      sandbox.replace(
+        Model.User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          username: "douglas.quaid@yahoomail.com",
+          first_name: "Douglas",
+          last_name: "Quaid",
+          analytics_consent_granted_at: new Date("2024-06-01"),
+          analytics_consent_revoked_at: new Date("2024-01-01"),
+        }),
+      );
+
+      const res = await server.inject({
+        method: "GET",
+        url: "/api/user/details",
+        auth: { strategy: "simple", credentials: { user_id: testUserId } },
+      });
+
+      expect(res.statusCode).to.equal(200);
+      expect((res.result as any).analyticsConsent).to.equal(true);
+    });
+
+    it("returns analyticsConsent: false when revoked_at is more recent than granted_at", async () => {
+      sandbox.replace(
+        Model.User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          username: "douglas.quaid@yahoomail.com",
+          first_name: "Douglas",
+          last_name: "Quaid",
+          analytics_consent_granted_at: new Date("2024-01-01"),
+          analytics_consent_revoked_at: new Date("2024-06-01"),
         }),
       );
 
@@ -420,7 +470,8 @@ describe("GET /api/user/details", () => {
           username: "douglas.quaid@yahoomail.com",
           first_name: "Douglas",
           last_name: "Quaid",
-          analytics_consent: null,
+          analytics_consent_granted_at: null,
+          analytics_consent_revoked_at: null,
         }),
       );
 
@@ -461,7 +512,7 @@ describe("POST /api/user/analytics-consent", () => {
     expect(res.statusCode).to.equal(200);
     assert.calledOnceWithMatch(
       fakeUserUpdate,
-      { analytics_consent: true },
+      { analytics_consent_granted_at: match.instanceOf(Date) },
       { where: { id: testUserId } },
     );
   });
@@ -477,7 +528,7 @@ describe("POST /api/user/analytics-consent", () => {
     expect(res.statusCode).to.equal(200);
     assert.calledOnceWithMatch(
       fakeUserUpdate,
-      { analytics_consent: false },
+      { analytics_consent_revoked_at: match.instanceOf(Date) },
       { where: { id: testUserId } },
     );
   });

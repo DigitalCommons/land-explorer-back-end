@@ -442,7 +442,8 @@ describe("trackUserEvent", () => {
       sandbox.stub(User, "findOne").callsFake(async (options: any) => ({
         id: options?.where?.id ?? testUserId,
         created_date: testUserCreatedDate,
-        analytics_consent: true,
+        analytics_consent_granted_at: new Date("2024-01-01"),
+        analytics_consent_revoked_at: null,
       }));
     });
 
@@ -450,13 +451,13 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       expect(trackRawEventSpy.calledOnce).to.be.true;
       const [event, data] = trackRawEventSpy.firstCall.args;
 
-      expect(event).to.equal("User_Register");
+      expect(event).to.equal("User_ViewedGuide");
       expect(data.distinct_id).to.equal("99a70b2e9c66404d");
     });
 
@@ -466,7 +467,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
         additionalData,
       );
 
@@ -482,7 +483,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId + 1,
-        "User_Register",
+        "User_ViewedGuide",
       );
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data.distinct_id).to.not.equal("99a70b2e9c66404d");
@@ -497,7 +498,8 @@ describe("trackUserEvent", () => {
         fake.resolves({
           id: testUserId,
           created_date: testUserCreatedDate,
-          analytics_consent: false,
+          analytics_consent_granted_at: null,
+          analytics_consent_revoked_at: new Date("2024-01-01"),
         }),
       );
     });
@@ -506,7 +508,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       expect(trackRawEventSpy.calledOnce).to.be.true;
@@ -518,11 +520,63 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
 
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data).to.not.have.property("user_groups");
+    });
+  });
+
+  context("User exists with granted_at more recent than revoked_at", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+          analytics_consent_granted_at: new Date("2024-06-01"),
+          analytics_consent_revoked_at: new Date("2024-01-01"),
+        }),
+      );
+    });
+
+    it("uses hashed userID as distinct_id", async () => {
+      await query.trackUserEvent(
+        "test-session-id",
+        testUserId,
+        "User_ViewedGuide",
+      );
+
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data.distinct_id).to.equal("99a70b2e9c66404d");
+    });
+  });
+
+  context("User exists with revoked_at more recent than granted_at", () => {
+    beforeEach(() => {
+      sandbox.replace(
+        User,
+        "findOne",
+        fake.resolves({
+          id: testUserId,
+          created_date: testUserCreatedDate,
+          analytics_consent_granted_at: new Date("2024-01-01"),
+          analytics_consent_revoked_at: new Date("2024-06-01"),
+        }),
+      );
+    });
+
+    it("uses sessionId as distinct_id", async () => {
+      await query.trackUserEvent(
+        "test-session-id",
+        testUserId,
+        "User_ViewedGuide",
+      );
+
+      const [, data] = trackRawEventSpy.firstCall.args;
+      expect(data.distinct_id).to.equal("test-session-id");
     });
   });
 
@@ -536,7 +590,8 @@ describe("trackUserEvent", () => {
           fake.resolves({
             id: testUserId,
             created_date: testUserCreatedDate,
-            analytics_consent: null,
+            analytics_consent_granted_at: null,
+            analytics_consent_revoked_at: null,
           }),
         );
       });
@@ -545,7 +600,7 @@ describe("trackUserEvent", () => {
         await query.trackUserEvent(
           "test-session-id",
           testUserId,
-          "User_Register",
+          "User_ViewedGuide",
         );
 
         expect(trackRawEventSpy.calledOnce).to.be.true;
@@ -557,7 +612,7 @@ describe("trackUserEvent", () => {
         await query.trackUserEvent(
           "test-session-id",
           testUserId,
-          "User_Register",
+          "User_ViewedGuide",
         );
 
         const [, data] = trackRawEventSpy.firstCall.args;
@@ -575,7 +630,7 @@ describe("trackUserEvent", () => {
       await query.trackUserEvent(
         "test-session-id",
         testUserId,
-        "User_Register",
+        "User_ViewedGuide",
       );
       const [, data] = trackRawEventSpy.firstCall.args;
       expect(data.distinct_id).to.equal("USER_NOT_FOUND");
