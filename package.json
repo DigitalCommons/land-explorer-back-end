@@ -15,7 +15,7 @@
   "author": "Hansen Salim",
   "dependencies": {
     "@hapi/basic": "^6.0.0",
-    "@hapi/hapi": "^20.2.1",
+    "@hapi/hapi": "^21.4.9",
     "@hapi/inert": "^6.0.5",
     "@sendgrid/mail": "^8.1.4",
     "@sentry/node": "^9.11.0",
