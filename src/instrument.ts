@@ -46,10 +46,7 @@ export const Event = {
 } as const;
 
 // Recursively extract the union of values of the leaves of an object into a type
-type LeafValues<T> =
-  T extends object
-    ? LeafValues<T[keyof T]>
-    : T;
+type LeafValues<T> = T extends object ? LeafValues<T[keyof T]> : T;
 
 export type EventName = LeafValues<typeof Event>;
 

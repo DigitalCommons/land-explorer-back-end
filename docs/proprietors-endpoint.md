@@ -10,11 +10,11 @@
 
 **Query parameters:**
 
-| Parameter    | Type    | Required | Default | Constraints             | Description                        |
-|--------------|---------|----------|---------|-------------------------|------------------------------------|
-| `searchTerm` | string  | Yes      | —       | 1–200 characters        | Partial or full proprietor name    |
-| `page`       | integer | No       | `1`     | min 1                   | Page number                        |
-| `pageSize`   | integer | No       | `10`    | min 1, max 100          | Number of results per page         |
+| Parameter    | Type    | Required | Default | Constraints      | Description                     |
+| ------------ | ------- | -------- | ------- | ---------------- | ------------------------------- |
+| `searchTerm` | string  | Yes      | —       | 1–200 characters | Partial or full proprietor name |
+| `page`       | integer | No       | `1`     | min 1            | Page number                     |
+| `pageSize`   | integer | No       | `10`    | min 1, max 100   | Number of results per page      |
 
 **Example:**
 
@@ -28,9 +28,7 @@ GET /api/proprietors?searchTerm=Acme&page=1&pageSize=10
 
 ```json
 {
-  "results": [
-    { "id": "abc123", "proprietorName": "Acme Ltd" }
-  ],
+  "results": [{ "id": "abc123", "proprietorName": "Acme Ltd" }],
   "page": 1,
   "pageSize": 10,
   "totalResults": 42
@@ -49,8 +47,8 @@ GET /api/proprietors?searchTerm=Acme&page=1&pageSize=10
 
 ## Implementation
 
-| File | Role |
-|------|------|
-| [src/routes/proprietors.ts](../src/routes/proprietors.ts) | Route definition, input validation, client-abort handling |
-| [src/queries/proprietors.ts](../src/queries/proprietors.ts) | `searchProprietors()` - axios call to PBS `/proprietors` |
-| [src/routes/proprietors.test.ts](../src/routes/proprietors.test.ts) | Unit tests |
+| File                                                                | Role                                                      |
+| ------------------------------------------------------------------- | --------------------------------------------------------- |
+| [src/routes/proprietors.ts](../src/routes/proprietors.ts)           | Route definition, input validation, client-abort handling |
+| [src/queries/proprietors.ts](../src/queries/proprietors.ts)         | `searchProprietors()` - axios call to PBS `/proprietors`  |
+| [src/routes/proprietors.test.ts](../src/routes/proprietors.test.ts) | Unit tests                                                |
