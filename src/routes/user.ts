@@ -21,6 +21,12 @@ import { User, PasswordResetToken } from "../queries/database";
 import { hashPassword, generateRandomToken } from "../queries/helper";
 import { LoggedInRequest } from "./request_types";
 import { Event } from "../instrument";
+import Joi from "joi";
+import {
+  UpdateAnalyticsConsentRequest,
+  UpdateUserGuidePromptSeenRequest,
+} from "./user.types";
+import { computeAnalyticsConsent } from "../userAnalyticsConsent";
 
 const RESET_PASSWORD_EXPIRY_HOURS = 24;
 
@@ -38,7 +44,7 @@ type RegisterRequest = Request & {
  */
 async function registerUser(
   request: RegisterRequest,
-  h: ResponseToolkit
+  h: ResponseToolkit,
 ): Promise<ResponseObject> {
   const originDomain = `https://${request.info.host}`;
 
@@ -56,14 +62,14 @@ async function registerUser(
   const mapsCount = await migrateGuestUserMap(user);
 
   // send analytic
-  trackUserEvent(user.id, Event.USER.REGISTER, {
+  trackUserEvent(crypto.randomUUID(), user.id, Event.USER.REGISTER, {
     sharedMaps: mapsCount > 0,
   });
 
   mailer.sendSuccessfullyRegisteredEmail(
     request.payload.username,
     request.payload.firstName,
-    originDomain
+    originDomain,
   );
 
   return h.response(user);
@@ -82,7 +88,7 @@ type LoginRequest = Request & {
  */
 async function loginUser(
   request: LoginRequest,
-  h: ResponseToolkit
+  h: ResponseToolkit,
 ): Promise<ResponseObject> {
   console.log("login user");
 
@@ -90,7 +96,7 @@ async function loginUser(
   const { success, user, errorMessage } = await checkAndReturnUser(
     username,
     password,
-    reset_token
+    reset_token,
   );
 
   if (success) {
@@ -112,7 +118,7 @@ async function loginUser(
       secretKey,
       {
         expiresIn: expiry_day + "d",
-      }
+      },
     );
 
     return h.response({
@@ -131,7 +137,7 @@ async function loginUser(
 async function getAuthUserDetails(
   request: LoggedInRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let user: typeof User;
 
@@ -163,6 +169,8 @@ async function getAuthUserDetails(
     phone: user.phone ?? "",
     council_id: user.council_id ?? 0,
     is_super_user: user.is_super_user ?? 0,
+    analyticsConsent: computeAnalyticsConsent(user),
+    userGuidePromptSeen: user.user_guide_prompt_seen ?? false,
   });
 }
 
@@ -172,7 +180,7 @@ async function getAuthUserDetails(
 async function changeEmail(
   request: LoggedInRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let validation = new Validation();
   await validation.validateChangeEmail(request.payload);
@@ -189,7 +197,7 @@ async function changeEmail(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -201,7 +209,7 @@ async function changeEmail(
 async function changeUserDetail(
   request: LoggedInRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let validation = new Validation();
   await validation.validateUserDetailUpdate(request.payload);
@@ -229,7 +237,7 @@ async function changeUserDetail(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -247,7 +255,7 @@ type ChangePasswordRequest = LoggedInRequest & {
 async function changePassword(
   request: ChangePasswordRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const { password } = request.payload;
 
@@ -264,7 +272,7 @@ async function changePassword(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -282,7 +290,7 @@ type ResetPasswordRequest = Request & {
 async function resetPassword(
   request: ResetPasswordRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const { username } = request.payload;
 
@@ -308,17 +316,18 @@ async function resetPassword(
   });
 
   // Use the token to build the reset link
-  const passwordResetLink = `https://${request.info.host
-    }/auth?email=${encodeURIComponent(
-      username
-    )}&reset_token=${passwordResetToken}`;
+  const passwordResetLink = `https://${
+    request.info.host
+  }/auth?email=${encodeURIComponent(
+    username,
+  )}&reset_token=${passwordResetToken}`;
 
   // Send email
   mailer.sendResetPasswordEmail(
     username,
     user.first_name,
     passwordResetLink,
-    RESET_PASSWORD_EXPIRY_HOURS
+    RESET_PASSWORD_EXPIRY_HOURS,
   );
 
   return h.response().code(200);
@@ -336,7 +345,7 @@ type UserFeedbackRequest = LoggedInRequest & {
 async function userFeedback(
   request: UserFeedbackRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const {
     question_use_case,
@@ -350,19 +359,15 @@ async function userFeedback(
     question_impact,
     question_who_benefits,
     question_improvements,
-    request.auth.credentials.user_id
+    request.auth.credentials.user_id,
   );
 
-  await User.update(
-    { ask_for_feedback: false },
-    {
-      where: {
-        id: request.auth.credentials.user_id,
-      },
-    }
-  );
+  const userId = request.auth.credentials.user_id;
 
-  trackUserEvent(request.auth.credentials.user_id, Event.USER.FEEDBACK, {
+  await User.update({ ask_for_feedback: false }, { where: { id: userId } });
+
+  // we intentionally don't pass the sessionId for this event so that the user feedback can't be used to determine the user that links to a sessionId
+  trackUserEvent("0", userId, Event.USER.FEEDBACK, {
     question_use_case,
     question_impact,
     question_who_benefits,
@@ -391,7 +396,7 @@ type AskForFeedbackRequest = Request & {
 async function updateAskForFeedback(
   request: AskForFeedbackRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   let payload: any = request.payload;
 
@@ -405,7 +410,7 @@ async function updateAskForFeedback(
       where: {
         id: request.auth.credentials.user_id,
       },
-    }
+    },
   );
 
   return h.response().code(200);
@@ -427,12 +432,52 @@ type GetAskForFeedbackRequest = Request & {
 async function getUserAskForFeedback(
   request: GetAskForFeedbackRequest,
   h: ResponseToolkit,
-  d: any
+  d: any,
 ): Promise<ResponseObject> {
   const userId = request.auth.credentials.user_id;
   const askForFeedback = await getAskForFeedback(userId);
 
   return h.response({ askForFeedback }).code(200);
+}
+
+async function updateAnalyticsConsent(
+  request: UpdateAnalyticsConsentRequest,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  await User.update(
+    request.payload.analyticsConsent
+      ? { analytics_consent_granted_at: new Date() }
+      : { analytics_consent_revoked_at: new Date() },
+    { where: { id: request.auth.credentials.user_id } },
+  );
+
+  return h.response().code(200);
+}
+
+async function updateUserGuidePromptSeen(
+  request: UpdateUserGuidePromptSeenRequest,
+  h: ResponseToolkit,
+): Promise<ResponseObject> {
+  const userId = request.auth.credentials.user_id;
+  const { "x-session-id": sessionId } = request.headers;
+
+  //send analytics if user viewed the user guide, so we can understand how many users are viewing the guide when prompted, and from which source they are coming to the guide
+  if (request.payload.viewedUserGuide) {
+    trackUserEvent(sessionId, userId, Event.USER.USER_GUIDE_VIEWED, {
+      source: request.payload.viewedSource ?? "",
+    });
+  }
+
+  await User.update(
+    { user_guide_prompt_seen: request.payload.userGuidePromptSeen },
+    {
+      where: {
+        id: userId,
+      },
+    },
+  );
+
+  return h.response().code(200);
 }
 
 export const userRoutes: ServerRoute[] = [
@@ -482,4 +527,42 @@ export const userRoutes: ServerRoute[] = [
   { method: "POST", path: "/api/user/password", handler: changePassword },
   // Allow logged in user to submit feedback
   { method: "POST", path: "/api/user/feedback", handler: userFeedback },
+  // Update analytics consent
+  {
+    method: "POST",
+    path: "/api/user/analytics-consent",
+    handler: updateAnalyticsConsent,
+    options: {
+      validate: {
+        payload: Joi.object({
+          analyticsConsent: Joi.boolean().required(),
+        }),
+        failAction: (request, h, err) =>
+          h
+            .response({ message: (err as Error).message })
+            .code(400)
+            .takeover(),
+      },
+    },
+  },
+  // update user_guide_prompt_seen flag
+  {
+    method: "POST",
+    path: "/api/user/user-guide-prompt-seen",
+    handler: updateUserGuidePromptSeen,
+    options: {
+      validate: {
+        payload: Joi.object({
+          userGuidePromptSeen: Joi.boolean().required(),
+          viewedUserGuide: Joi.boolean().required(),
+          viewedSource: Joi.string().allow("").optional(),
+        }),
+        failAction: (request, h, err) =>
+          h
+            .response({ message: (err as Error).message })
+            .code(400)
+            .takeover(),
+      },
+    },
+  },
 ];

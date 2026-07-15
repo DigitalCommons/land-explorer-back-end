@@ -11,6 +11,7 @@ import { mapRoutes } from "./routes/map";
 import { dataGroupRoutes } from "./routes/datagroup";
 import { proprietorRoutes } from "./routes/proprietors";
 import { setupWebsockets } from "./websockets/server";
+import { getCorsOrigins } from "./cors";
 
 const AuthBearer = require("hapi-auth-bearer-token");
 const Inert = require("@hapi/inert");
@@ -24,16 +25,24 @@ function index(request: Request): string {
 }
 
 export const init = async function (): Promise<Server> {
+  const corsOrigins = getCorsOrigins();
+
   server = Hapi.server({
     port: process.env.PORT || 4000,
     host: "0.0.0.0",
     debug: { log: ["error"], request: ["error"] },
-    // if we are running in development, allow requests from the expected localhost:8080 origin
+    // Allow cross-origin requests from the front-end origin(s). In local dev the
+    // front-end is at localhost:8080; in deployed environments (e.g. Coolify) the
+    // front-end is served from its own domain, so set CORS_ORIGINS to a
+    // comma-separated list of allowed origins, e.g.
+    //   CORS_ORIGINS=https://dev.cool.landexplorer.coop
     routes: {
-      cors: process.env.NODE_ENV === "development" && {
-        origin: ["http://localhost:8080"],
-        // Allow WebSocket connections
-        additionalHeaders: ["authorization", "content-type"],
+      cors: corsOrigins.length > 0 && {
+        origin: corsOrigins,
+        // Allow the headers the front-end actually sends
+        // x-session-id is added to every request as otherwise CORS preflight
+        // fails for authenticated calls
+        additionalHeaders: ["authorization", "content-type", "x-session-id"],
       },
     },
   });
@@ -75,9 +84,7 @@ export const init = async function (): Promise<Server> {
   server.route(userRoutes);
   server.route(mapRoutes);
   server.route(dataGroupRoutes);
-  if (process.env.MEILISEARCH_ENABLED === "true") {
-    server.route(proprietorRoutes);
-  }
+  server.route(proprietorRoutes);
 
   // Log requests and response codes
   server.events.on("response", (request: any) => {
@@ -88,7 +95,7 @@ export const init = async function (): Promise<Server> {
         " " +
         request.path +
         " --> " +
-        request.response.statusCode
+        request.response.statusCode,
     );
   });
 

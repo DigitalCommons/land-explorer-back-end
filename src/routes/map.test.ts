@@ -36,6 +36,7 @@ describe("GET /api/user/maps & GET/api/user/map/:eid", () => {
   beforeEach(async () => {
     server = await init();
     sandbox.replace(query, "trackUserEvent", fake.resolves(null));
+    sandbox.replace(query, "getUserById", fake.resolves(null));
   });
 
   afterEach(async () => {
