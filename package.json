@@ -31,7 +31,7 @@
     "json-diff-ts": "^4.8.2",
     "jsonwebtoken": "^9.0.0",
     "mixpanel": "^0.18.1",
-    "mysql2": "^3.14.0",
+    "mysql2": "^3.23.1",
     "sequelize": "^6.17.0",
     "socket.io": "^4.7.4",
     "socketio-jwt": "^4.6.2",
