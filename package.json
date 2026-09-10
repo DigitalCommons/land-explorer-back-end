@@ -27,7 +27,7 @@
     "geojson2shp": "^0.5.0",
     "hapi-auth-bearer-token": "^8.0.0",
     "hapi-sequelizejs": "^4.5.0",
-    "joi": "^17.6.0",
+    "joi": "^17.13.7",
     "json-diff-ts": "^4.8.2",
     "jsonwebtoken": "^9.0.0",
     "mixpanel": "^0.18.1",
